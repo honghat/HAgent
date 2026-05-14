@@ -1,3 +1,6 @@
+const path = require('path');
+const LOG_DIR = '/Users/nguyenhat/HAgent/logs';
+
 module.exports = {
   apps: [
     {
@@ -5,6 +8,10 @@ module.exports = {
       cwd: './backend',
       script: 'npm',
       args: 'run start',
+      error_file: `${LOG_DIR}/backend-error.log`,
+      out_file: `${LOG_DIR}/backend-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         PORT: 8004,
         NODE_ENV: 'production',
@@ -13,10 +20,28 @@ module.exports = {
       }
     },
     {
+      name: 'hagent-fastapi',
+      cwd: './backend/agent/app',
+      script: '../.venv/bin/python',
+      args: '-m uvicorn api.main:app --host 127.0.0.1 --port 8010',
+      error_file: `${LOG_DIR}/fastapi-error.log`,
+      out_file: `${LOG_DIR}/fastapi-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      env: {
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
+        PYTHONPATH: '.'
+      }
+    },
+    {
       name: 'hagent-learn',
       cwd: './learn',
       script: 'npm',
       args: 'run dev',
+      error_file: `${LOG_DIR}/learn-error.log`,
+      out_file: `${LOG_DIR}/learn-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         NODE_ENV: 'development'
       }
@@ -26,6 +51,10 @@ module.exports = {
       cwd: './frontend',
       script: 'npm',
       args: 'run dev',
+      error_file: `${LOG_DIR}/frontend-error.log`,
+      out_file: `${LOG_DIR}/frontend-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         NODE_ENV: 'development'
       }
@@ -35,6 +64,10 @@ module.exports = {
       cwd: './9router',
       script: './cli.js',
       args: '-p 20128 -n --skip-update',
+      error_file: `${LOG_DIR}/9router-error.log`,
+      out_file: `${LOG_DIR}/9router-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         HOME: '/Users/nguyenhat/HAgent/.hagent'
       }
@@ -44,6 +77,10 @@ module.exports = {
       cwd: './tts',
       script: './.venv/bin/python',
       args: 'edge_tts_server.py',
+      error_file: `${LOG_DIR}/tts-edge-error.log`,
+      out_file: `${LOG_DIR}/tts-edge-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         PYTHONPATH: '.'
       }
@@ -53,6 +90,10 @@ module.exports = {
       cwd: './tts',
       script: './.venv/bin/python',
       args: 'piper_server.py',
+      error_file: `${LOG_DIR}/tts-piper-error.log`,
+      out_file: `${LOG_DIR}/tts-piper-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         PYTHONPATH: '.'
       }
@@ -62,6 +103,10 @@ module.exports = {
       cwd: './tts/LuxTTS',
       script: '../.venv/bin/python',
       args: 'server.py',
+      error_file: `${LOG_DIR}/tts-lux-error.log`,
+      out_file: `${LOG_DIR}/tts-lux-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         PYTHONPATH: '..'
       }
@@ -71,9 +116,14 @@ module.exports = {
       cwd: './stt',
       script: './.venv/bin/python',
       args: 'whisper_server.py',
+      error_file: `${LOG_DIR}/stt-error.log`,
+      out_file: `${LOG_DIR}/stt-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         PYTHONPATH: '.'
       }
     }
   ]
 };
+

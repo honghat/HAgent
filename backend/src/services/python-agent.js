@@ -58,7 +58,7 @@ export function startPythonAgent() {
       cwd: PYTHON_AGENT_ROOT,
       env: {
         ...process.env,
-        HERMES_HOME: PYTHON_AGENT_RUNTIME,
+        HAGENT_HOME: PYTHON_AGENT_RUNTIME,
         PYTHONPATH: [PYTHON_AGENT_ROOT, process.env.PYTHONPATH].filter(Boolean).join(':'),
       },
       stdio: ['ignore', 'pipe', 'pipe'],

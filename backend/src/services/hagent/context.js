@@ -8,7 +8,7 @@ export function findLastAssistantMessage(history = []) {
   return [...history].reverse().find(m => m.role === 'assistant' && String(m.content || '').trim()) || null;
 }
 
-export function buildHermesContinuationTurn({ text = '', history = [], replyText = '', platform = 'chat' } = {}) {
+export function buildHagentContinuationTurn({ text = '', history = [], replyText = '', platform = 'chat' } = {}) {
   const cleanText = String(text || '').trim();
   const replyBlock = replyText
     ? `[${platform.toUpperCase()}_REPLY_TO]\n${replyText}\n[/${platform.toUpperCase()}_REPLY_TO]\n\n`

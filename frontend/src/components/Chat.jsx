@@ -30,6 +30,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   const [showWorkspace, setShowWorkspace] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [copiedId, setCopiedId] = useState(null)
+  const [pastedImages, setPastedImages] = useState([])
   const [workspace, setWorkspace] = useState({ tools: [], todos: [], summary: null })
   const [selectedAgentId, setSelectedAgentId] = useState(null)
   const [providerActive, setProviderActive] = useState(true)
@@ -282,6 +283,59 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  function handlePaste(e) {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const imageFiles = []
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) imageFiles.push(file)
+      }
+    }
+    if (imageFiles.length === 0) return
+    e.preventDefault()
+    for (const file of imageFiles) {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        setPastedImages((prev) => [...prev, {
+          id: Date.now() + '-' + Math.random().toString(36).slice(2),
+          dataUrl: ev.target.result,
+          file
+        }])
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  function handleDrop(e) {
+    e.preventDefault()
+    const files = e.dataTransfer?.files
+    if (!files || files.length === 0) return
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          setPastedImages((prev) => [...prev, {
+            id: Date.now() + '-' + Math.random().toString(36).slice(2),
+            dataUrl: ev.target.result,
+            file
+          }])
+        }
+        reader.readAsDataURL(file)
+      }
+    }
+  }
+
+  function removeImage(id) {
+    setPastedImages((prev) => prev.filter((img) => img.id !== id))
+  }
+
   async function stopChat() {
     if (activeId && useNewBackend) {
       try {
@@ -475,7 +529,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
           <div className="px-2 py-1.5 text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Lịch sử</div>
           {Array.isArray(sessions) && sessions.map((s) => (
             <div key={s.id} className={`group mx-1.5 mb-0.5 flex items-center rounded-xl transition-all ${s.id === activeId ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/[0.04]' : 'text-gray-500 hover:bg-white/70 hover:text-gray-900'}`}>
-              <button onClick={() => { setActiveId(s.id); setShowSidebar(false) }} className="flex-1 text-left px-2.5 py-1.5 text-[11px] truncate">{s.title}</button>
+              <button onClick={() => { setActiveId(s.id); setShowSidebar(false) }} className="flex-1 text-left px-2.5 py-1.5 text-[10px] truncate">{s.title}</button>
               <button onClick={() => deleteSession(s.id)} className="px-2 text-gray-300 hover:text-red-500 transition-all opacity-60 group-hover:opacity-100">×</button>
             </div>
           ))}

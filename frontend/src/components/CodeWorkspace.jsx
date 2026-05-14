@@ -59,6 +59,7 @@ export default function CodeWorkspace({ token, provider }) {
   const [loadingFile, setLoadingFile] = useState(false)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showFiles, setShowFiles] = useState(false)
   const [activePanel, setActivePanel] = useState('terminal')
   const [terminalLines, setTerminalLines] = useState([
     { type: 'info', text: 'Choose a workspace root from this Mac mini.' },
@@ -221,8 +222,8 @@ export default function CodeWorkspace({ token, provider }) {
               setContent('')
               setSavedContent('')
             }}
-            className="h-7 w-full rounded-lg border border-slate-700 bg-[#0b1020] px-2 text-[11px] text-slate-200 outline-none"
-            style={{ fontSize: 11, lineHeight: '14px' }}
+            className="h-7 w-full rounded-lg border border-slate-700 bg-[#0b1020] px-2 text-[10px] text-slate-200 outline-none"
+            style={{ fontSize: 10, lineHeight: '14px' }}
           >
             {roots.map(item => (
               <option key={item.path} value={item.path}>{item.name}</option>
@@ -267,9 +268,90 @@ export default function CodeWorkspace({ token, provider }) {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile workspace selector */}
+        <div className="flex h-9 items-center gap-2 border-b border-slate-800 bg-[#0f172a] px-3 md:hidden">
+          <Code2 className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+          <select
+            value={root}
+            onChange={event => {
+              setRoot(event.target.value)
+              setCurrentDir(event.target.value)
+              setActiveFile(null)
+              setContent('')
+              setSavedContent('')
+            }}
+            className="h-7 flex-1 rounded-lg border border-slate-700 bg-[#0b1020] px-2 text-[10px] text-slate-200 outline-none"
+          >
+            {roots.map(item => (
+              <option key={item.path} value={item.path}>{item.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Mobile file browser toggle & tree */}
+        <div className="md:hidden">
+          <button
+            onClick={() => setShowFiles(!showFiles)}
+            className="flex h-8 w-full items-center gap-2 border-b border-slate-800 bg-[#0f172a] px-3 text-left text-[10px] text-slate-400 hover:text-slate-200"
+          >
+            <Folder className="h-3 w-3 text-amber-400" />
+            {showFiles ? 'Ẩn file browser' : 'Hiện file browser'}
+            <span className="ml-auto text-[9px] text-slate-600">{entries.length} items</span>
+          </button>
+
+          {showFiles && (
+            <div className="border-b border-slate-800 bg-[#0b1020]">
+              <div className="flex h-7 items-center gap-2 border-b border-slate-800 px-2">
+                <button
+                  onClick={() => parentDir && setCurrentDir(parentDir)}
+                  disabled={!parentDir}
+                  className="flex h-6 w-6 items-center justify-center rounded-md hover:bg-slate-800 disabled:opacity-30"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <span className="truncate text-[10px] text-slate-400">{compactPath(currentDir)}</span>
+              </div>
+              <div className="max-h-48 overflow-y-auto p-1.5 custom-scrollbar">
+                {loadingTree ? (
+                  <div className="flex items-center gap-2 px-2 py-3 text-[10px] text-slate-500">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading...
+                  </div>
+                ) : entries.length === 0 ? (
+                  <div className="px-2 py-3 text-[10px] text-slate-500">Thư mục rỗng</div>
+                ) : (
+                  entries.map(entry => (
+                    <button
+                      key={entry.path}
+                      onClick={() => openFile(entry)}
+                      className={`flex h-6 w-full items-center gap-1.5 rounded-md px-2 text-left text-[10px] leading-4 transition-all ${
+                        activeFile?.path === entry.path
+                          ? 'bg-amber-500/15 text-amber-200'
+                          : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
+                      }`}
+                      title={entry.path}
+                    >
+                      {entry.type === 'directory' ? (
+                        <Folder className="h-3 w-3 shrink-0 text-amber-400" />
+                      ) : (
+                        <FileCode2 className="h-3 w-3 shrink-0 text-sky-300" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                      {entry.type === 'directory' && <ChevronRight className="h-2.5 w-2.5 shrink-0 text-slate-600" />}
+                      {entry.type === 'file' && (
+                        <span className="shrink-0 text-[8px] text-slate-600">{formatSize(entry.size)}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         <header className="flex h-10 shrink-0 items-center justify-between border-b border-slate-800 bg-[#101827] px-3">
           <div className="min-w-0">
-            <div className="truncate text-[12px] font-semibold text-slate-100">
+            <div className="truncate text-[11px] font-semibold text-slate-100">
               {activeFile ? compactPath(activeFile.path) : 'Chọn file trong workspace'}
             </div>
             <div className="text-[10px] text-slate-500">
@@ -316,7 +398,7 @@ export default function CodeWorkspace({ token, provider }) {
           </section>
 
           <aside className="flex min-h-0 flex-col bg-[#101827]">
-            <div className="flex h-8 shrink-0 items-center border-b border-slate-800 text-[11px] font-medium">
+            <div className="flex h-8 shrink-0 items-center border-b border-slate-800 text-[10px] font-medium">
               {[
                 ['terminal', Terminal, 'Terminal'],
                 ['problems', AlertCircle, 'Problems'],
@@ -337,7 +419,7 @@ export default function CodeWorkspace({ token, provider }) {
 
             <div className="min-h-0 flex-1 overflow-y-auto p-2.5 custom-scrollbar">
               {activePanel === 'terminal' && (
-                <div className="space-y-1.5 font-mono text-[11px] leading-5">
+                <div className="space-y-1.5 font-mono text-[10px] leading-5">
                   {terminalLines.map((line, index) => (
                     <div key={`${line.text}-${index}`} className={line.type === 'error' ? 'text-red-300' : line.type === 'ok' ? 'text-emerald-300' : 'text-slate-400'}>
                       <span className="mr-2 text-slate-600">$</span>{line.text}
@@ -370,14 +452,14 @@ export default function CodeWorkspace({ token, provider }) {
                     <textarea
                       value={aiPrompt}
                       onChange={event => setAiPrompt(event.target.value)}
-                      className="h-16 w-full resize-none rounded-lg border border-slate-700 bg-[#0b1020] p-2 text-[11px] leading-4 text-slate-200 outline-none focus:border-amber-500/60"
+                      className="h-16 w-full resize-none rounded-lg border border-slate-700 bg-[#0b1020] p-2 text-[10px] leading-4 text-slate-200 outline-none focus:border-amber-500/60"
                     />
-                    <button onClick={runAiReview} disabled={!activeFile || aiLoading} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md bg-amber-500 text-[11px] font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50">
+                    <button onClick={runAiReview} disabled={!activeFile || aiLoading} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md bg-amber-500 text-[10px] font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50">
                       {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                       Review current file
                     </button>
                   </div>
-                  <div className="min-h-0 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950/50 p-2 text-[11px] leading-5 text-slate-300 custom-scrollbar">
+                  <div className="min-h-0 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950/50 p-2 text-[10px] leading-5 text-slate-300 custom-scrollbar">
                     {aiResult || 'AI review output will appear here.'}
                   </div>
                 </div>

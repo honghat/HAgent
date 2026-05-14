@@ -100,13 +100,34 @@ authRouter.get('/provider', requireAuth, (req, res) => {
   res.json({ provider: user?.default_provider || 'deepseek' });
 });
 
-// Get available providers (built-in + user custom)
+// Get available providers (built-in with label overrides + custom)
 authRouter.get('/providers', requireAuth, (req, res) => {
-  const builtins = getProviderOptions().map(p => ({ ...p, custom: false }))
-  const customs = db.prepare(
+  const builtins = getProviderOptions();
+  const stored = db.prepare(
     'SELECT name, label, type, base_url, api_key, model FROM custom_providers WHERE user_id = ? ORDER BY created_at ASC'
-  ).all(req.userId).map(c => ({ name: c.name, label: c.label, type: c.type, baseURL: c.base_url, apiKey: c.api_key, model: c.model, custom: true }))
-  res.json([...builtins, ...customs])
+  ).all(req.userId);
+
+  // Build override map from stored entries
+  const overrideMap = {};
+  stored.forEach(c => { overrideMap[c.name] = c; });
+
+  // Merge built-ins with any label overrides
+  const mergedBuiltins = builtins.map(p => ({
+    name: p.name,
+    label: overrideMap[p.name]?.label || p.label,
+    type: p.type,
+    baseURL: p.baseURL || '',
+    model: p.model || '',
+    custom: false
+  }));
+
+  // Custom-only providers (not matching any built-in)
+  const builtinNames = new Set(builtins.map(b => b.name));
+  const customOnly = stored
+    .filter(c => !builtinNames.has(c.name))
+    .map(c => ({ name: c.name, label: c.label, type: c.type, baseURL: c.base_url, model: c.model, custom: true }));
+
+  res.json([...mergedBuiltins, ...customOnly]);
 });
 
 // Set provider preference
@@ -153,16 +174,24 @@ authRouter.post('/providers', requireAuth, (req, res) => {
   }
 });
 
-// Update custom provider
+// Update provider label (works for both built-in overrides and custom)
 authRouter.put('/providers/:name', requireAuth, (req, res) => {
   const { name } = req.params;
   const { label, type, base_url, api_key, model } = req.body;
   if (!label) return res.status(400).json({ error: 'label là bắt buộc' });
+
   const existing = db.prepare('SELECT id FROM custom_providers WHERE user_id = ? AND name = ?').get(req.userId, name);
-  if (!existing) return res.status(404).json({ error: 'Không tìm thấy custom provider' });
-  db.prepare(
-    'UPDATE custom_providers SET label=?, type=?, base_url=?, api_key=?, model=?, updated_at=datetime(\'now\') WHERE user_id=? AND name=?'
-  ).run(label, type || 'openai', base_url || '', api_key || '', model || '', req.userId, name);
+  if (existing) {
+    // Update existing (custom or built-in override)
+    db.prepare(
+      "UPDATE custom_providers SET label=?, type=?, base_url=?, api_key=?, model=?, updated_at=datetime('now') WHERE user_id=? AND name=?"
+    ).run(label, type || 'openai', base_url || '', api_key || '', model || '', req.userId, name);
+  } else {
+    // Insert new override (including for built-in providers)
+    db.prepare(
+      'INSERT INTO custom_providers (id, user_id, name, label, type, base_url, api_key, model) VALUES (?,?,?,?,?,?,?,?)'
+    ).run(uuidv4(), req.userId, name, label, type || 'openai', base_url || '', api_key || '', model || '');
+  }
   res.json({ ok: true });
 });
 

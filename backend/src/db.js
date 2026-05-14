@@ -450,4 +450,22 @@ try {
   db.exec("CREATE INDEX IF NOT EXISTS idx_omni_messages_pinned ON omni_messages(user_id, is_pinned, pinned_at DESC)");
 } catch (e) {}
 
+// Custom providers table (user-defined LLM providers)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS custom_providers (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    label TEXT NOT NULL,
+    type TEXT DEFAULT 'openai',
+    base_url TEXT DEFAULT '',
+    api_key TEXT DEFAULT '',
+    model TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_providers_user_name ON custom_providers(user_id, name);
+`);
+
 export default db;

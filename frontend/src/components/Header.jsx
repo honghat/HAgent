@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import logo from '../assets/logo.png'
 
 export default function Header({ user, view, onViewChange, onLogout }) {
   const tabs = [
@@ -18,7 +18,8 @@ export default function Header({ user, view, onViewChange, onLogout }) {
 
   return (
     <aside className="h-14 w-full sm:h-screen sm:w-44 shrink-0 border-t sm:border-t-0 sm:border-r border-black/[0.06] bg-[#fbfbf9]/95 backdrop-blur-xl flex flex-row sm:flex-col z-[100] pb-safe sm:pb-0">
-      <button onClick={() => onViewChange('chat')} className="hidden h-16 items-center justify-center border-b border-black/[0.04] active:scale-[0.99] transition-transform sm:flex sm:justify-start sm:px-4">
+      <button onClick={() => onViewChange('chat')} className="hidden h-16 items-center justify-center border-b border-black/[0.04] active:scale-[0.99] transition-transform sm:flex sm:justify-start sm:px-4 gap-2">
+        <img src={logo} alt="Logo" className="w-10 h-10 rounded-full shadow-sm" />
         <span className="hidden sm:block text-xl leading-6 font-semibold text-gray-950 tracking-tight">H-Agent</span>
       </button>
 

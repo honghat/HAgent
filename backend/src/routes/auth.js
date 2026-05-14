@@ -100,27 +100,78 @@ authRouter.get('/provider', requireAuth, (req, res) => {
   res.json({ provider: user?.default_provider || 'deepseek' });
 });
 
-// Get available providers from the central LLM configuration
-authRouter.get('/providers', requireAuth, (_req, res) => {
-  res.json(getProviderOptions());
+// Get available providers (built-in + user custom)
+authRouter.get('/providers', requireAuth, (req, res) => {
+  const builtins = getProviderOptions().map(p => ({ ...p, custom: false }))
+  const customs = db.prepare(
+    'SELECT name, label, type, base_url, api_key, model FROM custom_providers WHERE user_id = ? ORDER BY created_at ASC'
+  ).all(req.userId).map(c => ({ name: c.name, label: c.label, type: c.type, baseURL: c.base_url, apiKey: c.api_key, model: c.model, custom: true }))
+  res.json([...builtins, ...customs])
 });
 
 // Set provider preference
 authRouter.put('/provider', requireAuth, async (req, res) => {
   const { provider } = req.body;
-  if (!provider || !isValidProvider(provider)) {
+  if (!provider) return res.status(400).json({ error: 'Provider required' });
+
+  const isBuiltin = isValidProvider(provider);
+  const isCustom = !isBuiltin && db.prepare(
+    'SELECT id FROM custom_providers WHERE user_id = ? AND name = ?'
+  ).get(req.userId, provider);
+
+  if (!isBuiltin && !isCustom) {
     return res.status(400).json({ error: 'Invalid provider' });
   }
-  
+
   // Update web interface default provider
   db.prepare('UPDATE users SET default_provider = ? WHERE id = ?').run(provider, req.userId);
-  
-  // Synchronize with Claude Terminal
-  db.prepare('UPDATE users SET claude_mode = ? WHERE id = ?').run(provider, req.userId);
-  const { applyClaudeMode } = await import('../services/claude-settings.js');
-  applyClaudeMode(provider);
-  
+
+  // Sync claude mode only for built-in providers
+  if (isBuiltin) {
+    db.prepare('UPDATE users SET claude_mode = ? WHERE id = ?').run(provider, req.userId);
+    const { applyClaudeMode } = await import('../services/claude-settings.js');
+    applyClaudeMode(provider);
+  }
+
   res.json({ provider });
+});
+
+// Create custom provider
+authRouter.post('/providers', requireAuth, (req, res) => {
+  const { name, label, type, base_url, api_key, model } = req.body;
+  if (!name || !label) return res.status(400).json({ error: 'name và label là bắt buộc' });
+  if (isValidProvider(name)) return res.status(409).json({ error: 'Tên trùng với provider có sẵn' });
+  try {
+    const id = uuidv4();
+    db.prepare(
+      'INSERT INTO custom_providers (id, user_id, name, label, type, base_url, api_key, model) VALUES (?,?,?,?,?,?,?,?)'
+    ).run(id, req.userId, name.trim(), label.trim(), type || 'openai', base_url || '', api_key || '', model || '');
+    res.json({ ok: true, name: name.trim(), label: label.trim(), custom: true });
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Provider đã tồn tại' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update custom provider
+authRouter.put('/providers/:name', requireAuth, (req, res) => {
+  const { name } = req.params;
+  const { label, type, base_url, api_key, model } = req.body;
+  if (!label) return res.status(400).json({ error: 'label là bắt buộc' });
+  const existing = db.prepare('SELECT id FROM custom_providers WHERE user_id = ? AND name = ?').get(req.userId, name);
+  if (!existing) return res.status(404).json({ error: 'Không tìm thấy custom provider' });
+  db.prepare(
+    'UPDATE custom_providers SET label=?, type=?, base_url=?, api_key=?, model=?, updated_at=datetime(\'now\') WHERE user_id=? AND name=?'
+  ).run(label, type || 'openai', base_url || '', api_key || '', model || '', req.userId, name);
+  res.json({ ok: true });
+});
+
+// Delete custom provider
+authRouter.delete('/providers/:name', requireAuth, (req, res) => {
+  const { name } = req.params;
+  if (isValidProvider(name)) return res.status(400).json({ error: 'Không thể xóa provider mặc định' });
+  db.prepare('DELETE FROM custom_providers WHERE user_id = ? AND name = ?').run(req.userId, name);
+  res.json({ ok: true });
 });
 
 // Get claude proxy mode

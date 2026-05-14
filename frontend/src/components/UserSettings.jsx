@@ -18,6 +18,13 @@ const configFields = [
   { path: 'tool_output.max_bytes', label: 'Tool output bytes', type: 'number', placeholder: '50000' },
 ]
 
+const PROVIDERS = ['gemini', 'deepseek', 'cx', 'openai', 'anthropic', 'ollama', 'lmstudio', 'llamacpp', 'lmstudio_local']
+const PROVIDER_LABELS = {
+  gemini: 'Gemini', deepseek: 'DeepSeek', cx: 'CX GPT-5.5',
+  openai: 'OpenAI', anthropic: 'Anthropic', ollama: 'Ollama',
+  lmstudio: 'LM Studio', llamacpp: 'Llama.cpp', lmstudio_local: 'LM Studio Local'
+}
+
 function getPath(source, dotted) {
   return dotted.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : ''), source)
 }
@@ -35,36 +42,21 @@ function setPath(source, dotted, value) {
 }
 
 export default function UserSettings({ token, user, provider, cxModel, onCxModelChange, onProviderChange, onUpdate, onLogout }) {
-  const providers = ['gemini', 'deepseek', 'cx', 'openai', 'anthropic', 'ollama', 'lmstudio', 'llamacpp', 'lmstudio_local']
-  const providerLabels = {
-    gemini: 'Gemini',
-    deepseek: 'DeepSeek',
-    cx: 'CX GPT-5.5',
-    openai: 'OpenAI',
-    anthropic: 'Anthropic',
-    ollama: 'Ollama',
-    lmstudio: 'LM Studio',
-    llamacpp: 'Llama.cpp',
-    lmstudio_local: 'LM Studio Local'
-  }
   const [displayName, setDisplayName] = useState(user?.display_name || '')
   const [username, setUsername] = useState(user?.username || '')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [configLoading, setConfigLoading] = useState(false)
-  const [configSaving, setConfigSaving] = useState(false)
   const [agentConfig, setAgentConfig] = useState({})
   const [configYaml, setConfigYaml] = useState('')
   const [configPath, setConfigPath] = useState('')
   const [configMode, setConfigMode] = useState('form')
   const [message, setMessage] = useState({ text: '', type: '' })
-  const [configMessage, setConfigMessage] = useState({ text: '', type: '' })
 
   const booleanFields = useMemo(() => new Set(configFields.filter(f => f.type === 'boolean').map(f => f.path)), [])
 
   const loadConfig = async () => {
     setConfigLoading(true)
-    setConfigMessage({ text: '', type: '' })
     try {
       const res = await fetch('/api/config', { headers: { Authorization: `Bearer ${token}` } })
       const data = await res.json()
@@ -73,7 +65,7 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
       setConfigYaml(data.yaml || '')
       setConfigPath(data.path || '')
     } catch (err) {
-      setConfigMessage({ text: err.message, type: 'error' })
+      setMessage({ text: err.message, type: 'error' })
     } finally {
       setConfigLoading(false)
     }
@@ -93,27 +85,30 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
 
   const handleSaveAll = async () => {
     setLoading(true)
-    setConfigSaving(true)
     setMessage({ text: '', type: '' })
-
     try {
+      // 1. Lưu thông tin tài khoản
       const userRes = await fetch('/api/auth/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          displayName,
-          username,
-          password: password || undefined
-        })
+        body: JSON.stringify({ displayName, username, password: password || undefined })
       })
       const userData = await userRes.json()
       if (!userRes.ok) throw new Error(userData.error || 'Lỗi lưu tài khoản')
 
+      // 2. Đồng bộ provider lên backend
+      await fetch('/api/auth/provider', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ provider })
+      })
+
+      // 3. Lưu cấu hình agent (ghép provider vào config)
       const updatedAgentConfig = setPath(agentConfig, 'model.provider', provider)
       const body = configMode === 'yaml'
         ? { yaml_text: configYaml }
         : { config: updatedAgentConfig }
-      
+
       const configRes = await fetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -125,7 +120,7 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
       setAgentConfig(configData.config || {})
       setConfigYaml(configData.yaml || '')
       setConfigPath(configData.path || configPath)
-      
+
       setMessage({ text: 'Đã lưu tất cả thay đổi!', type: 'success' })
       setPassword('')
       onUpdate()
@@ -133,7 +128,6 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
       setMessage({ text: err.message, type: 'error' })
     } finally {
       setLoading(false)
-      setConfigSaving(false)
     }
   }
 
@@ -146,7 +140,9 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
         </div>
 
         <div className="bg-white border border-black/[0.04] rounded-[2rem] p-6 sm:p-10 shadow-sm space-y-12 animate-in fade-in zoom-in-95 duration-300">
-          <div className="space-y-8">
+
+          {/* ── Thông tin tài khoản ── */}
+          <section className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gray-950 flex items-center justify-center text-white shadow-lg shadow-black/10">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -156,63 +152,24 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
                 <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Cá nhân & Bảo mật</p>
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tên hiển thị</label>
-                <input 
-                  value={displayName} 
-                  onChange={e => setDisplayName(e.target.value)}
-                  placeholder="Nguyễn Văn A"
-                  className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner" 
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tên đăng nhập</label>
-                <input 
-                  value={username} 
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="admin"
-                  className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner" 
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Provider mặc định</label>
-                <div className="relative">
-                  <select
-                    value={provider}
-                    onChange={e => onProviderChange(e.target.value)}
-                    className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 appearance-none shadow-inner"
-                  >
-                    {providers.map(p => <option key={p} value={p}>{providerLabels[p]}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Mật khẩu mới</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner"
-                />
-              </div>
-              {provider === 'cx' && (
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">CX model</label>
-                  <input
-                    value={cxModel || ''}
-                    onChange={e => onCxModelChange?.(e.target.value)}
-                    placeholder="cx/gpt-5.5"
-                    className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
 
-          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <Field label="Tên hiển thị">
+                <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Nguyễn Văn A" className={inputCls} />
+              </Field>
+              <Field label="Tên đăng nhập">
+                <input value={username} onChange={e => setUsername(e.target.value)} placeholder="admin" className={inputCls} />
+              </Field>
+              <Field label="Mật khẩu mới" className="md:col-span-2">
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Để trống nếu không đổi" className={inputCls} />
+              </Field>
+            </div>
+          </section>
+
+          <Divider />
+
+          {/* ── Cấu hình Agent ── */}
+          <section className="space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
@@ -223,16 +180,32 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
                   <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">{configPath || 'config.yaml'}</p>
                 </div>
               </div>
+              {/* Toggle Form / YAML */}
               <div className="flex rounded-2xl bg-gray-100 p-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
                 <button type="button" onClick={() => setConfigMode('form')} className={`rounded-xl px-5 py-2.5 transition-all ${configMode === 'form' ? 'bg-white text-gray-900 shadow-sm' : 'hover:text-gray-700'}`}>Form</button>
                 <button type="button" onClick={() => setConfigMode('yaml')} className={`rounded-xl px-5 py-2.5 transition-all ${configMode === 'yaml' ? 'bg-white text-gray-900 shadow-sm' : 'hover:text-gray-700'}`}>YAML</button>
               </div>
             </div>
 
+            {/* Provider + CX Model – luôn hiển thị dù form hay yaml */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <Field label="Provider mặc định">
+                <select value={provider} onChange={e => onProviderChange(e.target.value)} className={`${inputCls} appearance-none`}>
+                  {PROVIDERS.map(p => <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>)}
+                </select>
+              </Field>
+              {provider === 'cx' && (
+                <Field label="CX Model">
+                  <input value={cxModel || ''} onChange={e => onCxModelChange?.(e.target.value)} placeholder="cx/gpt-5.5" className={inputCls} />
+                </Field>
+              )}
+            </div>
+
+            {/* Form hoặc YAML editor */}
             {configLoading ? (
               <div className="rounded-[2rem] bg-gray-50 p-12 text-center text-xs font-bold text-gray-400 animate-pulse">Đang tải cấu hình hệ thống...</div>
             ) : configMode === 'form' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {configFields.map(field => {
                   const value = getPath(agentConfig, field.path)
                   if (field.type === 'boolean') {
@@ -242,12 +215,7 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
                           <span className="text-[12.5px] font-bold text-gray-700 group-hover:text-gray-900">{field.label}</span>
                           <span className="text-[9px] text-gray-400 font-mono mt-0.5">{field.path}</span>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(value)}
-                          onChange={e => updateConfigField(field.path, e.target.checked)}
-                          className="h-5 w-5 accent-gray-900 rounded-md"
-                        />
+                        <input type="checkbox" checked={Boolean(value)} onChange={e => updateConfigField(field.path, e.target.checked)} className="h-5 w-5 accent-gray-900 rounded-md" />
                       </label>
                     )
                   }
@@ -262,14 +230,14 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
                         value={value ?? ''}
                         onChange={e => updateConfigField(field.path, e.target.value)}
                         placeholder={field.placeholder}
-                        className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner"
+                        className={inputCls}
                       />
                     </div>
                   )
                 })}
               </div>
             ) : (
-              <div className="relative group">
+              <div className="relative">
                 <textarea
                   value={configYaml}
                   onChange={e => setConfigYaml(e.target.value)}
@@ -279,24 +247,24 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
                 <div className="absolute top-6 right-8 text-[10px] font-bold text-gray-600 opacity-50 uppercase tracking-widest">YAML Editor</div>
               </div>
             )}
-          </div>
+          </section>
 
+          {/* ── Thông báo ── */}
           {message.text && (
-            <div className={`p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest text-center animate-fade-in ${
-              message.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-            }`}>
+            <div className={`p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest text-center animate-fade-in ${message.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
               {message.text}
             </div>
           )}
 
-          <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* ── Actions ── */}
+          <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               type="button"
               onClick={handleSaveAll}
-              disabled={loading || configSaving}
+              disabled={loading}
               className="w-full bg-gray-950 text-white py-4 rounded-[1.25rem] text-[11px] font-bold uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-black/10 active:scale-[0.98] disabled:opacity-50"
             >
-              {loading || configSaving ? 'Đang xử lý...' : 'Lưu tất cả thay đổi'}
+              {loading ? 'Đang xử lý...' : 'Lưu tất cả thay đổi'}
             </button>
             <button
               type="button"
@@ -310,4 +278,20 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
       </div>
     </div>
   )
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+const inputCls = 'w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner'
+
+function Field({ label, children, className = '' }) {
+  return (
+    <div className={`space-y-2 ${className}`}>
+      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function Divider() {
+  return <div className="border-t border-black/[0.04]" />
 }

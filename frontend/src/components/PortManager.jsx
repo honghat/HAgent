@@ -1,9 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Folder, RefreshCw, Search, Server, Square, Terminal, Zap } from 'lucide-react'
+import { Folder, LayoutGrid, RefreshCw, Search, Server, Square, Terminal, Zap } from 'lucide-react'
+
+const SYSTEM_PORTS = new Set([
+  22, 53, 80, 88, 123, 137, 138, 139, 445, 500,
+  514, 548, 631, 4500, 5000, 5353, 5900, 7000, 3283,
+])
+
+const SYSTEM_USERS = new Set([
+  '_apple_remot', '_mdnsresponder', '_timed', '_netstatistics',
+  '_assetcache', '_ard', '_screensharing', '_devicemanager',
+  '_appleevents', '_applepay', '_analyticsd', '_reportmemoryexception',
+])
+
+const SYSTEM_COMMANDS = new Set([
+  'rapportd', 'sharingd', 'airportd', 'mDNSResponder',
+  'mDNSResponderHelper', 'configd', 'nsurlsessiond',
+  'sandboxd', 'sysmond', 'usbd',
+])
+
+const isSystemPort = (item) =>
+  SYSTEM_PORTS.has(Number(item.port)) ||
+  SYSTEM_USERS.has(item.user) ||
+  SYSTEM_COMMANDS.has(item.command)
 
 export default function PortManager({ token }) {
   const [ports, setPorts] = useState([])
   const [query, setQuery] = useState('')
+  const [tab, setTab] = useState('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [killingPid, setKillingPid] = useState(null)
@@ -32,19 +55,39 @@ export default function PortManager({ token }) {
     fetchPorts()
   }, [token])
 
-  const filteredPorts = useMemo(() => {
+  const searchPorts = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    if (!needle) return ports
-    return ports.filter(item => (
-      String(item.port).includes(needle) ||
-      String(item.pid).includes(needle) ||
-      item.command?.toLowerCase().includes(needle) ||
-      item.fullCommand?.toLowerCase().includes(needle) ||
-      item.cwd?.toLowerCase().includes(needle) ||
-      item.name?.toLowerCase().includes(needle) ||
-      item.user?.toLowerCase().includes(needle)
-    ))
-  }, [ports, query])
+    if (!needle) return null
+    return (list) =>
+      list.filter(item =>
+        String(item.port).includes(needle) ||
+        String(item.pid).includes(needle) ||
+        item.command?.toLowerCase().includes(needle) ||
+        item.fullCommand?.toLowerCase().includes(needle) ||
+        item.cwd?.toLowerCase().includes(needle) ||
+        item.name?.toLowerCase().includes(needle) ||
+        item.user?.toLowerCase().includes(needle),
+      )
+  }, [query])
+
+  const groupedPorts = useMemo(() => {
+    const system = []
+    const apps = []
+    for (const p of ports) {
+      if (isSystemPort(p)) system.push(p)
+      else apps.push(p)
+    }
+    return { system, apps }
+  }, [ports])
+
+  const displayPorts = useMemo(() => {
+    let source
+    if (tab === 'system') source = groupedPorts.system
+    else if (tab === 'apps') source = groupedPorts.apps
+    else source = ports
+
+    return searchPorts ? searchPorts(source) : source
+  }, [ports, tab, groupedPorts, searchPorts])
 
   const killProcess = async (item, signal = 'SIGTERM') => {
     const label = `${item.command} (PID ${item.pid}, port ${item.port})`
@@ -70,6 +113,12 @@ export default function PortManager({ token }) {
       setKillingPid(null)
     }
   }
+
+  const tabs = [
+    { key: 'all', label: 'Tất cả', count: ports.length },
+    { key: 'system', label: 'Hệ thống', count: groupedPorts.system.length },
+    { key: 'apps', label: 'Ứng dụng', count: groupedPorts.apps.length },
+  ]
 
   return (
     <div className="h-full overflow-auto bg-gray-50">
@@ -111,6 +160,31 @@ export default function PortManager({ token }) {
           </div>
         </div>
 
+        {/* Tabs: Hệ thống / Ứng dụng */}
+        <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1">
+          {tabs.map(({ key, label, count }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition sm:flex-none sm:px-4 ${
+                tab === key
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              {label}
+              <span
+                className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  tab === key ? 'bg-gray-100 text-gray-600' : 'bg-gray-200 text-gray-500'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          ))}
+        </div>
+
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
             {error}
@@ -130,13 +204,13 @@ export default function PortManager({ token }) {
             <div className="flex h-48 items-center justify-center text-sm font-bold text-gray-500">
               Đang quét port...
             </div>
-          ) : filteredPorts.length === 0 ? (
+          ) : displayPorts.length === 0 ? (
             <div className="flex h-48 items-center justify-center text-sm font-bold text-gray-500">
               Không có port phù hợp.
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {filteredPorts.map((item) => (
+              {displayPorts.map((item) => (
                 <div
                   key={`${item.pid}-${item.fd}-${item.port}`}
                   className="grid gap-3 px-3 py-4 transition hover:bg-gray-50 sm:px-4 lg:grid-cols-[88px_92px_minmax(0,1fr)_minmax(0,1.7fr)_112px] lg:items-center"

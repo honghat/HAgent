@@ -1,0 +1,14 @@
+{
+  "ignore": [
+    "**/*.log",
+    "**/node_modules/**",
+    "**/scratch/**",
+    "**/.git/**",
+    "**/.claude/**",
+    "**/.antigravity/**",
+    "**/*.sqlite*",
+    "**/dist/**"
+  ],
+  "watch": ["src"],
+  "ext": "js,json,md"
+}

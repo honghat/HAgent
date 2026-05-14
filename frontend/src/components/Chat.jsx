@@ -554,16 +554,16 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   return (
     <div className="min-h-0 flex overflow-hidden bg-[#f7f7f4] relative" style={{ height: '100%' }}>
       <div className={`fixed inset-y-0 left-0 z-40 w-[76vw] max-w-64 sm:w-48 sm:max-w-none bg-[#fbfbf9]/95 border-r border-black/[0.06] backdrop-blur-xl transition-transform sm:relative sm:translate-x-0 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
-        <div className="p-2.5 sm:p-3 border-b border-gray-100 flex items-center justify-between gap-2">
-          <button onClick={() => { createSession(); setShowSidebar(false) }} className="flex-1 bg-gray-950 text-white py-2 rounded-xl font-medium">Chat mới</button>
+        <div className="p-2 sm:p-3 border-b border-gray-100 flex items-center justify-between gap-2">
+          <button onClick={() => { createSession(); setShowSidebar(false) }} className="flex-1 bg-gray-950 text-white py-1.5 text-xs rounded-xl font-medium">Chat mới</button>
           <button onClick={() => setShowSidebar(false)} className="sm:hidden p-2 text-gray-400">×</button>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           <div className="px-2 py-1.5 text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Lịch sử</div>
           {Array.isArray(sessions) && sessions.map((s) => (
-            <div key={s.id} className={`group mx-1.5 mb-0.5 flex items-center rounded-xl transition-all ${s.id === activeId ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/[0.04]' : 'text-gray-500 hover:bg-white/70 hover:text-gray-900'}`}>
-              <button onClick={() => { setActiveId(s.id); setShowSidebar(false) }} className="flex-1 text-left px-2.5 py-1.5 text-[10px] truncate">{s.title}</button>
-              <button onClick={() => deleteSession(s.id)} className="px-2 text-gray-300 hover:text-red-500 transition-all opacity-60 group-hover:opacity-100">×</button>
+            <div key={s.id} className={`group mx-1 mb-0.5 flex items-center rounded-lg transition-all ${s.id === activeId ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/[0.04]' : 'text-gray-500 hover:bg-white/70 hover:text-gray-900'}`}>
+              <button onClick={() => { setActiveId(s.id); setShowSidebar(false) }} className="flex-1 text-left px-2 py-1.5 font-normal truncate" style={{ fontSize: '14px' }}>{s.title}</button>
+              <button onClick={() => deleteSession(s.id)} className="px-2 text-gray-300 hover:text-red-500 transition-all opacity-60 group-hover:opacity-100" style={{ fontSize: '14px' }}>×</button>
             </div>
           ))}
         </div>
@@ -579,7 +579,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
             <h1 className="text-[13px] leading-5 font-semibold text-gray-900 truncate min-w-0">
               {activeSession?.title || 'Cuộc trò chuyện'}
             </h1>
-            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] leading-4 font-medium text-gray-500">
+            <span className="flex items-center justify-center h-8 px-3 shrink-0 rounded-full bg-gray-100 text-xs font-medium text-gray-600">
               {providerLabels[provider] || provider}
             </span>
             <div className="flex items-center gap-1.5 ml-1">
@@ -588,7 +588,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                   value={selectedAgentId || agents[0]?.id || ''}
                   onChange={(e) => setSelectedAgentId(e.target.value)}
                   disabled={loading}
-                  className="h-7 max-w-[140px] rounded-full border border-black/[0.06] bg-white/50 px-2.5 text-[10px] font-semibold text-gray-600 outline-none transition-all hover:bg-white hover:border-black/10 disabled:opacity-50 appearance-none cursor-pointer"
+                  className="flex items-center h-8 max-w-[140px] rounded-full border border-black/[0.06] bg-white/50 px-3 text-xs font-medium text-gray-600 outline-none transition-all hover:bg-white hover:border-black/10 disabled:opacity-50 appearance-none cursor-pointer"
                   title="Chọn Agent"
                 >
                   {agents.map((agent) => (
@@ -596,15 +596,15 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                   ))}
                 </select>
               ) : (
-                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] leading-4 font-medium text-emerald-700">
+                <span className="flex items-center justify-center h-8 px-3 shrink-0 rounded-full bg-emerald-50 text-xs font-medium text-emerald-700">
                   HAgent
                 </span>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex items-center justify-center w-9 h-9 rounded-2xl border transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-500 hover:bg-white hover:text-gray-900'}`}>AI</button>
-            <button onClick={() => { setShowJournal(!showJournal); setShowWorkspace(false); setShowSidebar(false) }} className={`flex items-center justify-center w-9 h-9 rounded-2xl border transition-all ${showJournal ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-500 hover:bg-white hover:text-gray-900'}`}>J</button>
+            <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex text-xs font-semibold items-center justify-center w-8 h-8 rounded-full border transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>AI</button>
+            <button onClick={() => { setShowJournal(!showJournal); setShowWorkspace(false); setShowSidebar(false) }} className={`flex text-xs font-semibold items-center justify-center w-8 h-8 rounded-full border transition-all ${showJournal ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>J</button>
           </div>
         </header>
 
@@ -794,7 +794,17 @@ function MarkdownContent({ content, role }) {
 
   return (
     <div className={`prose prose-sm max-w-none ${role === 'user' ? 'prose-invert text-white' : 'prose-gray text-gray-800'} prose-p:leading-relaxed prose-headings:font-semibold prose-headings:normal-case prose-strong:font-semibold`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
+      <ReactMarkdown 
+        remarkPlugins={[remarkGfm]}
+        urlTransform={(url) => url}
+        components={{
+          img: ({ node, ...props }) => (
+            <img {...props} className="max-w-full max-h-60 rounded-xl my-2 object-contain" />
+          )
+        }}
+      >
+        {displayContent}
+      </ReactMarkdown>
     </div>
   )
 }

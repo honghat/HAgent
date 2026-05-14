@@ -67,6 +67,16 @@ chatRouter.delete('/sessions/:sessionId', (req, res) => {
   res.json({ deleted: result.changes > 0 });
 });
 
+// Stop session
+chatRouter.post('/sessions/:sessionId/stop', (req, res) => {
+  const session = db.prepare('SELECT id FROM chat_sessions WHERE id = ? AND user_id = ?').get(req.params.sessionId, req.userId);
+  if (!session) return res.status(403).json({ error: 'Forbidden' });
+  
+  // Set processing to 0 so the frontend stops polling
+  db.prepare('UPDATE chat_sessions SET processing = 0 WHERE id = ?').run(req.params.sessionId);
+  res.json({ stopped: true });
+});
+
 // Delete a specific message
 chatRouter.delete('/sessions/:sessionId/messages/:messageId', (req, res) => {
   const { sessionId, messageId } = req.params;

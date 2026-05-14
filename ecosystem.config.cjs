@@ -61,16 +61,14 @@ module.exports = {
     },
     {
       name: '9router',
-      cwd: './9router/app',
-      script: 'server.js',
+      script: '/Users/nguyenhat/.local/bin/9router',
+      args: '-p 20128 -n -l --skip-update',
       error_file: `${LOG_DIR}/9router-error.log`,
       out_file: `${LOG_DIR}/9router-out.log`,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
-        PORT: 20128,
-        HOSTNAME: '127.0.0.1',
-        NODE_PATH: '/Users/nguyenhat/HAgent/backend/agent/runtime/9router/.9router/runtime/node_modules:/Users/nguyenhat/HAgent/9router/app/node_modules'
+        HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime/9router'
       }
     },
     {

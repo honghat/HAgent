@@ -32,6 +32,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   const [copiedId, setCopiedId] = useState(null)
   const [workspace, setWorkspace] = useState({ tools: [], todos: [], summary: null })
   const [selectedAgentId, setSelectedAgentId] = useState(null)
+  const [providerActive, setProviderActive] = useState(true)
 
   const fileInputRef = useRef(null)
   const useNewBackend = true
@@ -144,6 +145,21 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
       setSelectedAgentId(agents[0].id)
     }
   }, [agents, selectedAgentId])
+
+  useEffect(() => {
+    const checkProviderStatus = async () => {
+      try {
+        const r = await fetch(withBackendBase(`/api/providers/${provider}/health`), { headers: { Authorization: `Bearer ${token}` } })
+        const data = await r.json()
+        setProviderActive(data.status === 'ok')
+      } catch {
+        setProviderActive(false)
+      }
+    }
+    checkProviderStatus()
+    const int = setInterval(checkProviderStatus, 15000)
+    return () => clearInterval(int)
+  }, [provider])
 
   useEffect(() => {
     setTimeout(() => msgEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
@@ -382,13 +398,26 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                 }
                 break
               case 'think':
-                if (data.append || data.detail) break
-                setJournal((p) => [...p, {
-                  type: 'think',
-                  content: data.content || '',
-                  name: data.name,
-                  time: new Date().toLocaleTimeString('vi-VN', { hour12: false })
-                }])
+                if (data.append) {
+                  setJournal((p) => {
+                    const last = p[p.length - 1]
+                    if (last && last.type === 'think') {
+                      return [...p.slice(0, -1), { ...last, content: (last.content || '') + data.content }]
+                    }
+                    return [...p, {
+                      type: 'think',
+                      content: data.content || '',
+                      time: new Date().toLocaleTimeString('vi-VN', { hour12: false })
+                    }]
+                  })
+                } else {
+                  setJournal((p) => [...p, {
+                    type: 'think',
+                    content: data.content || '',
+                    name: data.name,
+                    time: new Date().toLocaleTimeString('vi-VN', { hour12: false })
+                  }])
+                }
                 break
               case 'content':
                 collected += data.content || ''
@@ -459,18 +488,32 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
         <header className="absolute inset-x-0 top-0 h-14 sm:h-16 border-b border-black/[0.04] flex items-center justify-between px-4 sm:px-8 bg-white/70 backdrop-blur-xl z-10">
           <button onClick={() => { setShowSidebar(true); setShowJournal(false); setShowWorkspace(false) }} className="sm:hidden p-2 text-gray-500">≡</button>
           <div className="flex items-center gap-2 sm:gap-3 overflow-hidden min-w-0">
-            <div className="w-2 h-2 rounded-full bg-emerald-500/80 shrink-0" />
+            <div className={`w-2 h-2 rounded-full shrink-0 transition-all duration-500 ${providerActive ? 'bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.3)]' : 'bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.3)]'}`} />
             <h1 className="text-[13px] leading-5 font-semibold text-gray-900 truncate min-w-0">
               {activeSession?.title || 'Cuộc trò chuyện'}
             </h1>
             <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] leading-4 font-medium text-gray-500">
               {providerLabels[provider] || provider}
             </span>
-            {activeAgent && (
-              <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] leading-4 font-medium text-emerald-700 sm:inline">
-                {activeAgent.name}
-              </span>
-            )}
+            <div className="flex items-center gap-1.5 ml-1">
+              {Array.isArray(agents) && agents.length > 0 ? (
+                <select
+                  value={selectedAgentId || agents[0]?.id || ''}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                  disabled={loading}
+                  className="h-7 max-w-[140px] rounded-full border border-black/[0.06] bg-white/50 px-2.5 text-[10px] font-semibold text-gray-600 outline-none transition-all hover:bg-white hover:border-black/10 disabled:opacity-50 appearance-none cursor-pointer"
+                  title="Chọn Agent"
+                >
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>{agent.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] leading-4 font-medium text-emerald-700">
+                  HAgent
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex items-center justify-center w-9 h-9 rounded-2xl border transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-500 hover:bg-white hover:text-gray-900'}`}>AI</button>
@@ -479,19 +522,19 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
         </header>
 
         <div className="absolute inset-x-0 top-14 bottom-24 sm:top-16 md:bottom-28 overflow-y-auto custom-scrollbar p-4 md:p-8">
-          <div className="max-w-5xl mx-auto space-y-5 sm:space-y-8">
+          <div className="max-w-6xl mx-auto space-y-5 sm:space-y-8">
             {currentClarification && (
-              <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+              <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 animate-fade-in">
                 <div className="font-semibold">Cần bạn bổ sung thông tin</div>
                 <div className="mt-1">{currentClarification.question || 'Agent cần thêm thông tin để tiếp tục.'}</div>
               </div>
             )}
 
             {messages.map((m) => (
-              <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={`flex items-start gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''} max-w-[98%] sm:max-w-[85%]`}>
-                  <div className={`rounded-[1.35rem] sm:rounded-[1.75rem] px-3.5 sm:px-5 py-2.5 sm:py-3.5 text-[14px] leading-6 break-words flex-1 ${m.role === 'user' ? 'bg-gray-950 text-white rounded-br-md shadow-sm' : 'bg-[#f7f7f4] text-gray-800 border border-black/[0.04] rounded-bl-md'}`}>
-                    <MarkdownContent content={m.content} />
+              <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} animate-fade-in`}>
+                <div className={`flex items-start gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''} max-w-full ${m.role === 'user' ? 'sm:max-w-[80%]' : 'sm:max-w-[96%]'}`}>
+                  <div className={`rounded-[1.5rem] sm:rounded-[1.8rem] px-4 sm:px-6 py-3 sm:py-4 text-[14.5px] leading-relaxed break-words overflow-hidden shadow-sm ${m.role === 'user' ? 'bg-gray-900 text-white rounded-br-md' : 'bg-white text-gray-800 border border-black/[0.06] rounded-bl-md'}`}>
+                    <MarkdownContent content={m.content} role={m.role} />
                   </div>
                 </div>
                 <div className={`flex items-center gap-3 mt-1.5 px-3 w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -523,10 +566,10 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
             )}
 
             {loading && streamingText && (
-              <div className="flex justify-start">
-                <div className="bg-gray-50 border border-gray-100 rounded-[1.75rem] rounded-bl-sm max-w-[85%] px-6 py-4 text-[14px] leading-6 shadow-sm">
-                  <MarkdownContent content={streamingText} />
-                  <span className="inline-block w-1.5 h-4 bg-gray-400 animate-pulse ml-1 align-middle" />
+              <div className="flex justify-start animate-fade-in">
+                <div className="bg-white border border-black/[0.06] rounded-[1.8rem] rounded-bl-sm max-w-full sm:max-w-[96%] px-6 py-4 text-[14.5px] leading-relaxed shadow-sm overflow-hidden">
+                  <MarkdownContent content={streamingText} role="assistant" />
+                  <span className="inline-block w-1.5 h-4 bg-gray-300 animate-pulse ml-1 align-middle" />
                 </div>
               </div>
             )}
@@ -563,27 +606,6 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
               <div className="flex min-h-12 items-center gap-2">
                 <button type="button" onClick={() => setShowCommands((v) => !v)} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[15px] leading-none font-medium transition-all ${showCommands ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900'}`}>/</button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40 transition-all">+</button>
-                {Array.isArray(agents) && agents.length > 0 && (
-                  <select
-                    value={selectedAgentId || agents[0]?.id || ''}
-                    onChange={(e) => setSelectedAgentId(e.target.value)}
-                    disabled={loading}
-                    className="hidden h-9 max-w-32 shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 text-[12px] text-gray-600 outline-none transition-all hover:bg-white disabled:opacity-50 sm:block"
-                    title="Agent cho chat mới"
-                  >
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>{agent.name}</option>
-                    ))}
-                  </select>
-                )}
-                {(!Array.isArray(agents) || agents.length === 0) && (
-                  <select
-                    disabled
-                    className="hidden h-9 max-w-32 shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 text-[12px] text-gray-600 outline-none sm:block"
-                  >
-                    <option value="">HAgent</option>
-                  </select>
-                )}
                 <textarea value={input} onChange={(e) => setInput(e.target.value)} onFocus={() => input.startsWith('/') && setShowCommands(true)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={`Chào ${user?.displayName || user?.display_name || 'bạn'}, hôm nay cần gì?`} rows={1} className="min-h-9 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[14px] leading-6 font-normal text-gray-800 placeholder:text-gray-400 focus:outline-none" />
                 {loading ? (
                   <button onClick={stopChat} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500 text-white shadow-sm transition-all hover:bg-red-600">■</button>
@@ -649,10 +671,12 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
           </div>
           <div className="flex-1 overflow-y-auto space-y-7 custom-scrollbar">
             {journal.map((j, i) => (
-              <div key={i} className="relative pl-6 border-l border-black/[0.06] py-1">
-                <div className="absolute -left-[5px] top-3 w-2.5 h-2.5 rounded-full bg-white border border-gray-300" />
-                <div className="text-[12px] leading-4 font-normal text-gray-400 mb-2">{j.time}</div>
-                <div className="text-[14px] leading-6 font-normal text-gray-600">{j.name || j.content}</div>
+              <div key={i} className="relative pl-6 border-l-2 border-black/[0.04] py-1 animate-fade-in">
+                <div className="absolute -left-[6px] top-3 w-2.5 h-2.5 rounded-full bg-white border-2 border-black/10 shadow-sm" />
+                <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-2">{j.time}</div>
+                <div className="prose prose-sm prose-gray max-w-none">
+                  <MarkdownContent content={j.content} role="assistant" />
+                </div>
               </div>
             ))}
           </div>
@@ -662,7 +686,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   )
 }
 
-function MarkdownContent({ content }) {
+function MarkdownContent({ content, role }) {
   const displayContent = content
     ? content
       .replace(/<\|?tool_call\|?>[\s\S]*?(?=<\|?tool_call\|?>|$)/g, '')
@@ -672,7 +696,7 @@ function MarkdownContent({ content }) {
     : ''
 
   return (
-    <div className="prose prose-sm max-w-none prose-gray prose-p:leading-relaxed prose-headings:font-semibold prose-headings:normal-case prose-strong:font-semibold">
+    <div className={`prose prose-sm max-w-none ${role === 'user' ? 'prose-invert text-white' : 'prose-gray text-gray-800'} prose-p:leading-relaxed prose-headings:font-semibold prose-headings:normal-case prose-strong:font-semibold`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
     </div>
   )

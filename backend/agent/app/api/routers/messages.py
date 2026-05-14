@@ -185,16 +185,18 @@ def create_message(session_id: str, payload: MessageRequest, request: Request) -
     def emit(type_: str, data: dict | None = None) -> None:
         event = {"type": type_, **(data or {})}
         try:
-            if type_ == "think" and event.get("content"):
-                add_journal(session_id, "think", content=str(event.get("content")))
-            elif type_ == "tool":
-                add_journal(
-                    session_id,
-                    "tool",
-                    event_name=str(event.get("name") or ""),
-                    status=str(event.get("status") or ""),
-                    count=int(event.get("count") or 0),
-                )
+            # Only save non-appended thoughts or tools to the database journal
+            if not event.get("append"):
+                if type_ == "think" and event.get("content"):
+                    add_journal(session_id, "think", content=str(event.get("content")))
+                elif type_ == "tool":
+                    add_journal(
+                        session_id,
+                        "tool",
+                        event_name=str(event.get("name") or ""),
+                        status=str(event.get("status") or ""),
+                        count=int(event.get("count") or 0),
+                    )
         except Exception:
             pass
         events.put(event)
@@ -221,9 +223,8 @@ def create_message(session_id: str, payload: MessageRequest, request: Request) -
             emit("think", {"content": content, "detail": False})
 
     def reasoning(content: str | None) -> None:
-        # Provider reasoning can arrive as tiny token deltas. Do not mirror it into
-        # the visible journal; the UI should show process milestones, not token spam.
-        return
+        if content:
+            emit("think", {"content": content, "append": True})
 
     def status(kind: str, message: str) -> None:
         if message:

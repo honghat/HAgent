@@ -1463,7 +1463,7 @@ class AIAgent:
         # '<think>' as delta1 and 'Let me check' as delta2 — the regex
         # erased delta1, so downstream state machines never learned a
         # block was open and leaked delta2 as content).
-        self._stream_think_scrubber = StreamingThinkScrubber()
+        self._stream_think_scrubber = StreamingThinkScrubber(thought_callback=self._fire_reasoning_delta)
         # Visible assistant text already delivered through live token callbacks
         # during the current model response. Used to avoid re-sending the same
         # commentary when the provider later returns it as a completed interim

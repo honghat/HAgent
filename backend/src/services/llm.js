@@ -144,7 +144,9 @@ export async function* callLLMStream(system, messages, { provider, maxTokens = 2
     });
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta || {};
+      const reasoning = delta.reasoning_content || '';
       const content = delta.content || '';
+      if (reasoning) yield { type: 'think', content: reasoning, append: true };
       if (content) yield { type: 'content', content };
       if (chunk.usage) yield { type: 'usage', usage: chunk.usage };
     }
@@ -263,7 +265,7 @@ export async function* chatStream(messages, provider, extraContext = '', options
   const suppressThreshold = extraContext ? 200 : 80;
 
   for await (const chunk of callLLMStream(buildSystemMessage(extraContext), messages, { provider, maxTokens: 3000, signal: options.signal })) {
-    if (chunk.type === 'usage') { yield chunk; continue; }
+    if (chunk.type === 'usage' || chunk.type === 'think') { yield chunk; continue; }
     if (decided) {
       yield chunk;
       continue;

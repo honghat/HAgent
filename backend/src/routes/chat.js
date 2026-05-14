@@ -354,6 +354,8 @@ chatRouter.post('/sessions/:sessionId/messages', async (req, res) => {
       if (chunk.type === 'content') {
         collectedText += chunk.content;
         send('content', { content: chunk.content });
+      } else if (chunk.type === 'think') {
+        send('think', { content: chunk.content, append: chunk.append });
       } else if (chunk.type === 'usage') {
         totalUsage.prompt_tokens += chunk.usage.prompt_tokens || 0;
         totalUsage.completion_tokens += chunk.usage.completion_tokens || 0;

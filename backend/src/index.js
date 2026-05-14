@@ -41,6 +41,35 @@ app.use((req, res, next) => {
 });
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+app.get('/api/providers/:name/health', async (req, res) => {
+  const { name } = req.params;
+  try {
+    const { PROVIDER_CONFIGS } = await import('./services/provider-config.js');
+    const config = PROVIDER_CONFIGS[name];
+    if (!config) return res.status(404).json({ error: 'Provider not found' });
+
+    if (config.baseURL && (config.baseURL.includes('localhost') || config.baseURL.includes('127.0.0.1') || config.baseURL.includes('100.'))) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      try {
+        const pingUrl = config.baseURL.endsWith('/v1') ? `${config.baseURL}/models` : `${config.baseURL}/v1/models`;
+        const response = await fetch(pingUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        console.log(`[Health] ${name} -> ${pingUrl} status: ${response.status}`);
+        return res.json({ status: response.ok ? 'ok' : 'error' });
+      } catch (err) {
+        clearTimeout(timeout);
+        console.error(`[Health] ${name} ping failed: ${err.message}`);
+        return res.json({ status: 'error', detail: err.message });
+      }
+    }
+    // External providers (OpenAI, Anthropic, Gemini, DeepSeek) are assumed OK if we have an API key
+    return res.json({ status: config.apiKey ? 'ok' : 'error' });
+  } catch (e) {
+    res.json({ status: 'error', message: e.message });
+  }
+});
 app.get('/oauth2callback', async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send('Missing code param');

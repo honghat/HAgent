@@ -92,10 +92,11 @@ class StreamingThinkScrubber:
     # Pre-compute the longest tag (for partial-tag hold-back bound).
     _MAX_TAG_LEN: int = max(len(tag) for tag in _OPEN_TAGS + _CLOSE_TAGS)
 
-    def __init__(self) -> None:
+    def __init__(self, thought_callback: callable | None = None) -> None:
         self._in_block: bool = False
         self._buf: str = ""
         self._last_emitted_ended_newline: bool = True
+        self.thought_callback = thought_callback
 
     def reset(self) -> None:
         """Reset all state.  Call at the top of every new turn."""
@@ -126,9 +127,13 @@ class StreamingThinkScrubber:
                     # No close yet — hold back a potential partial
                     # close-tag prefix; discard everything else.
                     held = self._max_partial_suffix(buf, self._CLOSE_TAGS)
+                    if self.thought_callback:
+                        self.thought_callback(buf[:-held] if held else buf)
                     self._buf = buf[-held:] if held else ""
                     return "".join(out)
                 # Found close: discard block content + tag, continue.
+                if self.thought_callback:
+                    self.thought_callback(buf[:close_idx])
                 buf = buf[close_idx + close_len:]
                 self._in_block = False
             else:
@@ -158,6 +163,15 @@ class StreamingThinkScrubber:
                             self._last_emitted_ended_newline = (
                                 preceding.endswith("\n")
                             )
+                    if self.thought_callback:
+                        # Extract content between the tags for the closed pair
+                        # The pair is at (start_idx, end_idx) in the current buf
+                        # We need to find the open tag length to skip it
+                        _, o_len = self._find_first_tag(buf[:end_idx], self._OPEN_TAGS)
+                        _, c_len = self._find_first_tag(buf[start_idx + o_len:end_idx], self._CLOSE_TAGS)
+                        content = buf[start_idx + o_len : end_idx - c_len]
+                        if content:
+                            self.thought_callback(content)
                     buf = buf[end_idx:]
                     continue
 

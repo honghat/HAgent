@@ -1,7 +1,7 @@
 import { generateSearchQueries } from './ai-service.js';
 import axios from 'axios';
 
-const PYTHON_SERVICE_URL = 'http://localhost:8005';
+const PYTHON_SERVICE_URL = 'http://localhost:8010/api/job-hunter';
 
 /**
  * Auto search jobs using Python microservice

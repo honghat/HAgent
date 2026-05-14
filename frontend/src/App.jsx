@@ -7,8 +7,7 @@ import AgentSkillManager from './components/AgentSkillManager.jsx'
 import VideoPage from './components/video/VideoPage.jsx'
 import UserSettings from './components/UserSettings.jsx'
 import OmniChat from './components/OmniChat.jsx'
-import CvJobs from './components/CvJobs.jsx'
-import KiemViec from './components/KiemViec.jsx'
+import JobHunter from './components/JobHunter.jsx'
 import PortManager from './components/PortManager.jsx'
 import CodeWorkspace from './components/CodeWorkspace.jsx'
 import Learn from './components/Learn.jsx'
@@ -119,9 +118,8 @@ export default function App() {
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden" style={{ height: '100%' }}>
         {view === 'chat' && <Chat key="chat" token={token} provider={provider} cxModel={cxModel} agents={agents} user={user} onProviderChange={saveProvider} onShowAgentManager={() => setView('agents')} onLogout={logout} />}
         {view === 'wiki' && <Wiki token={token} provider={provider} />}
-        {view === 'kiem-viec' && <KiemViec token={token} provider={provider} />}
         {view === 'omni' && <OmniChat token={token} provider={provider} />}
-        {view === 'cv-jobs' && <CvJobs token={token} provider={provider} />}
+        {view === 'job-hunter' && <JobHunter token={token} provider={provider} />}
         {view === 'learn' && <Learn token={token} provider={provider} />}
         {view === 'english' && <English token={token} />}
         {view === 'agents' && <AgentSkillManager token={token} agents={agents} onUpdate={fetchAgents} />}

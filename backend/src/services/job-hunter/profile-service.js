@@ -65,7 +65,7 @@ export function listProfiles(userId) {
  */
 export function deleteProfile(userId, profileId) {
   // Delete associated job results
-  db.prepare('DELETE FROM job_results WHERE user_id = ? AND profile_id = ?')
+  db.prepare('DELETE FROM cv_job_applications WHERE user_id = ? AND profile_id = ?')
     .run(userId, profileId);
 
   // Delete profile

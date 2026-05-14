@@ -9,16 +9,16 @@ import {
   deleteProfile,
   getProfile,
   listProfiles,
-} from '../services/cv-v2/profile-service.js';
+} from '../services/job-hunter/profile-service.js';
 import {
   listJobResults,
   processJobUrls,
   updateJobStatus,
-} from '../services/cv-v2/job-service.js';
-import { autoSearchJobs } from '../services/cv-v2/auto-search.js';
+} from '../services/job-hunter/job-service.js';
+import { autoSearchJobs } from '../services/job-hunter/auto-search.js';
 
-export const cvV2Router = Router();
-cvV2Router.use(requireAuth);
+export const jobHunterRouter = Router();
+jobHunterRouter.use(requireAuth);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,20 +78,20 @@ async function readFileContent(filePath) {
 // Routes
 
 // List all profiles
-cvV2Router.get('/profiles', (req, res) => {
+jobHunterRouter.get('/profiles', (req, res) => {
   const profiles = listProfiles(req.userId);
   res.json({ profiles });
 });
 
 // Get single profile
-cvV2Router.get('/profiles/:id', (req, res) => {
+jobHunterRouter.get('/profiles/:id', (req, res) => {
   const profile = getProfile(req.userId, req.params.id);
   if (!profile) return res.status(404).json({ error: 'CV không tồn tại' });
   res.json(profile);
 });
 
 // Upload CV file
-cvV2Router.post('/profiles/upload', upload.single('cv'), async (req, res) => {
+jobHunterRouter.post('/profiles/upload', upload.single('cv'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Chưa có file CV' });
 
@@ -114,7 +114,7 @@ cvV2Router.post('/profiles/upload', upload.single('cv'), async (req, res) => {
 });
 
 // Import from local path
-cvV2Router.post('/profiles/import', async (req, res) => {
+jobHunterRouter.post('/profiles/import', async (req, res) => {
   try {
     const sourcePath = String(req.body.path || '').trim();
     if (!sourcePath) return res.status(400).json({ error: 'Thiếu đường dẫn CV' });
@@ -133,14 +133,14 @@ cvV2Router.post('/profiles/import', async (req, res) => {
 });
 
 // Delete profile
-cvV2Router.delete('/profiles/:id', (req, res) => {
+jobHunterRouter.delete('/profiles/:id', (req, res) => {
   const deleted = deleteProfile(req.userId, req.params.id);
   if (!deleted) return res.status(404).json({ error: 'CV không tồn tại' });
   res.json({ success: true });
 });
 
 // Process job URLs
-cvV2Router.post('/profiles/:id/jobs', async (req, res) => {
+jobHunterRouter.post('/profiles/:id/jobs', async (req, res) => {
   try {
     const urls = req.body.urls || [];
     if (!Array.isArray(urls) || urls.length === 0) {
@@ -155,14 +155,14 @@ cvV2Router.post('/profiles/:id/jobs', async (req, res) => {
 });
 
 // List job results
-cvV2Router.get('/profiles/:id/jobs', (req, res) => {
+jobHunterRouter.get('/profiles/:id/jobs', (req, res) => {
   const status = req.query.status || null;
   const jobs = listJobResults(req.userId, req.params.id, status);
   res.json({ jobs });
 });
 
 // Update job status
-cvV2Router.patch('/jobs/:id/status', (req, res) => {
+jobHunterRouter.patch('/jobs/:id/status', (req, res) => {
   try {
     const { status, notes } = req.body;
     updateJobStatus(req.userId, req.params.id, status, notes);
@@ -173,7 +173,7 @@ cvV2Router.patch('/jobs/:id/status', (req, res) => {
 });
 
 // Auto search jobs from popular sites
-cvV2Router.post('/profiles/:id/auto-search', async (req, res) => {
+jobHunterRouter.post('/profiles/:id/auto-search', async (req, res) => {
   try {
     const profile = getProfile(req.userId, req.params.id);
     if (!profile) return res.status(404).json({ error: 'CV không tồn tại' });

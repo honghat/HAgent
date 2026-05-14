@@ -443,10 +443,10 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
           <button onClick={() => setShowSidebar(false)} className="sm:hidden p-2 text-gray-400">×</button>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="px-2 py-1.5 text-[10px] font-medium text-gray-400">Lịch sử</div>
+          <div className="px-2 py-1.5 text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Lịch sử</div>
           {Array.isArray(sessions) && sessions.map((s) => (
             <div key={s.id} className={`group mx-1.5 mb-0.5 flex items-center rounded-xl transition-all ${s.id === activeId ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/[0.04]' : 'text-gray-500 hover:bg-white/70 hover:text-gray-900'}`}>
-              <button onClick={() => { setActiveId(s.id); setShowSidebar(false) }} className="flex-1 text-left px-2.5 py-1.5 text-[12px] truncate">{s.title}</button>
+              <button onClick={() => { setActiveId(s.id); setShowSidebar(false) }} className="flex-1 text-left px-2.5 py-1.5 text-[11px] truncate">{s.title}</button>
               <button onClick={() => deleteSession(s.id)} className="px-2 text-gray-300 hover:text-red-500 transition-all opacity-60 group-hover:opacity-100">×</button>
             </div>
           ))}
@@ -460,7 +460,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
           <button onClick={() => { setShowSidebar(true); setShowJournal(false); setShowWorkspace(false) }} className="sm:hidden p-2 text-gray-500">≡</button>
           <div className="flex items-center gap-2 sm:gap-3 overflow-hidden min-w-0">
             <div className="w-2 h-2 rounded-full bg-emerald-500/80 shrink-0" />
-            <h1 className="text-[14px] leading-5 font-semibold text-gray-900 truncate min-w-0">
+            <h1 className="text-[13px] leading-5 font-semibold text-gray-900 truncate min-w-0">
               {activeSession?.title || 'Cuộc trò chuyện'}
             </h1>
             <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] leading-4 font-medium text-gray-500">

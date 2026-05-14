@@ -1,0 +1,18 @@
+name: receive-messages
+description: |
+  Agent responsible for receiving Telegram messages from the bot
+  and routing them to the appropriate processing pipeline.
+
+  Responsibilities:
+  - Accept incoming Telegram messages via the bot
+  - Parse and validate message content
+  - Route messages to appropriate skill handlers
+  - Handle message formatting requests (table display)
+  - Process message requests (remove underscores, etc.)
+
+capabilities:
+  - receive-telegram-messages
+  - parse-message-content
+  - route-messages
+  - format-message-display
+  - remove-text-formatting

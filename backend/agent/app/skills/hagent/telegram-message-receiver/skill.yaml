@@ -1,0 +1,13 @@
+skill: telegram-message-receiver
+
+name: Telegram Message Receiver
+alias: telegram-message-receiver, telegram-receiver
+
+description: |
+  Backend skill for receiving and processing Telegram messages.
+  Handles incoming messages from Telegram bot and routes them to
+  appropriate agents or processes.
+
+categories:
+  - telegram
+  - messaging

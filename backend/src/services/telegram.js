@@ -10,7 +10,7 @@ import { decideAndExecuteTools } from './tools/index.js';
 import { getProviderClient } from './provider-config.js';
 import { getWeather } from './tools/weather.js';
 import { notifyOmni, upsertConversation } from '../routes/omni.js';
-import { buildHermesContinuationTurn, extractTelegramReplyText, isShortConfirmation } from './hermes/context.js';
+import { buildHagentContinuationTurn, extractTelegramReplyText, isShortConfirmation } from './hagent/context.js';
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS telegram_config (
@@ -777,11 +777,11 @@ function renderTelegramProgress({ phase = 'working', modelLabel = '', activities
 }
 
 function professionalTelegramSystem(modelLabel) {
-  return `[TELEGRAM HERMES GATEWAY MODE]
+  return `[TELEGRAM HAGENT GATEWAY MODE]
 Telegram must have the same task competence as web chat. Do not behave like a lightweight chatbot.
 - Preserve conversation context and infer the active task from recent messages, replies, and confirmations.
 - If the user replies "ok", "ừ", "được", "yes", "tiếp", "chạy đi", "chạy lại", treat it as approval/continuation of the immediately previous actionable proposal. Continue with tools; do not answer only "Ok".
-- Use the same tool persistence as Hermes/web chat: inspect, act, verify, and only then finalize.
+- Use the same tool persistence as Hagent/web chat: inspect, act, verify, and only then finalize.
 - Telegram formatting is just the delivery layer. It must not reduce reasoning depth, tool use, or task completion quality.
 - Final replies should be mobile-readable, but still concrete: what was done, what changed, what was verified, and any blocker.
 - Do not expose hidden chain-of-thought. Progress updates may summarize observable actions and tool names.
@@ -802,7 +802,7 @@ function isShortTelegramConfirmation(text = '') {
 }
 
 function buildTelegramUserTurn(text, history = [], msg = null) {
-  return buildHermesContinuationTurn({
+  return buildHagentContinuationTurn({
     text,
     history,
     replyText: extractTelegramReplyText(msg),
@@ -1641,7 +1641,7 @@ async function handleMessage(token, msg, userId) {
         { role: 'assistant', content: collected || '(weak acknowledgement suppressed)' },
         {
           role: 'user',
-          content: 'You responded like a lightweight chat bot. In Hermes gateway mode, this user confirmation means continue the previous actionable task. Use tools if needed and provide the concrete result. Do not answer socially.',
+          content: 'You responded like a lightweight chat bot. In Hagent gateway mode, this user confirmation means continue the previous actionable task. Use tools if needed and provide the concrete result. Do not answer socially.',
         },
       ];
       const retryDecision = await decideAndExecuteTools(retryMsgs, provider, userId, progressSend);

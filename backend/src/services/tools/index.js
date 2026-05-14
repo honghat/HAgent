@@ -109,14 +109,14 @@ DONE
 [Nội dung câu trả lời của bạn]`;
   }
 
-  return `\n\n🔁 TIẾP TỤC VÒNG LẶP THỰC THI KIỂU HERMES:
+  return `\n\n🔁 TIẾP TỤC VÒNG LẶP THỰC THI KIỂU HAGENT:
 - Hãy đọc kết quả tool ở trên và quyết định hành động tiếp theo.
 - Nếu nhiệm vụ còn hành động rõ ràng (đọc file khác, sửa file, chạy lệnh, verify/test, kiểm tra diff), PHẢI gọi tool tiếp bằng TOOL_CALLS.
 - Chỉ DONE khi nhiệm vụ đã hoàn tất và đã kiểm chứng bằng kết quả tool phù hợp.
 - Không trả lời kiểu "tôi sẽ..." nếu chưa gọi tool tương ứng.`;
 }
 
-const VERIFY_TOOL_NAMES = new Set(['bash', 'terminal', 'execute_code', 'hermes_python', 'task_output', 'grep', 'search_files', 'read_file', 'get_system_info']);
+const VERIFY_TOOL_NAMES = new Set(['bash', 'terminal', 'execute_code', 'hagent_python', 'task_output', 'grep', 'search_files', 'read_file', 'get_system_info']);
 const SIDE_EFFECT_TOOL_NAMES = new Set([
   'write_file', 'edit_file', 'patch', 'notebook_edit', 'bash', 'terminal',
   'task_start', 'task_stop', 'cron_create', 'cron_delete',
@@ -124,7 +124,7 @@ const SIDE_EFFECT_TOOL_NAMES = new Set([
   'wiki_list', 'gmail', 'gdrive', 'gdocs', 'gateway_send_message',
   'telegram_connect', 'telegram_disconnect', 'push_notification',
   'remote_power', 'self_evolve', 'skill_manage',
-  'image_generate', 'text_to_speech', 'process', 'execute_code', 'hermes_python',
+  'image_generate', 'text_to_speech', 'process', 'execute_code', 'hagent_python',
 ]);
 
 function hasVerificationTool(calls = []) {
@@ -291,7 +291,7 @@ export async function decideAndExecuteTools(msgs, provider, userId, send, option
             toolMsgs.push({ role: 'assistant', content: finalDecision || '(empty)' });
             toolMsgs.push({
               role: 'user',
-              content: 'Bạn vừa mô tả việc sẽ làm nhưng chưa gọi tool. Hãy tiếp tục theo kỷ luật Hermes: gọi TOOL_CALLS cho hành động thực thi/kiểm tra tiếp theo, hoặc chỉ DONE nếu nhiệm vụ đã hoàn tất và đã verify.',
+              content: 'Bạn vừa mô tả việc sẽ làm nhưng chưa gọi tool. Hãy tiếp tục theo kỷ luật Hagent: gọi TOOL_CALLS cho hành động thực thi/kiểm tra tiếp theo, hoặc chỉ DONE nếu nhiệm vụ đã hoàn tất và đã verify.',
             });
             continue;
           }
@@ -511,7 +511,7 @@ async function executeToolCalls(calls, userWikiDir, provider, userId, send, opti
       case 'use_skill': {
         const skillData = skillManager.getSkillInstructions(tc.args.skill);
         if (skillData) {
-          result = `## Skill "${skillData.name}" đã được kích hoạt\n\n**Task**: ${tc.args.task || 'Thực hiện theo workflow'}\n\n### Workflow Instructions:\n${skillData.instructions}\n\n---\nHãy thực hiện theo workflow trên như Hermes: dùng tool liên tục, tự kiểm tra kết quả, và chỉ DONE khi hoàn tất.`;
+          result = `## Skill "${skillData.name}" đã được kích hoạt\n\n**Task**: ${tc.args.task || 'Thực hiện theo workflow'}\n\n### Workflow Instructions:\n${skillData.instructions}\n\n---\nHãy thực hiện theo workflow trên như Hagent: dùng tool liên tục, tự kiểm tra kết quả, và chỉ DONE khi hoàn tất.`;
         } else {
           const catalog = skillManager.getSkillCatalog();
           result = `Không tìm thấy skill "${tc.args.skill}". Skills có sẵn:\n${catalog.map(s => `- **${s.name}**: ${s.description}`).join('\n')}`;

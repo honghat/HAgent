@@ -1,21 +1,21 @@
 ---
 name: kanban-worker
-description: Pitfalls, examples, and edge cases for Hermes Kanban workers. The lifecycle itself is auto-injected into every worker's system prompt as KANBAN_GUIDANCE (from agent/prompt_builder.py); this skill is what you load when you want deeper detail on specific scenarios.
+description: Pitfalls, examples, and edge cases for Hagent Kanban workers. The lifecycle itself is auto-injected into every worker's system prompt as KANBAN_GUIDANCE (from agent/prompt_builder.py); this skill is what you load when you want deeper detail on specific scenarios.
 version: 2.0.0
 platforms: [linux, macos, windows]
 metadata:
-  hermes:
+  hagent:
     tags: [kanban, multi-agent, collaboration, workflow, pitfalls]
     related_skills: [kanban-orchestrator]
 ---
 
 # Kanban Worker — Pitfalls and Examples
 
-> You're seeing this skill because the Hermes Kanban dispatcher spawned you as a worker with `--skills kanban-worker` — it's loaded automatically for every dispatched worker. The **lifecycle** (6 steps: orient → work → heartbeat → block/complete) also lives in the `KANBAN_GUIDANCE` block that's auto-injected into your system prompt. This skill is the deeper detail: good handoff shapes, retry diagnostics, edge cases.
+> You're seeing this skill because the Hagent Kanban dispatcher spawned you as a worker with `--skills kanban-worker` — it's loaded automatically for every dispatched worker. The **lifecycle** (6 steps: orient → work → heartbeat → block/complete) also lives in the `KANBAN_GUIDANCE` block that's auto-injected into your system prompt. This skill is the deeper detail: good handoff shapes, retry diagnostics, edge cases.
 
 ## Workspace handling
 
-Your workspace kind determines how you should behave inside `$HERMES_KANBAN_WORKSPACE`:
+Your workspace kind determines how you should behave inside `$HAGENT_KANBAN_WORKSPACE`:
 
 | Kind | What it is | How to work |
 |---|---|---|
@@ -25,7 +25,7 @@ Your workspace kind determines how you should behave inside `$HERMES_KANBAN_WORK
 
 ## Tenant isolation
 
-If `$HERMES_TENANT` is set, the task belongs to a tenant namespace. When reading or writing persistent memory, prefix memory entries with the tenant so context doesn't leak across tenants:
+If `$HAGENT_TENANT` is set, the task belongs to a tenant namespace. When reading or writing persistent memory, prefix memory entries with the tenant so context doesn't leak across tenants:
 
 - Good: `business-a: Acme is our biggest customer`
 - Bad (leaks): `Acme is our biggest customer`
@@ -49,7 +49,7 @@ kanban_complete(
 
 **Coding task that needs human review (review-required):**
 
-For most code-changing tasks, the work isn't truly *done* until a human reviewer has eyes on it. Block instead of complete, with `reason` prefixed `review-required: ` so the dashboard surfaces the row as needing review. Drop the structured metadata (changed files, test counts, diff/PR url) into a comment first, since `kanban_block` only carries the human-readable reason — comments are the durable annotation channel. Reviewer either approves and runs `hermes kanban unblock <id>` (which re-spawns you with the comment thread for any follow-ups) or asks for changes via another comment.
+For most code-changing tasks, the work isn't truly *done* until a human reviewer has eyes on it. Block instead of complete, with `reason` prefixed `review-required: ` so the dashboard surfaces the row as needing review. Drop the structured metadata (changed files, test counts, diff/PR url) into a comment first, since `kanban_block` only carries the human-readable reason — comments are the durable annotation channel. Reviewer either approves and runs `hagent kanban unblock <id>` (which re-spawns you with the comment thread for any follow-ups) or asks for changes via another comment.
 
 ```python
 import json
@@ -133,7 +133,7 @@ Good: one sentence naming the specific decision you need. Leave longer context a
 
 ```python
 kanban_comment(
-    task_id=os.environ["HERMES_KANBAN_TASK"],
+    task_id=os.environ["HAGENT_KANBAN_TASK"],
     body="Full context: I have user IPs from Cloudflare headers but some users are behind NATs with thousands of peers. Keying on IP alone causes false positives.",
 )
 kanban_block(reason="Rate limit key choice: IP (simple, NAT-unsafe) or user_id (requires auth, skips anonymous endpoints)?")
@@ -160,7 +160,7 @@ If you open the task and `kanban_show` returns `runs: [...]` with one or more cl
 ## Do NOT
 
 - Call `delegate_task` as a substitute for `kanban_create`. `delegate_task` is for short reasoning subtasks inside YOUR run; `kanban_create` is for cross-agent handoffs that outlive one API loop.
-- Modify files outside `$HERMES_KANBAN_WORKSPACE` unless the task body says to.
+- Modify files outside `$HAGENT_KANBAN_WORKSPACE` unless the task body says to.
 - Create follow-up tasks assigned to yourself — assign to the right specialist.
 - Complete a task you didn't actually finish. Block it instead.
 
@@ -170,15 +170,15 @@ If you open the task and `kanban_show` returns `runs: [...]` with one or more cl
 
 **Workspace may have stale artifacts.** Especially `dir:` and `worktree` workspaces can have files from previous runs. Read the comment thread — it usually explains why you're running again and what state the workspace is in.
 
-**Don't rely on the CLI when the guidance is available.** The `kanban_*` tools work across all terminal backends (Docker, Modal, SSH). `hermes kanban <verb>` from your terminal tool will fail in containerized backends because the CLI isn't installed there. When in doubt, use the tool.
+**Don't rely on the CLI when the guidance is available.** The `kanban_*` tools work across all terminal backends (Docker, Modal, SSH). `hagent kanban <verb>` from your terminal tool will fail in containerized backends because the CLI isn't installed there. When in doubt, use the tool.
 
 ## CLI fallback (for scripting)
 
 Every tool has a CLI equivalent for human operators and scripts:
-- `kanban_show` ↔ `hermes kanban show <id> --json`
-- `kanban_complete` ↔ `hermes kanban complete <id> --summary "..." --metadata '{...}'`
-- `kanban_block` ↔ `hermes kanban block <id> "reason"`
-- `kanban_create` ↔ `hermes kanban create "title" --assignee <profile> [--parent <id>]`
+- `kanban_show` ↔ `hagent kanban show <id> --json`
+- `kanban_complete` ↔ `hagent kanban complete <id> --summary "..." --metadata '{...}'`
+- `kanban_block` ↔ `hagent kanban block <id> "reason"`
+- `kanban_create` ↔ `hagent kanban create "title" --assignee <profile> [--parent <id>]`
 - etc.
 
 Use the tools from inside an agent; the CLI exists for the human at the terminal.

@@ -169,7 +169,7 @@ class SkillManager {
       'skill-creator': [
         'tạo skill', 'create skill', 'new skill', 'skill mới',
       ],
-      'hermes-gateway': [
+      'hagent-gateway': [
         'gateway', 'messaging platform', 'telegram', 'zalo', 'bot channel',
         'adapter', 'platform mới', 'kênh nhắn tin', 'gửi thông báo',
       ],

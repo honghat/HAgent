@@ -6,7 +6,7 @@ import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from hermes_constants import get_config_path
+from hagent_constants import get_config_path
 from utils import atomic_write_text
 
 router = APIRouter(tags=["config"])

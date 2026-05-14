@@ -1,7 +1,7 @@
 import db from '../db.js';
 import { chatStream } from './llm.js';
 import { decideAndExecuteTools } from './tools/index.js';
-import { buildHermesContinuationTurn } from './hermes/context.js';
+import { buildHagentContinuationTurn } from './hagent/context.js';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -148,7 +148,7 @@ export async function handleZaloWebhook(payload) {
     let msgs = history.map(m => ({ role: m.role, content: m.content }));
     msgs.push({
       role: 'user',
-      content: buildHermesContinuationTurn({ text, history, platform: 'zalo' }),
+      content: buildHagentContinuationTurn({ text, history, platform: 'zalo' }),
     });
 
     // Simplified tool execution and chat

@@ -8,8 +8,8 @@ module.exports = {
       env: {
         PORT: 8004,
         NODE_ENV: 'production',
-        HERMES_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
-        HERMES_SKILLS_DIR: '/Users/nguyenhat/HAgent/backend/agent/app/skills'
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
+        HAGENT_SKILLS_DIR: '/Users/nguyenhat/HAgent/backend/agent/app/skills'
       }
     },
     {
@@ -36,7 +36,7 @@ module.exports = {
       script: './cli.js',
       args: '-p 20128 -n --skip-update',
       env: {
-        HOME: '/Users/nguyenhat/HAgent'
+        HOME: '/Users/nguyenhat/HAgent/.hagent'
       }
     },
     {

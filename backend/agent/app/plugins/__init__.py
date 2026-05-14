@@ -1,1 +1,1 @@
-# Hermes plugins package
+# Hagent plugins package

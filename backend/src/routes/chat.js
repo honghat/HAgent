@@ -5,7 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { chatStream, extract, extractDoc, compactHistory, generateFollowUpSuggestions } from '../services/llm.js';
 import { dedupAndSave } from '../services/wiki-store.js';
 import { decideAndExecuteTools } from '../services/tools/index.js';
-import { buildHermesContinuationTurn } from '../services/hermes/context.js';
+import { buildHagentContinuationTurn } from '../services/hagent/context.js';
 import { processFile } from '../services/files/processor.js';
 import multer from 'multer';
 import fs from 'fs';
@@ -277,7 +277,7 @@ chatRouter.post('/sessions/:sessionId/messages', async (req, res) => {
       }
     }
 
-    const effectiveContent = buildHermesContinuationTurn({
+    const effectiveContent = buildHagentContinuationTurn({
       text: content,
       history,
       platform: 'chat',
@@ -449,7 +449,7 @@ chatRouter.post('/sessions/:sessionId/async', async (req, res) => {
       }
     }
 
-    const effectiveContent = buildHermesContinuationTurn({
+    const effectiveContent = buildHagentContinuationTurn({
       text: content,
       history,
       platform: 'chat',

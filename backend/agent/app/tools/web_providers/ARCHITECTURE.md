@@ -57,17 +57,17 @@ class MyExtractProvider(WebExtractProvider):
 1. Create `tools/web_providers/your_provider.py` implementing `WebSearchProvider`
 2. Add availability check to `_is_backend_available()` in `web_tools.py`
 3. Add dispatch branch in `web_search_tool()` 
-4. Add provider to `hermes tools` picker in `tools_config.py`
+4. Add provider to `hagent tools` picker in `tools_config.py`
 5. Add env var to `OPTIONAL_ENV_VARS` in `config.py` (if needed)
 6. Write tests in `tests/tools/`
 
 Search-only providers (like SearXNG) don't need to implement `WebExtractProvider`.
 Extract-only providers don't need to implement `WebSearchProvider`.
 
-## hermes tools UX
+## hagent tools UX
 
 The provider picker uses **progressive disclosure**:
 - **Default path** (90% of users): Pick one provider → sets `web.backend` for both. One selection, done.
 - **Advanced path**: "Configure separately" option at bottom → two-step sub-picker for search + extract independently.
 
-See `.hermes/plans/2026-05-03-web-tools-provider-architecture.md` for the full UX flow diagram.
+See `.hagent/plans/2026-05-03-web-tools-provider-architecture.md` for the full UX flow diagram.

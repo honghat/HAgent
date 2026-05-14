@@ -9,7 +9,7 @@
  * - Session persistence
  * - Tool calling for complex workflows
  *
- * Inspired by: hermes-agent's terminal(background=true, notify_on_complete=true)
+ * Inspired by: hagent-agent's terminal(background=true, notify_on_complete=true)
  */
 
 import { HAgent } from '../backend-loop.js';

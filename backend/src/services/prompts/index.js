@@ -9,7 +9,7 @@ function load(name) {
 }
 
 const harness = load('harness.md');
-const hermesBrain = load('hermes-brain.md');
+const hagentBrain = load('hagent-brain.md');
 const communication = load('communication.md');
 const executingActions = load('executing-actions.md');
 const toolUsage = load('tool-usage.md');
@@ -20,7 +20,7 @@ const executionDiscipline = load('execution-discipline.md');
 
 export const CHAT_SYSTEM = [
   harness,
-  hermesBrain,
+  hagentBrain,
   executionDiscipline,
   communication,
   executingActions,

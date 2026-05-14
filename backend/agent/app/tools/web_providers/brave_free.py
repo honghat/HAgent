@@ -7,10 +7,10 @@ returns search results, it does not extract/crawl arbitrary URLs.
 
 Configuration::
 
-    # ~/.hermes/.env
+    # ~/.hagent/.env
     BRAVE_SEARCH_API_KEY=your-subscription-token
 
-    # ~/.hermes/config.yaml
+    # ~/.hagent/config.yaml
     web:
       search_backend: "brave-free"
       extract_backend: "firecrawl"    # pair with an extract provider if needed

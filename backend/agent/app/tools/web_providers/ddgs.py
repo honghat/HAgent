@@ -12,7 +12,7 @@ Configuration::
     # web backend at ddgs:
     pip install ddgs
 
-    # ~/.hermes/config.yaml
+    # ~/.hagent/config.yaml
     web:
       search_backend: "ddgs"
       extract_backend: "firecrawl"    # pair with an extract provider if needed

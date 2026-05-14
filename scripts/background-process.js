@@ -4,7 +4,7 @@
  * Background Process Script
  *
  * Example of running a script as a background process with notifications.
- * Similar to hermes-agent's: terminal(background=true, notify_on_complete=true)
+ * Similar to hagent-agent's: terminal(background=true, notify_on_complete=true)
  */
 
 import { spawn } from 'child_process';
@@ -14,7 +14,7 @@ const task_id = `bg_${Date.now()}`;
 const script_path = process.argv[2];
 
 // Ensure home directory exists
-const homeDir = process.env.HERMES_HOME || process.env.HOME;
+const homeDir = process.env.HAGENT_HOME || process.env.HOME;
 if (!fs.existsSync(homeDir)) {
   console.error(`Home directory does not exist: ${homeDir}`);
   process.exit(1);

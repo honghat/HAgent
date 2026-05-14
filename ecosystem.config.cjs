@@ -69,7 +69,7 @@ module.exports = {
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
-        HOME: '/Users/nguyenhat/HAgent/.hagent'
+        HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime/9router'
       }
     },
     {
@@ -108,7 +108,7 @@ module.exports = {
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
-        PYTHONPATH: '..'
+        PYTHONPATH: '.'
       }
     },
     {

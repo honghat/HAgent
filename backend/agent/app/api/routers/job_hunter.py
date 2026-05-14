@@ -331,6 +331,8 @@ async def _scrape_source(
                     if salary_elem:
                         salary_text = await salary_elem.inner_text()
                     s_min, s_max = parse_salary(salary_text)
+                    # Always display salary in VND — convert USD display to VND
+                    salary_display = _format_vnd_display(s_min, s_max, salary_text)
 
                     # Posted date — try element first, then full card text
                     posted_date = None
@@ -366,7 +368,7 @@ async def _scrape_source(
                         title=title.strip(),
                         company=company.strip(),
                         location=location.strip() if location else None,
-                        salary=salary_text.strip() if salary_text else None,
+                        salary=salary_display or None,
                         salary_min=s_min,
                         salary_max=s_max,
                         source=source,

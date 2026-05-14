@@ -91,64 +91,49 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
     setAgentConfig(prev => setPath(prev, path, value))
   }
 
-  const saveAgentConfig = async () => {
-    setConfigSaving(true)
-    setConfigMessage({ text: '', type: '' })
-    try {
-      const body = configMode === 'yaml'
-        ? { yaml_text: configYaml }
-        : { config: agentConfig }
-      const res = await fetch('/api/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body)
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || data.error || 'Không lưu được cấu hình')
-      setAgentConfig(data.config || {})
-      setConfigYaml(data.yaml || '')
-      setConfigPath(data.path || configPath)
-      setConfigMessage({ text: data.message || 'Đã lưu cấu hình', type: 'success' })
-      const savedProvider = getPath(data.config || {}, 'model.provider')
-      if (savedProvider && savedProvider !== provider) onProviderChange?.(savedProvider)
-    } catch (err) {
-      setConfigMessage({ text: err.message, type: 'error' })
-    } finally {
-      setConfigSaving(false)
-    }
-  }
-
-  const handleSave = async (e) => {
-    e.preventDefault()
+  const handleSaveAll = async () => {
     setLoading(true)
+    setConfigSaving(true)
     setMessage({ text: '', type: '' })
 
     try {
-      const res = await fetch('/api/auth/me', {
+      const userRes = await fetch('/api/auth/me', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           displayName,
           username,
           password: password || undefined
         })
       })
+      const userData = await userRes.json()
+      if (!userRes.ok) throw new Error(userData.error || 'Lỗi lưu tài khoản')
 
-      const data = await res.json()
-      if (res.ok) {
-        setMessage({ text: 'Cập nhật thành công!', type: 'success' })
-        setPassword('')
-        onUpdate()
-      } else {
-        setMessage({ text: data.error || 'Có lỗi xảy ra', type: 'error' })
-      }
+      const updatedAgentConfig = setPath(agentConfig, 'model.provider', provider)
+      const body = configMode === 'yaml'
+        ? { yaml_text: configYaml }
+        : { config: updatedAgentConfig }
+      
+      const configRes = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      })
+      const configData = await configRes.json()
+      if (!configRes.ok) throw new Error(configData.detail || configData.error || 'Lỗi lưu cấu hình')
+
+      setAgentConfig(configData.config || {})
+      setConfigYaml(configData.yaml || '')
+      setConfigPath(configData.path || configPath)
+      
+      setMessage({ text: 'Đã lưu tất cả thay đổi!', type: 'success' })
+      setPassword('')
+      onUpdate()
     } catch (err) {
       setMessage({ text: err.message, type: 'error' })
     } finally {
       setLoading(false)
+      setConfigSaving(false)
     }
   }
 
@@ -156,177 +141,169 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
     <div className="h-full bg-white/30 flex flex-col p-4 md:p-8 overflow-y-auto pb-safe">
       <div className="max-w-5xl mx-auto w-full space-y-5">
         <div className="mb-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <h1 className="text-lg font-semibold text-gray-900 tracking-tight">Cài đặt tài khoản</h1>
-          <p className="mt-1 text-[11px] text-gray-400">Thông tin cá nhân và bảo mật</p>
+          <h1 className="text-lg font-semibold text-gray-900 tracking-tight">Cài đặt hệ thống</h1>
+          <p className="mt-1 text-[11px] text-gray-400">Quản lý tài khoản và cấu hình Agent tập trung</p>
         </div>
 
-        <div className="bg-white border border-gray-100 rounded-3xl p-5 sm:p-6 shadow-sm animate-in fade-in zoom-in-95 duration-200">
-          <form onSubmit={handleSave} className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white border border-black/[0.04] rounded-[2rem] p-6 sm:p-10 shadow-sm space-y-12 animate-in fade-in zoom-in-95 duration-300">
+          <div className="space-y-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gray-950 flex items-center justify-center text-white shadow-lg shadow-black/10">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Thông tin tài khoản</h2>
+                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Cá nhân & Bảo mật</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest ml-1">Tên hiển thị</label>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tên hiển thị</label>
                 <input 
                   value={displayName} 
                   onChange={e => setDisplayName(e.target.value)}
-                  placeholder="e.g. Nguyễn Văn A"
-                  className="w-full bg-gray-50 border border-transparent focus:border-gray-900 rounded-2xl px-4 py-2.5 text-[13px] outline-none transition-all font-medium text-gray-700" 
+                  placeholder="Nguyễn Văn A"
+                  className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner" 
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest ml-1">Tên đăng nhập</label>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tên đăng nhập</label>
                 <input 
                   value={username} 
                   onChange={e => setUsername(e.target.value)}
-                  placeholder="e.g. admin"
-                  className="w-full bg-gray-50 border border-transparent focus:border-gray-900 rounded-2xl px-4 py-2.5 text-[13px] outline-none transition-all font-medium text-gray-700" 
+                  placeholder="admin"
+                  className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner" 
                 />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest ml-1">Provider mặc định</label>
-              <select
-                value={provider}
-                onChange={e => {
-                  const p = e.target.value
-                  onProviderChange(p)
-                  setAgentConfig(prev => setPath(prev, 'model.provider', p))
-                }}
-                className="w-full bg-gray-50 border border-transparent focus:border-gray-900 rounded-2xl px-4 py-2.5 text-[13px] outline-none transition-all font-medium text-gray-700 appearance-none"
-              >
-                {providers.map(p => <option key={p} value={p}>{providerLabels[p]}</option>)}
-              </select>
-            </div>
-
-            {provider === 'cx' && (
               <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest ml-1">CX model</label>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Provider mặc định</label>
+                <div className="relative">
+                  <select
+                    value={provider}
+                    onChange={e => onProviderChange(e.target.value)}
+                    className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 appearance-none shadow-inner"
+                  >
+                    {providers.map(p => <option key={p} value={p}>{providerLabels[p]}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Mật khẩu mới</label>
                 <input
-                  value={cxModel || ''}
-                  onChange={e => onCxModelChange?.(e.target.value)}
-                  placeholder="cx/gpt-5.5"
-                  className="w-full bg-gray-50 border border-transparent focus:border-gray-900 rounded-2xl px-4 py-2.5 text-[13px] outline-none transition-all font-medium text-gray-700"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner"
                 />
               </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest ml-1">Mật khẩu mới (Để trống nếu không đổi)</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-gray-50 border border-transparent focus:border-gray-900 rounded-2xl px-4 py-2.5 text-[13px] outline-none transition-all font-medium text-gray-700"
-              />
-            </div>
-
-            {message.text && (
-              <div className={`p-4 rounded-2xl text-xs font-bold uppercase tracking-widest text-center animate-in fade-in slide-in-from-top-2 ${
-                message.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-              }`}>
-                {message.text}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gray-900 text-white py-2.5 rounded-xl text-[11px] font-medium hover:bg-black transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
-              >
-                {loading ? 'Đang lưu...' : 'Cập nhật thông tin'}
-              </button>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="w-full bg-red-50 text-red-600 py-2.5 rounded-xl text-[11px] font-medium hover:bg-red-100 transition-all active:scale-[0.98]"
-              >
-                Đăng xuất
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <div className="bg-white border border-gray-100 rounded-3xl p-5 sm:p-6 shadow-sm animate-in fade-in zoom-in-95 duration-200">
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900">Cài đặt Agent</h2>
-              <p className="mt-1 text-[11px] text-gray-400">{configPath || 'backend/agent/runtime/config.yaml'}</p>
-            </div>
-            <div className="flex rounded-2xl bg-gray-100 p-1 text-[11px] font-semibold text-gray-500">
-              <button type="button" onClick={() => setConfigMode('form')} className={`rounded-xl px-3 py-2 ${configMode === 'form' ? 'bg-white text-gray-900 shadow-sm' : ''}`}>Form</button>
-              <button type="button" onClick={() => setConfigMode('yaml')} className={`rounded-xl px-3 py-2 ${configMode === 'yaml' ? 'bg-white text-gray-900 shadow-sm' : ''}`}>YAML</button>
+              {provider === 'cx' && (
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">CX model</label>
+                  <input
+                    value={cxModel || ''}
+                    onChange={e => onCxModelChange?.(e.target.value)}
+                    placeholder="cx/gpt-5.5"
+                    className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
-          {configLoading ? (
-            <div className="rounded-2xl bg-gray-50 p-4 text-xs font-medium text-gray-500">Đang tải cấu hình...</div>
-          ) : configMode === 'form' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {configFields.map(field => {
-                const value = getPath(agentConfig, field.path)
-                if (field.type === 'boolean') {
+          <div className="space-y-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Cấu hình Agent</h2>
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">{configPath || 'config.yaml'}</p>
+                </div>
+              </div>
+              <div className="flex rounded-2xl bg-gray-100 p-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                <button type="button" onClick={() => setConfigMode('form')} className={`rounded-xl px-5 py-2.5 transition-all ${configMode === 'form' ? 'bg-white text-gray-900 shadow-sm' : 'hover:text-gray-700'}`}>Form</button>
+                <button type="button" onClick={() => setConfigMode('yaml')} className={`rounded-xl px-5 py-2.5 transition-all ${configMode === 'yaml' ? 'bg-white text-gray-900 shadow-sm' : 'hover:text-gray-700'}`}>YAML</button>
+              </div>
+            </div>
+
+            {configLoading ? (
+              <div className="rounded-[2rem] bg-gray-50 p-12 text-center text-xs font-bold text-gray-400 animate-pulse">Đang tải cấu hình hệ thống...</div>
+            ) : configMode === 'form' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {configFields.map(field => {
+                  const value = getPath(agentConfig, field.path)
+                  if (field.type === 'boolean') {
+                    return (
+                      <label key={field.path} className="flex items-center justify-between rounded-[1.5rem] bg-gray-50/50 border border-transparent hover:border-black/[0.04] transition-all px-5 py-4 cursor-pointer group shadow-inner">
+                        <div className="flex flex-col">
+                          <span className="text-[12.5px] font-bold text-gray-700 group-hover:text-gray-900">{field.label}</span>
+                          <span className="text-[9px] text-gray-400 font-mono mt-0.5">{field.path}</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(value)}
+                          onChange={e => updateConfigField(field.path, e.target.checked)}
+                          className="h-5 w-5 accent-gray-900 rounded-md"
+                        />
+                      </label>
+                    )
+                  }
                   return (
-                    <label key={field.path} className="flex items-center justify-between rounded-2xl bg-gray-50 px-4 py-3">
-                      <span className="text-[12px] font-semibold text-gray-600">{field.label}</span>
+                    <div key={field.path} className="space-y-2">
+                      <div className="flex justify-between items-center ml-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{field.label}</label>
+                        <span className="text-[9px] text-gray-300 font-mono">{field.path}</span>
+                      </div>
                       <input
-                        type="checkbox"
-                        checked={Boolean(value)}
-                        onChange={e => updateConfigField(field.path, e.target.checked)}
-                        className="h-4 w-4 accent-gray-900"
+                        type={field.type === 'password' ? 'password' : field.type}
+                        value={value ?? ''}
+                        onChange={e => updateConfigField(field.path, e.target.value)}
+                        placeholder={field.placeholder}
+                        className="w-full bg-gray-50/50 border border-transparent focus:border-gray-900 rounded-2xl px-5 py-3.5 text-[13.5px] outline-none transition-all font-medium text-gray-700 shadow-inner"
                       />
-                    </label>
+                    </div>
                   )
-                }
-                return (
-                  <div key={field.path} className="space-y-2">
-                    <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest ml-1">{field.label}</label>
-                    <input
-                      type={field.type === 'password' ? 'password' : field.type}
-                      value={value ?? ''}
-                      onChange={e => updateConfigField(field.path, e.target.value)}
-                      placeholder={field.placeholder}
-                      className="w-full bg-gray-50 border border-transparent focus:border-gray-900 rounded-2xl px-4 py-2.5 text-[13px] outline-none transition-all font-medium text-gray-700"
-                    />
-                    <div className="text-[10px] text-gray-300 ml-1">{field.path}</div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <textarea
-              value={configYaml}
-              onChange={e => setConfigYaml(e.target.value)}
-              spellCheck={false}
-              className="min-h-[520px] w-full resize-y rounded-2xl border border-gray-100 bg-gray-950 p-4 font-mono text-[12px] leading-5 text-gray-100 outline-none focus:border-gray-400"
-            />
-          )}
+                })}
+              </div>
+            ) : (
+              <div className="relative group">
+                <textarea
+                  value={configYaml}
+                  onChange={e => setConfigYaml(e.target.value)}
+                  spellCheck={false}
+                  className="min-h-[500px] w-full resize-y rounded-[2rem] border border-gray-100 bg-gray-950 p-8 font-mono text-[12.5px] leading-relaxed text-gray-100 outline-none transition-all focus:border-gray-600 shadow-2xl custom-scrollbar"
+                />
+                <div className="absolute top-6 right-8 text-[10px] font-bold text-gray-600 opacity-50 uppercase tracking-widest">YAML Editor</div>
+              </div>
+            )}
+          </div>
 
-          {configMessage.text && (
-            <div className={`mt-4 p-4 rounded-2xl text-xs font-bold uppercase tracking-widest text-center ${
-              configMessage.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+          {message.text && (
+            <div className={`p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest text-center animate-fade-in ${
+              message.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
             }`}>
-              {configMessage.text}
+              {message.text}
             </div>
           )}
 
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               type="button"
-              onClick={saveAgentConfig}
-              disabled={configSaving || configLoading}
-              className="w-full bg-gray-900 text-white py-2.5 rounded-xl text-[11px] font-medium hover:bg-black transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+              onClick={handleSaveAll}
+              disabled={loading || configSaving}
+              className="w-full bg-gray-950 text-white py-4 rounded-[1.25rem] text-[11px] font-bold uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-black/10 active:scale-[0.98] disabled:opacity-50"
             >
-              {configSaving ? 'Đang lưu...' : 'Lưu cấu hình agent'}
+              {loading || configSaving ? 'Đang xử lý...' : 'Lưu tất cả thay đổi'}
             </button>
             <button
               type="button"
-              onClick={loadConfig}
-              disabled={configSaving || configLoading}
-              className="w-full bg-gray-50 text-gray-600 py-2.5 rounded-xl text-[11px] font-medium hover:bg-gray-100 transition-all active:scale-[0.98] disabled:opacity-50"
+              onClick={onLogout}
+              className="w-full bg-red-50 text-red-600 py-4 rounded-[1.25rem] text-[11px] font-bold uppercase tracking-widest hover:bg-red-100 transition-all active:scale-[0.98]"
             >
-              Tải lại từ file
+              Đăng xuất
             </button>
           </div>
         </div>

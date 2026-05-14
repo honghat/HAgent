@@ -1,13 +1,25 @@
 #!/bin/bash
-set -e
+# ============================================================
+#  HAgent Unified Start Script
+#  Uses PM2 to manage all services
+# ============================================================
 
-echo "Cleaning up existing processes on ports 8004, 8010 and 3004..."
-lsof -ti:8004,8010,3004 | xargs kill -9 2>/dev/null || true
+DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$DIR"
 
-echo "Starting backend..."
-(cd backend && npm run dev) &
+# Check if PM2 is installed
+if ! command -v pm2 &> /dev/null; then
+    echo "PM2 is not installed. Installing globally..."
+    npm install -g pm2
+fi
 
-echo "Starting frontend..."
-(cd frontend && npm run dev) &
+echo "Starting all HAgent services via PM2..."
+pm2 start ecosystem.config.cjs --force
 
-wait
+echo ""
+echo "Services status:"
+pm2 list
+
+echo ""
+echo "Use 'pm2 logs' to see real-time logs."
+echo "Use 'pm2 stop all' to stop all services."

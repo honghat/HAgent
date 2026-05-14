@@ -49,19 +49,17 @@ function saveJobResult(userId, profileId, jobData) {
   const id = uuidv4();
 
   db.prepare(`
-    INSERT INTO job_results (
-      id, user_id, profile_id, url, title, company, source, description,
-      match_score, analysis, learning_plan, interview_prep, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, url) DO UPDATE SET
+    INSERT INTO cv_job_applications (
+      id, user_id, profile_id, job_url, job_title, company, source,
+      match_score, verdict, job_json, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, job_url) DO UPDATE SET
       profile_id = excluded.profile_id,
-      title = excluded.title,
+      job_title = excluded.job_title,
       company = excluded.company,
-      description = excluded.description,
       match_score = excluded.match_score,
-      analysis = excluded.analysis,
-      learning_plan = excluded.learning_plan,
-      interview_prep = excluded.interview_prep,
+      verdict = excluded.verdict,
+      job_json = excluded.job_json,
       updated_at = datetime('now')
   `).run(
     id,
@@ -71,11 +69,9 @@ function saveJobResult(userId, profileId, jobData) {
     jobData.title,
     jobData.company,
     jobData.source,
-    jobData.description,
     jobData.matchScore,
+    jobData.analysis.pitch || '',
     JSON.stringify(jobData.analysis),
-    JSON.stringify(jobData.learningPlan),
-    JSON.stringify(jobData.interviewPrep),
     'new'
   );
 
@@ -87,8 +83,8 @@ function saveJobResult(userId, profileId, jobData) {
  */
 function getJobResult(userId, url) {
   const row = db.prepare(`
-    SELECT * FROM job_results
-    WHERE user_id = ? AND url = ?
+    SELECT * FROM cv_job_applications
+    WHERE user_id = ? AND job_url = ?
   `).get(userId, url);
 
   if (!row) return null;
@@ -97,15 +93,12 @@ function getJobResult(userId, url) {
     id: row.id,
     userId: row.user_id,
     profileId: row.profile_id,
-    url: row.url,
-    title: row.title,
+    url: row.job_url,
+    title: row.job_title,
     company: row.company,
     source: row.source,
-    description: row.description,
     matchScore: row.match_score,
-    analysis: JSON.parse(row.analysis || '{}'),
-    learningPlan: JSON.parse(row.learning_plan || '[]'),
-    interviewPrep: JSON.parse(row.interview_prep || '{}'),
+    analysis: JSON.parse(row.job_json || '{}'),
     status: row.status,
     notes: row.notes,
     createdAt: row.created_at,

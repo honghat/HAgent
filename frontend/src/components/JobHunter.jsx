@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Briefcase, Upload, Loader2, Sparkles, FileText, ExternalLink, CheckCircle2, XCircle, Clock } from 'lucide-react'
 
-export default function KiemViec({ token, provider }) {
+export default function JobHunter({ token, provider }) {
   const [profiles, setProfiles] = useState([])
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [jobUrls, setJobUrls] = useState('')
@@ -27,7 +27,7 @@ export default function KiemViec({ token, provider }) {
     setLoading(true)
     addLog('Đang tải danh sách hồ sơ...')
     try {
-      const res = await fetch('/api/cv-v2/profiles', {
+      const res = await fetch('/api/job-hunter/profiles', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!res.ok) throw new Error('Không thể tải profiles')
@@ -50,7 +50,7 @@ export default function KiemViec({ token, provider }) {
   async function loadJobs(profileId) {
     if (!profileId) return
     try {
-      const res = await fetch(`/api/cv-v2/profiles/${profileId}/jobs`, {
+      const res = await fetch(`/api/job-hunter/profiles/${profileId}/jobs`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!res.ok) return
@@ -75,7 +75,7 @@ export default function KiemViec({ token, provider }) {
       form.append('provider', provider)
       addLog(`AI: Đang sử dụng ${provider}...`)
       addLog('Đang phân tích CV (Playwright + AI)...')
-      const res = await fetch('/api/cv-v2/profiles/upload', {
+      const res = await fetch('/api/job-hunter/profiles/upload', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
@@ -109,7 +109,7 @@ export default function KiemViec({ token, provider }) {
     const urls = jobUrls.split('\n').map(u => u.trim()).filter(Boolean)
     addLog(`Đang phân tích ${urls.length} việc làm...`)
     try {
-      const res = await fetch(`/api/cv-v2/profiles/${selectedProfile.id}/jobs`, {
+      const res = await fetch(`/api/job-hunter/profiles/${selectedProfile.id}/jobs`, {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -140,7 +140,7 @@ export default function KiemViec({ token, provider }) {
     addLog(`AI: Đang sử dụng ${provider}...`)
     addLog(`Đang tìm việc từ ${sources} (Playwright + AI)...`)
     try {
-      const res = await fetch(`/api/cv-v2/profiles/${selectedProfile.id}/auto-search`, {
+      const res = await fetch(`/api/job-hunter/profiles/${selectedProfile.id}/auto-search`, {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -163,7 +163,7 @@ export default function KiemViec({ token, provider }) {
 
   async function updateJobStatus(jobId, status) {
     try {
-      const res = await fetch(`/api/cv-v2/jobs/${jobId}/status`, {
+      const res = await fetch(`/api/job-hunter/jobs/${jobId}/status`, {
         method: 'PATCH',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -186,7 +186,7 @@ export default function KiemViec({ token, provider }) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/cv-v2/profiles/import', {
+      const res = await fetch('/api/job-hunter/profiles/import', {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),

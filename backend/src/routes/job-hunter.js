@@ -16,9 +16,18 @@ import {
   updateJobStatus,
 } from '../services/job-hunter/job-service.js';
 import { autoSearchJobs } from '../services/job-hunter/auto-search.js';
+import { pythonAgentProxy } from '../services/python-agent.js';
 
 export const jobHunterRouter = Router();
 jobHunterRouter.use(requireAuth);
+
+// Scraper Proxy Routes (Python Agent)
+jobHunterRouter.get('/stats', pythonAgentProxy());
+jobHunterRouter.post('/scrape', pythonAgentProxy());
+jobHunterRouter.get('/search', pythonAgentProxy());
+jobHunterRouter.get('/export', pythonAgentProxy());
+jobHunterRouter.get('/sources', pythonAgentProxy());
+jobHunterRouter.delete('/cache', pythonAgentProxy());
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -35,14 +35,9 @@ def get_hermes_home() -> Path:
     ``hermes_cli/kanban_db.py``).  See https://github.com/NousResearch/hermes-agent/issues/18594.
     """
     val = os.environ.get("HERMES_HOME", "").strip()
-    pid = os.getpid()
     if val:
-        res = Path(val)
-        print(f"[DEBUG][PID:{pid}] get_hermes_home using ENV: {res}")
-        return res
-    res = _PROJECT_HERMES_HOME
-    print(f"[DEBUG][PID:{pid}] get_hermes_home using PROJECT: {res}")
-    return res
+        return Path(val)
+    return _PROJECT_HERMES_HOME
 
 
 def get_default_hermes_root() -> Path:

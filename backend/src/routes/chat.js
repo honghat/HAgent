@@ -254,53 +254,12 @@ chatRouter.post('/sessions/:sessionId/messages', async (req, res) => {
     }
     db.prepare('UPDATE chat_sessions SET updated_at = datetime(\'now\') WHERE id = ?').run(req.params.sessionId);
 
-    // Auto-detect Telegram token in message
-    const tokenMatch = content.match(/\b(\d{8,12}:[\w-]{30,50})\b/);
-    if (tokenMatch && /(kết nối|connect|telegram|bot|token|dùng|add|thêm)/i.test(content)) {
-      try {
-        const { startTelegramBot } = await import('../services/telegram.js');
-        const tgResult = await startTelegramBot(tokenMatch[1], req.userId);
-        send('tool', { name: 'telegram_connect', status: 'done', count: 1 });
-        send('content', { content: `✅ Bot @${tgResult.username} đã kết nối! Gửi tin nhắn tới @${tgResult.username} trên Telegram để chat.` });
-        send('done', {});
-        return res.end();
-      } catch (e) {
-        send('content', { content: `❌ Không kết nối được Telegram: ${e.message}` });
-        send('done', {});
-        return res.end();
-      }
-    }
-
-    // Get chat history
-    const history = db.prepare(
-      'SELECT role, content FROM messages WHERE session_id = ? AND id != ? ORDER BY created_at ASC'
-    ).all(req.params.sessionId, msgId);
-
-    let msgs = history.map(m => ({ role: m.role, content: m.content }));
-
-    // Get session and agent info
-    const session = db.prepare('SELECT agent_id FROM chat_sessions WHERE id = ?').get(sessionId);
-    if (session?.agent_id) {
-      const agent = db.prepare('SELECT soul_content FROM agents WHERE id = ?').get(session.agent_id);
-      if (agent?.soul_content) {
-        msgs.unshift({ role: 'system', content: `[AGENT SOUL]\n${agent.soul_content}` });
-      }
-    }
-
-    const effectiveContent = buildHagentContinuationTurn({
-      text: content,
-      history,
-      platform: 'chat',
-    });
-
-    msgs.push({ role: 'user', content: effectiveContent });
-
-    // Setup SSE
+    // Setup SSE early so send() is available for all paths
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
-    
+
     // Final reply ID (pre-generated to link journal entries)
     const replyId = uuidv4();
 
@@ -337,6 +296,52 @@ chatRouter.post('/sessions/:sessionId/messages', async (req, res) => {
       }
     };
 
+    // Auto-detect Telegram token in message
+    const tokenMatch = content.match(/\b(\d{8,12}:[\w-]{30,50})\b/);
+    if (tokenMatch && /(kết nối|connect|telegram|bot|token|dùng|add|thêm)/i.test(content)) {
+      try {
+        const { startTelegramBot } = await import('../services/telegram.js');
+        const tgResult = await startTelegramBot(tokenMatch[1], req.userId);
+        send('tool', { name: 'telegram_connect', status: 'done', count: 1 });
+        send('content', { content: `✅ Bot @${tgResult.username} đã kết nối! Gửi tin nhắn tới @${tgResult.username} trên Telegram để chat.` });
+        // Update the pre-inserted assistant message with the result
+        db.prepare('UPDATE messages SET content = ? WHERE id = ?').run(`✅ Bot @${tgResult.username} đã kết nối! Gửi tin nhắn tới @${tgResult.username} trên Telegram để chat.`, replyId);
+        db.prepare('UPDATE chat_sessions SET processing = 0 WHERE id = ?').run(sessionId);
+        send('done', { messageId: replyId });
+        return res.end();
+      } catch (e) {
+        send('content', { content: `❌ Không kết nối được Telegram: ${e.message}` });
+        db.prepare('UPDATE messages SET content = ? WHERE id = ?').run(`❌ Không kết nối được Telegram: ${e.message}`, replyId);
+        db.prepare('UPDATE chat_sessions SET processing = 0 WHERE id = ?').run(sessionId);
+        send('done', { messageId: replyId });
+        return res.end();
+      }
+    }
+
+    // Get chat history
+    const history = db.prepare(
+      'SELECT role, content FROM messages WHERE session_id = ? AND id != ? ORDER BY created_at ASC'
+    ).all(req.params.sessionId, msgId);
+
+    let msgs = history.map(m => ({ role: m.role, content: m.content }));
+
+    // Get session and agent info
+    const session = db.prepare('SELECT agent_id FROM chat_sessions WHERE id = ?').get(sessionId);
+    if (session?.agent_id) {
+      const agent = db.prepare('SELECT soul_content FROM agents WHERE id = ?').get(session.agent_id);
+      if (agent?.soul_content) {
+        msgs.unshift({ role: 'system', content: `[AGENT SOUL]\n${agent.soul_content}` });
+      }
+    }
+
+    const effectiveContent = buildHagentContinuationTurn({
+      text: content,
+      history,
+      platform: 'chat',
+    });
+
+    msgs.push({ role: 'user', content: effectiveContent });
+
     let collectedText = '';
     let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
     let chunkCount = 0; // for periodic save
@@ -360,7 +365,7 @@ chatRouter.post('/sessions/:sessionId/messages', async (req, res) => {
       }
 
     // Generate final LLM response
-    for await (const chunk of chatStream(msgs, provider, extraContext)) {
+    for await (const chunk of chatStream(msgs, provider, req.userId, extraContext)) {
       if (chunk.type === 'content') {
         collectedText += chunk.content;
         send('content', { content: chunk.content });
@@ -384,7 +389,7 @@ chatRouter.post('/sessions/:sessionId/messages', async (req, res) => {
     db.prepare('UPDATE chat_sessions SET processing = 0 WHERE id = ?').run(sessionId);
 
     // Extract wiki knowledge from the conversation turn (fire and forget)
-    extract(content, collectedText, provider).then(async extracted => {
+    extract(content, collectedText, provider, req.userId).then(async extracted => {
       if (extracted) {
         console.log(`[Wiki Extraction] Extracted knowledge: ${extracted.title}`);
         const result = await dedupAndSave({ userId: req.userId, ...extracted, source: 'chat', provider });
@@ -401,7 +406,7 @@ chatRouter.post('/sessions/:sessionId/messages', async (req, res) => {
     send('done', { messageId: replyId, usage: totalUsage });
 
     // Generate follow-up suggestions (fire and forget)
-    generateFollowUpSuggestions(msgs, collectedText, provider).then(suggestions => {
+    generateFollowUpSuggestions(msgs, collectedText, provider, req.userId).then(suggestions => {
       if (suggestions && suggestions.length > 0) {
         send('suggestions', { suggestions });
       }
@@ -533,7 +538,7 @@ chatRouter.post('/anthropic/:provider/v1/messages', async (req, res) => {
 
   try {
     const { getProviderClient } = await import('../services/provider-config.js');
-    const config = getProviderClient(providerName);
+    const config = getProviderClient(providerName, req.userId);
     const client = config.client;
 
     // Convert Anthropic messages to OpenAI format

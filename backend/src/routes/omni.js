@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
+import path from 'node:path';
 import db from '../db.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { sendGatewayMessage } from '../services/gateway/index.js';
@@ -48,7 +49,7 @@ function friendlyZaloBridgeError(err) {
 }
 
 const DEFAULT_AVATAR = 'https://chat.zalo.me/assets/default_avatar.png';
-const HATAI_PYTHON = process.env.HATAI_PYTHON || '/Users/nguyenhat/miniconda3/envs/hatai_env/bin/python';
+const HATAI_PYTHON = process.env.HATAI_PYTHON || path.join(process.cwd(), 'agent', '.venv', 'bin', 'python');
 const DEFAULT_PYTHON = existsSync(HATAI_PYTHON) ? HATAI_PYTHON : 'python3';
 const zaloQrSessions = new Map();
 const zaloWebSessions = new Map();

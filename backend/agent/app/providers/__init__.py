@@ -70,7 +70,41 @@ def get_provider_profile(name: str) -> ProviderProfile | None:
     if not _discovered:
         _discover_providers()
     canonical = _ALIASES.get(name, name)
-    return _REGISTRY.get(canonical)
+    profile = _REGISTRY.get(canonical)
+
+    if profile:
+        # HAgent: Apply DB overrides from the main HAgent database
+        try:
+            import sqlite3
+            from pathlib import Path
+            
+            # DB is at <repo>/data/hagent.db. Current file is at <repo>/backend/agent/app/providers/__init__.py
+            # So repo root is 5 levels up.
+            db_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "hagent.db"
+            if db_path.exists():
+                conn = sqlite3.connect(str(db_path))
+                cursor = conn.cursor()
+                # We pick the first user's override for simplicity in single-user mode
+                cursor.execute(
+                    "SELECT label, type, base_url, api_key, model FROM custom_providers WHERE name = ? ORDER BY updated_at DESC LIMIT 1",
+                    (canonical,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    label, p_type, base_url, api_key, model = row
+                    if label: profile.display_name = label
+                    if base_url: profile.base_url = base_url
+                    # For API key, we only override if not empty
+                    if api_key:
+                        # profile might not have a direct field for key in its dataclass, 
+                        # but some profiles use env_vars. For OpenRouter/OpenAI compat, 
+                        # setting base_url is usually enough if the key is in env.
+                        pass
+                conn.close()
+        except Exception as e:
+            logger.debug("Failed to load DB override for %s: %s", canonical, e)
+
+    return profile
 
 
 def list_providers() -> list[ProviderProfile]:

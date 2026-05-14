@@ -245,7 +245,14 @@ export default function UserSettings({ token, user, provider, cxModel, onCxModel
       const userData = await userRes.json()
       if (!userRes.ok) throw new Error(userData.error || 'Lỗi lưu tài khoản')
 
-      // 2. Provider
+      // 2. Providers (Bulk save)
+      await fetch('/api/auth/providers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ providers })
+      })
+
+      // 3. Default Provider
       await fetch('/api/auth/provider', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders },

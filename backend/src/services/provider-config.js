@@ -1,5 +1,6 @@
 import { OpenAI } from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import db from '../db.js';
 
 /**
  * Central configuration for all LLM providers.
@@ -48,11 +49,11 @@ export const PROVIDER_CONFIGS = {
   },
   cx: {
     name: 'cx',
-    label: 'CX GPT-5.5',
+    label: '9router',
     type: 'openai',
     baseURL: process.env.CX_BASE_URL || 'http://localhost:20128/v1',
     apiKey: process.env.CX_API_KEY || 'cx',
-    model: process.env.CX_MODEL || 'cx/gpt-5.5',
+    model: process.env.CX_MODEL || 'oc/deepseek-v4-flash-free',
   },
   gemini: {
     name: 'gemini',
@@ -94,11 +95,52 @@ export function isValidProvider(providerName) {
   return Boolean(PROVIDER_CONFIGS[providerName]);
 }
 
-export function getProviderClient(providerName) {
-  const config = PROVIDER_CONFIGS[providerName] || PROVIDER_CONFIGS.anthropic;
+/**
+ * Returns effective provider config merged with DB overrides for a specific user.
+ */
+export function getEffectiveProviderConfig(providerName, userId) {
+  const isBuiltin = Boolean(PROVIDER_CONFIGS[providerName]);
+  const baseConfig = PROVIDER_CONFIGS[providerName] || {
+    name: providerName,
+    label: providerName,
+    type: 'openai',
+    baseURL: '',
+    apiKey: '',
+    model: ''
+  };
 
-  if (clients.has(config.name)) {
-    return { ...config, client: clients.get(config.name) };
+  if (!userId) return { ...baseConfig };
+
+  try {
+    const override = db.prepare(
+      'SELECT label, type, base_url, api_key, model FROM custom_providers WHERE user_id = ? AND name = ?'
+    ).get(userId, providerName);
+
+    if (override) {
+      return {
+        ...baseConfig,
+        label: override.label || baseConfig.label,
+        type: override.type || baseConfig.type,
+        baseURL: override.base_url || baseConfig.baseURL,
+        apiKey: override.api_key || (isBuiltin ? baseConfig.apiKey : ''),
+        model: override.model || baseConfig.model,
+      };
+    }
+  } catch (err) {
+    console.error(`[ProviderConfig] Error loading override for ${providerName}:`, err.message);
+  }
+
+  return { ...baseConfig };
+}
+
+export function getProviderClient(providerName, userId) {
+  const config = getEffectiveProviderConfig(providerName, userId);
+
+  // We use a composite key for caching clients if they are user-specific
+  const clientKey = userId ? `${userId}:${config.name}:${config.baseURL}:${config.apiKey}` : config.name;
+
+  if (clients.has(clientKey)) {
+    return { ...config, client: clients.get(clientKey) };
   }
 
   let client = null;
@@ -115,8 +157,9 @@ export function getProviderClient(providerName) {
   }
 
   if (client) {
-    clients.set(config.name, client);
+    clients.set(clientKey, client);
   }
 
   return { ...config, client };
 }
+

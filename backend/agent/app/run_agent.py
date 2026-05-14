@@ -1199,6 +1199,34 @@ class AIAgent:
         self.base_url = base_url or ""
         provider_name = provider.strip().lower() if isinstance(provider, str) and provider.strip() else None
         self.provider = provider_name or ""
+        self.api_key = api_key
+
+        # HAgent: Load API key and Base URL from DB if not provided
+        if not self.api_key or not self.base_url:
+            try:
+                import sqlite3
+                # DB is at <repo>/data/hagent.db. Current file is at <repo>/backend/agent/app/run_agent.py
+                db_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "hagent.db"
+                if db_path.exists():
+                    conn = sqlite3.connect(str(db_path))
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT base_url, api_key, model FROM custom_providers WHERE name = ? ORDER BY updated_at DESC LIMIT 1",
+                        (self.provider or self.model.split('/')[0] if '/' in self.model else self.provider,)
+                    )
+                    row = cursor.fetchone()
+                    if row:
+                        db_base_url, db_api_key, db_model = row
+                        if db_base_url:
+                            self.base_url = db_base_url
+                        if db_api_key:
+                            self.api_key = db_api_key
+                        if db_model:
+                            # HAgent: Always override model if specified in DB for this provider
+                            self.model = db_model
+                    conn.close()
+            except Exception:
+                pass
         self.acp_command = acp_command or command
         self.acp_args = list(acp_args or args or [])
         if api_mode in {"chat_completions", "codex_responses", "anthropic_messages", "bedrock_converse"}:
@@ -1519,7 +1547,7 @@ class AIAgent:
                 # Other anthropic_messages providers (MiniMax, Alibaba, etc.) must use their own API key.
                 # Falling back would send Anthropic credentials to third-party endpoints (Fixes #1739, #minimax-401).
                 _is_native_anthropic = self.provider == "anthropic"
-                effective_key = (api_key or resolve_anthropic_token() or "") if _is_native_anthropic else (api_key or "")
+                effective_key = (self.api_key or resolve_anthropic_token() or "") if _is_native_anthropic else (self.api_key or "")
                 self.api_key = effective_key
                 self._anthropic_api_key = effective_key
                 self._anthropic_base_url = base_url

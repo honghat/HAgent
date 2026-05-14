@@ -112,14 +112,17 @@ authRouter.get('/providers', requireAuth, (req, res) => {
   stored.forEach(c => { overrideMap[c.name] = c; });
 
   // Merge built-ins with any label overrides
-  const mergedBuiltins = builtins.map(p => ({
-    name: p.name,
-    label: overrideMap[p.name]?.label || p.label,
-    type: p.type,
-    baseURL: p.baseURL || '',
-    model: p.model || '',
-    custom: false
-  }));
+  const mergedBuiltins = builtins.map(p => {
+    const ovr = overrideMap[p.name];
+    return {
+      name: p.name,
+      label: ovr?.label || p.label,
+      type: ovr?.type || p.type,
+      baseURL: ovr?.base_url || p.baseURL || '',
+      model: ovr?.model || p.model || '',
+      custom: false
+    };
+  });
 
   // Custom-only providers (not matching any built-in)
   const builtinNames = new Set(builtins.map(b => b.name));
@@ -174,18 +177,53 @@ authRouter.post('/providers', requireAuth, (req, res) => {
   }
 });
 
+// Update all providers (bulk)
+authRouter.put('/providers', requireAuth, (req, res) => {
+  const { providers } = req.body;
+  if (!Array.isArray(providers)) return res.status(400).json({ error: 'Providers array required' });
+
+  const stmtUpdate = db.prepare(
+    "UPDATE custom_providers SET label=?, type=?, base_url=?, api_key=CASE WHEN ? != '' THEN ? ELSE api_key END, model=?, updated_at=datetime('now') WHERE user_id=? AND name=?"
+  );
+  const stmtInsert = db.prepare(
+    'INSERT INTO custom_providers (id, user_id, name, label, type, base_url, api_key, model) VALUES (?,?,?,?,?,?,?,?)'
+  );
+  const stmtCheck = db.prepare('SELECT id FROM custom_providers WHERE user_id = ? AND name = ?');
+
+  const transaction = db.transaction((items) => {
+    for (const p of items) {
+      if (!p.name || !p.label) continue;
+      const existing = stmtCheck.get(req.userId, p.name);
+      const baseURL = p.baseURL || p.base_url || '';
+      const apiKey = p.api_key || p.apiKey || '';
+      const model = p.model || '';
+
+      if (existing) {
+        stmtUpdate.run(p.label, p.type || 'openai', baseURL, apiKey, apiKey, model, req.userId, p.name);
+      } else {
+        stmtInsert.run(uuidv4(), req.userId, p.name, p.label, p.type || 'openai', baseURL, apiKey, model);
+      }
+    }
+  });
+
+  transaction(providers);
+  res.json({ ok: true });
+});
+
 // Update provider label (works for both built-in overrides and custom)
 authRouter.put('/providers/:name', requireAuth, (req, res) => {
   const { name } = req.params;
   const { label, type, base_url, api_key, model } = req.body;
   if (!label) return res.status(400).json({ error: 'label là bắt buộc' });
 
-  const existing = db.prepare('SELECT id FROM custom_providers WHERE user_id = ? AND name = ?').get(req.userId, name);
+  const existing = db.prepare('SELECT id, api_key FROM custom_providers WHERE user_id = ? AND name = ?').get(req.userId, name);
   if (existing) {
     // Update existing (custom or built-in override)
+    // Only update api_key if a new one is provided
+    const newApiKey = (api_key && api_key.trim()) ? api_key : existing.api_key;
     db.prepare(
       "UPDATE custom_providers SET label=?, type=?, base_url=?, api_key=?, model=?, updated_at=datetime('now') WHERE user_id=? AND name=?"
-    ).run(label, type || 'openai', base_url || '', api_key || '', model || '', req.userId, name);
+    ).run(label, type || 'openai', base_url || '', newApiKey || '', model || '', req.userId, name);
   } else {
     // Insert new override (including for built-in providers)
     db.prepare(

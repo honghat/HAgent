@@ -1226,8 +1226,8 @@ async function handleMessage(token, msg, userId) {
   // /chuyenmohinh — khớp cả gõ tay lẫn bấm phím tắt
   if (/^\/?(chuyen(mohinh|mo\s*hinh|mô\s*hình|model)?|chuyenmohinh)$/i.test(text.trim())) {
     const providers = ['lmstudio', 'lmstudio_local', 'ollama', 'llamacpp', 'deepseek'];
-    const lastProvider = db.prepare('SELECT provider FROM messages WHERE user_id = ? AND role = \'assistant\' ORDER BY created_at DESC LIMIT 1').get(userId);
-    const current = lastProvider?.provider || 'lmstudio';
+    const userRow = db.prepare('SELECT default_provider FROM users WHERE id = ?').get(userId);
+    const current = userRow?.default_provider || 'deepseek';
     const currentIndex = providers.indexOf(current);
     const next = providers[currentIndex === -1 || currentIndex === providers.length - 1 ? 0 : currentIndex + 1];
 
@@ -1238,6 +1238,9 @@ async function handleMessage(token, msg, userId) {
       llamacpp: 'Llama.cpp (Remote)',
       deepseek: 'DeepSeek'
     };
+
+    // Cập nhật default_provider trong DB để đồng bộ với frontend
+    db.prepare('UPDATE users SET default_provider = ? WHERE id = ?').run(next, userId);
 
     db.prepare('INSERT INTO messages (id, session_id, user_id, role, content, provider) VALUES (?, ?, ?, ?, ?, ?)').run(
       `tg-${chatId}-${Date.now()}`, `tg-${chatId}`, userId, 'assistant', `✅ Đã chuyển sang mô hình: ${labels[next]}`, next
@@ -1545,15 +1548,32 @@ async function handleMessage(token, msg, userId) {
       'SELECT role, content FROM messages WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC'
     ).all(sessionId, userId);
 
-    const lastProvider = db.prepare('SELECT provider FROM messages WHERE user_id = ? AND role = \'assistant\' ORDER BY created_at DESC LIMIT 1').get(userId);
-    const providerName = lastProvider?.provider || 'lmstudio';
-    const config = getProviderClient(providerName);
+    const userRow = db.prepare('SELECT default_provider FROM users WHERE id = ?').get(userId);
+    const providerName = userRow?.default_provider || 'deepseek';
+    const config = getProviderClient(providerName, userId);
     const modelLabel = config.label || config.name;
     const provider = { name: config.name, model: config.model };
 
-    const effectiveUserText = buildTelegramUserTurn(text, history, msg);
     let msgs = history.map(m => ({ role: m.role, content: m.content }));
+
+    // Load agent soul giống chat.js
+    const sessionRow = db.prepare('SELECT agent_id FROM chat_sessions WHERE id = ?').get(sessionId);
+    if (sessionRow?.agent_id) {
+      const agent = db.prepare('SELECT soul_content FROM agents WHERE id = ?').get(sessionRow.agent_id);
+      if (agent?.soul_content) {
+        msgs.unshift({ role: 'system', content: `[AGENT SOUL]\n${agent.soul_content}` });
+      }
+    }
+
+    // Thêm system prompt Telegram
     msgs.unshift({ role: 'system', content: professionalTelegramSystem(modelLabel) });
+
+    // Dùng buildHagentContinuationTurn giống chat.js
+    const effectiveUserText = buildHagentContinuationTurn({
+      text,
+      history,
+      platform: 'telegram',
+    });
     msgs.push({ role: 'user', content: effectiveUserText });
 
     // Insert user message and empty assistant message to satisfy DB constraints for journals
@@ -1629,7 +1649,7 @@ async function handleMessage(token, msg, userId) {
       }).catch(() => { });
     }
 
-    for await (const chunk of chatStream(msgs, provider, extraContext)) {
+    for await (const chunk of chatStream(msgs, provider, userId, extraContext)) {
       if (chunk.type === 'content') {
         collected += chunk.content;
       }
@@ -1649,7 +1669,7 @@ async function handleMessage(token, msg, userId) {
       state = retryDecision.state || state;
       await pushTelegramActivity('Đang tiếp tục nhiệm vụ đã được xác nhận', 'thinking', true);
       collected = '';
-      for await (const chunk of chatStream(retryMsgs, provider, extraContext)) {
+      for await (const chunk of chatStream(retryMsgs, provider, userId, extraContext)) {
         if (chunk.type === 'content') collected += chunk.content;
       }
     }

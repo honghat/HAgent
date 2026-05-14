@@ -208,7 +208,7 @@ export async function decideAndExecuteTools(msgs, provider, userId, send, option
       let decision = '';
       let usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
       const skillCatalog = skillManager.getSkillCatalog();
-      const stream = callLLMStream(buildToolDecisionPrompt(skillCatalog), toolMsgs, { provider, maxTokens: 2000, signal });
+      const stream = callLLMStream(buildToolDecisionPrompt(skillCatalog), toolMsgs, { provider, userId, maxTokens: 2000, signal });
       for await (const chunk of stream) {
         throwIfAborted(signal, 'Đã dừng xử lý');
         if (chunk.type === 'content') {

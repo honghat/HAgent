@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 export default function Chat({ token, provider, cxModel, agents, user }) {
-  const providerLabels = {
+  const defaultProviderLabels = {
     gemini: 'Gemini',
     deepseek: 'DeepSeek',
     cx: 'CX GPT-5.5',
@@ -14,6 +14,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     llamacpp: 'Llama.cpp',
     lmstudio_local: 'LM Studio Local'
   }
+  const [providerLabels, setProviderLabels] = useState(defaultProviderLabels)
 
   const [sessions, setSessions] = useState([])
   const [activeId, setActiveId] = useState(null)
@@ -160,6 +161,19 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   }, [agents, selectedAgentId])
 
   useEffect(() => {
+    fetch('/api/auth/providers', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(list => {
+        if (Array.isArray(list)) {
+          const map = { ...defaultProviderLabels }
+          list.forEach(p => { if (p.name && p.label) map[p.name] = p.label })
+          setProviderLabels(map)
+        }
+      })
+      .catch(() => {})
+  }, [token])
+
+  useEffect(() => {
     const checkProviderStatus = async () => {
       try {
         const r = await fetch(withBackendBase(`/api/providers/${provider}/health`), { headers: { Authorization: `Bearer ${token}` } })
@@ -235,8 +249,27 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
       } catch {
         // noop
       }
-    }, 2000)
+    }, 800)
   }
+
+  // Auto-detect: nếu có user message chưa có assistant reply → set loading
+  const prevMessagesRef = useRef([])
+  useEffect(() => {
+    if (messages.length === 0) {
+      prevMessagesRef.current = []
+      return
+    }
+    const lastMsg = messages[messages.length - 1]
+    if (lastMsg?.role === 'user') {
+      const hasReply = messages.some(
+        (m) => m.role === 'assistant' && m.id !== lastMsg.id
+      )
+      if (!hasReply) {
+        setLoading(true)
+      }
+    }
+    prevMessagesRef.current = messages
+  }, [messages])
 
   async function loadMessages(id) {
     if (pollIntervalRef.current) {
@@ -543,11 +576,12 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
       }
       setStreamingText('')
       setSteps([])
-      setLoading(false)
     } finally {
       if (window._currentChatController === controller) {
         window._currentChatController = null
       }
+      // Đảm bảo loading luôn được reset khi stream kết thúc
+      setLoading(false)
     }
   }
 

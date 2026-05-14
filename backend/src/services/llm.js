@@ -1,15 +1,15 @@
 import { getProviderClient } from './provider-config.js';
 import { CHAT_SYSTEM } from './prompts/index.js';
 
-function getClient(provider) {
+function getClient(provider, userId) {
   if (typeof provider === 'object' && provider?.name) provider = provider.name;
-  const config = getProviderClient(provider || 'lmstudio');
+  const config = getProviderClient(provider || 'lmstudio', userId);
 
   return { client: config.client, type: config.type, model: config.model, name: config.name, apiKey: config.apiKey };
 }
 
-export async function callLLM(system, messages, { provider, maxTokens = 2000, signal } = {}) {
-  const cfg = getClient(provider);
+export async function callLLM(system, messages, { provider, userId, maxTokens = 2000, signal } = {}) {
+  const cfg = getClient(provider, userId);
   if (!cfg.model) throw new Error(`No API key configured for provider: ${provider}`);
 
   let content = '';
@@ -38,7 +38,7 @@ export async function callLLM(system, messages, { provider, maxTokens = 2000, si
       { role: 'system', content: system },
       ...(Array.isArray(messages) ? messages : [{ role: 'user', content: messages }]),
     ];
-    console.log(`[LLM] Calling OpenAI-compatible: ${cfg.name} (Model: ${cfg.model})`);
+    console.log(`[LLM] Calling OpenAI-compatible: ${cfg.name} (Model: ${cfg.model}) for User: ${userId}`);
     const res = await cfg.client.chat.completions.create({
       model: cfg.model,
       max_tokens: maxTokens,
@@ -91,8 +91,8 @@ export async function callLLM(system, messages, { provider, maxTokens = 2000, si
 
 // ─── CORE STREAM (tái dùng bởi chatStream) ───────────────────────────────────
 
-export async function* callLLMStream(system, messages, { provider, maxTokens = 2000, signal } = {}) {
-  const cfg = getClient(provider);
+export async function* callLLMStream(system, messages, { provider, userId, maxTokens = 2000, signal } = {}) {
+  const cfg = getClient(provider, userId);
   if (!cfg.model) throw new Error(`No API key configured for provider: ${provider}`);
 
   if (cfg.type === 'anthropic') {
@@ -135,12 +135,13 @@ export async function* callLLMStream(system, messages, { provider, maxTokens = 2
       { role: 'system', content: system },
       ...(Array.isArray(messages) ? messages : [{ role: 'user', content: messages }]),
     ];
+    console.log(`[LLM] Calling OpenAI-compatible: ${cfg.name} (Model: ${cfg.model}) for User: ${userId}`);
     const stream = await cfg.client.chat.completions.create({
       model: cfg.model,
       max_tokens: maxTokens,
       messages: formattedMessages,
       stream: true,
-      ...( (cfg.name === 'openai' || cfg.name === 'deepseek') ? { stream_options: { include_usage: true } } : {}),
+      ...( (cfg.name === 'openai' || cfg.name === 'deepseek' || cfg.name === 'cx') ? { stream_options: { include_usage: true } } : {}),
     });
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta || {};
@@ -251,20 +252,20 @@ function buildSystemMessage(extraContext) {
   );
 }
 
-export async function chat(messages, provider, extraContext = '') {
-  return callLLM(buildSystemMessage(extraContext), messages, { provider, maxTokens: 2000 });
+export async function chat(messages, provider, userId, extraContext = '') {
+  return callLLM(buildSystemMessage(extraContext), messages, { provider, userId, maxTokens: 2000 });
 }
 
 // FIX: không duplicate logic — tái dùng callLLMStream
 // Guard: nếu model bắt đầu "diễn" (fake search text) thì suppress stream
-export async function* chatStream(messages, provider, extraContext = '', options = {}) {
+export async function* chatStream(messages, provider, userId, extraContext = '', options = {}) {
   let accumulated = '';
   let decided = false;
 
   // Nếu có extraContext, tăng ngưỡng suppress để tránh false positive
   const suppressThreshold = extraContext ? 200 : 80;
 
-  for await (const chunk of callLLMStream(buildSystemMessage(extraContext), messages, { provider, maxTokens: 3000, signal: options.signal })) {
+  for await (const chunk of callLLMStream(buildSystemMessage(extraContext), messages, { provider, userId, maxTokens: 3000, signal: options.signal })) {
     if (chunk.type === 'usage' || chunk.type === 'think') { yield chunk; continue; }
     if (decided) {
       yield chunk;
@@ -339,8 +340,8 @@ function parseJSON(raw) {
   return null;
 }
 
-export async function extractDoc(content, provider) {
-  const { content: raw } = await callLLM(DOC_EXTRACT_PROMPT, content, { provider, maxTokens: 3000 });
+export async function extractDoc(content, provider, userId) {
+  const { content: raw } = await callLLM(DOC_EXTRACT_PROMPT, content, { provider, userId, maxTokens: 3000 });
   const parsed = parseJSON(raw);
   if (parsed) return parsed.skip ? null : parsed;
   // fallback: plain text
@@ -352,11 +353,11 @@ export async function extractDoc(content, provider) {
   return null;
 }
 
-export async function extract(userContent, assistantContent, provider) {
+export async function extract(userContent, assistantContent, provider, userId) {
   const input = assistantContent
     ? `USER: ${userContent}\n\nASSISTANT: ${assistantContent}`
     : userContent;
-  const { content: raw } = await callLLM(EXTRACT_PROMPT, input, { provider });
+  const { content: raw } = await callLLM(EXTRACT_PROMPT, input, { provider, userId });
   const parsed = parseJSON(raw);
   return parsed?.skip ? null : (parsed ?? null);
 }
@@ -372,7 +373,7 @@ Return valid JSON only:
 
 Consider duplicate when they cover the same topic with substantially overlapping information. Slight wording differences are NOT enough — core knowledge must differ.`;
 
-export async function checkDuplicate(newEntry, existingEntries, provider) {
+export async function checkDuplicate(newEntry, existingEntries, provider, userId) {
   if (!existingEntries?.length) return { isDuplicate: false, mergeInto: null, reason: 'no existing entries' };
   const recent = existingEntries.slice(0, 20);
   const existingSummary = recent
@@ -382,7 +383,7 @@ export async function checkDuplicate(newEntry, existingEntries, provider) {
     const { content: raw } = await callLLM(
       DEDUP_PROMPT,
       `NEW ENTRY:\nTITLE: ${newEntry.title}\nTOPICS: ${newEntry.topics.join(', ')}\nSUMMARY: ${newEntry.summary}\n\nEXISTING ENTRIES:\n${existingSummary}`,
-      { provider }
+      { provider, userId }
     );
     return JSON.parse(raw);
   } catch {
@@ -406,8 +407,8 @@ Return valid JSON:
 - Remove entries that are too vague or outdated
 - Suggest better topic names if current ones are unclear`;
 
-export async function restructureIndex(index, provider) {
-  const { content: raw } = await callLLM(RESTRUCTURE_PROMPT, JSON.stringify(index, null, 2), { provider, maxTokens: 4000 });
+export async function restructureIndex(index, provider, userId) {
+  const { content: raw } = await callLLM(RESTRUCTURE_PROMPT, JSON.stringify(index, null, 2), { provider, userId, maxTokens: 4000 });
   return JSON.parse(raw);
 }
 
@@ -416,11 +417,11 @@ const MERGE_PROMPT = `Merge OLD and NEW wiki content about the same topic into o
 Return ONLY merged content as plain text — no JSON, no markdown wrappers, no explanations.
 Organize with headings. Remove duplicates. Keep all unique facts from both old and new.`;
 
-export async function mergeContent(oldContent, newContent, provider) {
+export async function mergeContent(oldContent, newContent, provider, userId) {
   const { content: merged } = await callLLM(
     MERGE_PROMPT,
     `--- OLD CONTENT ---\n${oldContent}\n\n--- NEW CONTENT ---\n${newContent}`,
-    { provider, maxTokens: 2000 }
+    { provider, userId, maxTokens: 2000 }
   );
   return merged.trim();
 }
@@ -441,9 +442,9 @@ Return valid JSON:
 - Organize with clear headings
 - Keep code examples intact`;
 
-export async function synthesizeEntries(entries, provider) {
+export async function synthesizeEntries(entries, provider, userId) {
   const input = entries.map(e => `---\nid: ${e.id}\ntitle: ${e.title}\n\n${e.content}`).join('\n');
-  const { content: raw } = await callLLM(SYNTHESIZE_PROMPT, input, { provider, maxTokens: 4000 });
+  const { content: raw } = await callLLM(SYNTHESIZE_PROMPT, input, { provider, userId, maxTokens: 4000 });
   return JSON.parse(raw);
 }
 
@@ -451,10 +452,10 @@ const COMPACT_PROMPT = `Tóm tắt lịch sử chat dưới đây thành một �
 Giữ lại mọi thông tin quan trọng: sự kiện, quyết định, kiến thức đã đề cập.
 Chỉ trả về phần tóm tắt — không mở đầu, không kết luận, không markdown.`;
 
-export async function compactHistory(messages, provider) {
+export async function compactHistory(messages, provider, userId) {
   const text = messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n').slice(-10000);
   try {
-    const { content: summary } = await callLLM(COMPACT_PROMPT, text, { provider, maxTokens: 1000 });
+    const { content: summary } = await callLLM(COMPACT_PROMPT, text, { provider, userId, maxTokens: 1000 });
     return summary?.trim() || '';
   } catch (e) {
     console.error('[Summarization] compactHistory error:', e.message);
@@ -466,11 +467,11 @@ const SUGGESTIONS_PROMPT = `Dựa trên hội thoại trên, hãy gợi ý 3 câ
 Câu hỏi phải ngắn gọn, tự nhiên và liên quan trực tiếp đến nội dung vừa thảo luận.
 Chỉ trả về danh sách 3 câu hỏi, mỗi câu một dòng, không đánh số, không thêm văn bản khác.`;
 
-export async function generateFollowUpSuggestions(messages, lastResponse, provider) {
+export async function generateFollowUpSuggestions(messages, lastResponse, provider, userId) {
   const historyText = messages.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n');
   const input = `${historyText}\n\nAssistant (Final Response): ${lastResponse}`;
   try {
-    const { content: raw } = await callLLM(SUGGESTIONS_PROMPT, input, { provider, maxTokens: 200 });
+    const { content: raw } = await callLLM(SUGGESTIONS_PROMPT, input, { provider, userId, maxTokens: 200 });
     return raw
       .split('\n')
       .map(s => s.trim().replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, ''))

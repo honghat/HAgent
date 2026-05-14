@@ -21,14 +21,26 @@ function verifyRouterAccess(req, res, next) {
   const auth = req.get('authorization') || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
 
-  if (configuredKey && bearer === configuredKey) return next();
-
-  if (bearer) {
-    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(bearer);
-    if (session) return next();
+  if (configuredKey && bearer === configuredKey) {
+    // Default to the first user if using global key
+    const defaultUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+    req.userId = defaultUser?.id;
+    return next();
   }
 
-  if (!configuredKey && isLocalRequest(req)) return next();
+  if (bearer) {
+    const session = db.prepare('SELECT id, user_id FROM sessions WHERE id = ?').get(bearer);
+    if (session) {
+      req.userId = session.user_id;
+      return next();
+    }
+  }
+
+  if (!configuredKey && isLocalRequest(req)) {
+    const defaultUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+    req.userId = defaultUser?.id;
+    return next();
+  }
 
   return res.status(401).json({
     error: {
@@ -55,11 +67,11 @@ v1Router.post('/chat/completions', async (req, res) => {
   try {
     if (req.body?.stream) {
       setSseHeaders(res);
-      await handleOpenAIChatCompletion(req.body, res);
+      await handleOpenAIChatCompletion(req.body, res, req.userId);
       return res.end();
     }
 
-    const data = await handleOpenAIChatCompletion(req.body);
+    const data = await handleOpenAIChatCompletion(req.body, null, req.userId);
     res.json(data);
   } catch (err) {
     console.error('[V1 Chat Completions Error]', err);
@@ -76,11 +88,11 @@ v1Router.post('/messages', async (req, res) => {
   try {
     if (req.body?.stream) {
       setSseHeaders(res);
-      await handleAnthropicMessages(req.body, res);
+      await handleAnthropicMessages(req.body, res, req.userId);
       return res.end();
     }
 
-    const data = await handleAnthropicMessages(req.body);
+    const data = await handleAnthropicMessages(req.body, null, req.userId);
     res.json(data);
   } catch (err) {
     console.error('[V1 Messages Error]', err);

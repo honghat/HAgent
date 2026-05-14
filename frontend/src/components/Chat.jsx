@@ -59,6 +59,18 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     }
     return data
   }
+  const fmtToken = (n) => {
+    if (!n) return '0'
+    if (n >= 1000000) {
+      const v = n / 1000000
+      return (v % 1 === 0 ? v : v.toFixed(1)) + 'M'
+    }
+    if (n >= 1000) {
+      const v = n / 1000
+      return (v % 1 === 0 ? v : v.toFixed(1)) + 'K'
+    }
+    return n.toString()
+  }
 
   const normalizeSession = (session) => ({
     ...session,
@@ -360,6 +372,19 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   async function handleFileImport(event) {
     const file = event.target.files?.[0]
     if (!file || uploading) return
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        setPastedImages((prev) => [...prev, {
+          id: Date.now() + '-' + Math.random().toString(36).slice(2),
+          dataUrl: ev.target.result,
+          file
+        }])
+      }
+      reader.readAsDataURL(file)
+      event.target.value = ''
+      return
+    }
     let currentId = activeId
     if (!currentId) {
       const s = await createSession()
@@ -399,7 +424,8 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
 
   async function send() {
     const msg = input
-    if (!msg.trim() || loading) return
+    const hasImages = pastedImages.length > 0
+    if (!msg.trim() && !hasImages) return
     let currentId = activeId
     if (!currentId) {
       setLoading(true)
@@ -407,13 +433,20 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
       currentId = s.id
     }
 
+    let fullContent = msg
+    if (hasImages) {
+      const imageMarkdown = pastedImages.map((img) => `![screenshot](${img.dataUrl})`).join('\n')
+      fullContent = imageMarkdown + (fullContent ? '\n\n' + fullContent : '')
+    }
+
     setLoading(true)
     setInput('')
+    setPastedImages([])
     setStreamingText('')
     setSteps([])
     setCurrentClarification(null)
     const userMsgId = Date.now().toString()
-    setMessages((p) => [...p, { role: 'user', content: msg, id: userMsgId }])
+    setMessages((p) => [...p, { role: 'user', content: fullContent, id: userMsgId }])
 
     const controller = new AbortController()
     window._currentChatController = controller
@@ -422,7 +455,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
       const r = await fetch(withBackendBase(`/api/sessions/${currentId}/messages`, true), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: msg, provider, model: provider === 'cx' ? cxModel : undefined }),
+        body: JSON.stringify({ content: fullContent, provider, model: provider === 'cx' ? cxModel : undefined }),
         signal: controller.signal
       })
       if (!r.ok) throw new Error('Yêu cầu thất bại')
@@ -592,7 +625,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                   </div>
                 </div>
                 <div className={`flex items-center gap-3 mt-1.5 px-3 w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {m.usage && m.role === 'assistant' && <span className="text-[12px] leading-4 text-gray-400 font-normal mr-2">Token: {m.usage.total_tokens}</span>}
+                  {m.usage && m.role === 'assistant' && <span className="text-[12px] leading-4 text-gray-400 font-normal mr-2">Token: {fmtToken(m.usage.total_tokens)}</span>}
                   <button onClick={() => handleCopy(m.content, m.id)} className="flex h-5 w-5 items-center justify-center rounded-md text-gray-300 transition-all hover:bg-gray-100 hover:text-gray-500">{copiedId === m.id ? '✓' : '⧉'}</button>
                   <button onClick={() => deleteMessage(m.id)} className="flex h-5 w-5 items-center justify-center rounded-md text-gray-300 transition-all hover:bg-red-50 hover:text-red-500">×</button>
                 </div>
@@ -634,7 +667,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
         <div className="absolute inset-x-0 bottom-0 z-10 border-t border-black/[0.04] bg-white/80 p-3 backdrop-blur-xl md:p-4 pb-safe">
           <div className="max-w-5xl mx-auto">
             <div className="relative bg-white border border-gray-300/80 rounded-[1.6rem] shadow-[0_10px_40px_rgba(15,23,42,0.08)] p-2 backdrop-blur-xl ring-1 ring-white/80">
-              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileImport} accept=".txt,.md,.pdf,.doc,.docx,.xlsx,.csv,.json" />
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileImport} accept=".txt,.md,.pdf,.doc,.docx,.xlsx,.csv,.json,.png,.jpg,.jpeg,.gif,.webp" />
               {showCommands && (
                 <div className="absolute left-0 right-0 bottom-full mb-3 overflow-hidden rounded-3xl border border-gray-200/70 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.14)] backdrop-blur-xl z-20">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100/80">
@@ -657,10 +690,20 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                   </div>
                 </div>
               )}
-              <div className="flex min-h-12 items-center gap-2">
+              {pastedImages?.length > 0 && (
+                <div className="flex flex-wrap gap-2 px-3 pt-2 pb-1 border-t border-black/[0.04]">
+                  {pastedImages.map((img) => (
+                    <div key={img.id} className="relative group">
+                      <img src={img.dataUrl} alt="paste" className="h-14 w-auto max-w-[72px] rounded-lg object-cover border border-gray-200" />
+                      <button type="button" onClick={() => removeImage(img.id)} className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-gray-900/70 text-white text-[9px] opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex min-h-12 items-center gap-2" onDragOver={handleDragOver} onDrop={handleDrop}>
                 <button type="button" onClick={() => setShowCommands((v) => !v)} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[15px] leading-none font-medium transition-all ${showCommands ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900'}`}>/</button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40 transition-all">+</button>
-                <textarea value={input} onChange={(e) => setInput(e.target.value)} onFocus={() => input.startsWith('/') && setShowCommands(true)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={`Chào ${user?.displayName || user?.display_name || 'bạn'}, hôm nay cần gì?`} rows={1} className="min-h-9 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[14px] leading-6 font-normal text-gray-800 placeholder:text-gray-400 focus:outline-none" />
+                <textarea value={input} onChange={(e) => setInput(e.target.value)} onFocus={() => input.startsWith('/') && setShowCommands(true)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} onPaste={handlePaste} placeholder={`Chào ${user?.displayName || user?.display_name || 'bạn'}, hôm nay cần gì?`} rows={1} className="min-h-9 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[14px] leading-6 font-normal text-gray-800 placeholder:text-gray-400 focus:outline-none" />
                 {loading ? (
                   <button onClick={stopChat} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500 text-white shadow-sm transition-all hover:bg-red-600">■</button>
                 ) : (

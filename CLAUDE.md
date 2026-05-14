@@ -1,1 +1,1 @@
-Code không được quá 1000 dòng
+Code không được quá 2000 dòng

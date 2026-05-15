@@ -700,7 +700,7 @@ function formatForTelegram(text) {
   if (!text) return '';
   let result = text;
 
-  // Extract time/round footer if present
+  // Extract metrics if present
   let metrics = '';
   const metricsMatch = result.match(/\n\n---\n⏱️.*\s*$/);
   if (metricsMatch) {
@@ -708,17 +708,20 @@ function formatForTelegram(text) {
     result = result.replace(metricsMatch[0], '');
   }
 
-  result = result.replace(/^##\s+get_vnexpress_news.*$/gm, '\n━━━ VnExpress ━━━');
-  result = result.replace(/^##\s+get_dantri_news.*$/gm, '\n━━━ Dân Trí ━━━');
-  result = result.replace(/^##\s+.*$/gm, '');
-  result = result.replace(/\s*\(THẤT BẠI\)/g, '');
-  result = result.replace(/https?:\/\/([^/\s]+)[^\s)]*/g, '($1)');
-  result = result.replace(/^(\d+)\.\s+\*\*(.+?)\*\*/gm, '$1. $2');
-  result = result.replace(/\s*\[([^\]]+)\]$/gm, ' — $1');
-  result = cleanForTelegram(result);
+  // Basic HTML escaping and formatting
+  result = result
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/__(.*?)__/g, '<u>$1</u>')
+    .replace(/\*(.*?)\*/g, '<i>$1</i>')
+    .replace(/_(.*?)_/g, '<i>$1</i>')
+    .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+    .replace(/`(.*?)`/g, '<code>$1</code>');
 
   if (metrics) {
-    result += `\n\n${metrics}`;
+    result += `\n\n<i>${metrics}</i>`;
   }
   return result;
 }
@@ -737,9 +740,39 @@ function telegramProgressText(kind, detail = '') {
   }
 }
 
+function listMessages(sessionId) {
+  return db.prepare('SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at ASC').all(sessionId);
+}
+
+function getToolEmoji(name) {
+  const emojis = {
+    'web_search': '🔍',
+    'terminal': '💻',
+    'read_file': '📖',
+    'write_file': '💾',
+    'patch': '🛠',
+    'image_generate': '🎨',
+    'browser_navigate': '🌐',
+    'browser_click': '🖱',
+    'browser_type': '⌨️',
+    'vision_analyze': '👁',
+    'text_to_speech': '🔊',
+    'skill_view': '📚',
+    'skill_manage': '🛠',
+    'execute_code': '🚀',
+    'delegate_task': '👥',
+    'clarify': '❓',
+    'memory': '🧠',
+    'todo': '📝',
+    'process': '🔄',
+  };
+  return emojis[name] || '⚙️';
+}
+
 function toolStatusDetail(data = {}) {
   const label = data.label || data.name || 'tool';
-  return String(label).replace(/\.\.\.$/, '').slice(0, 80);
+  const emoji = getToolEmoji(data.name);
+  return `${emoji} ${String(label).replace(/\.\.\.$/, '').slice(0, 80)}`;
 }
 
 function sanitizeTelegramProgressLine(text = '') {
@@ -759,21 +792,26 @@ function sanitizeTelegramProgressLine(text = '') {
 }
 
 function renderTelegramProgress({ phase = 'working', modelLabel = '', activities = [] } = {}) {
-  const header = phase === 'finalizing'
-    ? 'Đang tổng hợp kết quả...'
-    : phase === 'tool'
-      ? 'Đang thực thi nhiệm vụ...'
-      : 'Đang xử lý yêu cầu...';
+  let header = '⏳ Đang xử lý...';
+  if (phase === 'thinking') header = '🧠 Đang suy nghĩ...';
+  if (phase === 'tool') header = '⚙️ Đang thực thi công cụ...';
+  if (phase === 'finalizing') header = '📝 Đang tổng hợp câu trả lời...';
+
   const lines = [header];
-  if (modelLabel) lines.push(`Model: ${modelLabel}`);
+  if (modelLabel) lines.push(`🤖 Trợ lý: ${modelLabel}`);
+
   const recent = activities.slice(-5);
   if (recent.length) {
-    lines.push('', 'Hoạt động gần đây:');
-    for (const item of recent) lines.push(`• ${item}`);
+    lines.push('');
+    for (const item of recent) {
+      const isDone = item.includes(' xong');
+      const icon = isDone ? '✅' : '';
+      lines.push(`${icon}${item}`);
+    }
   } else {
-    lines.push('', 'Hoạt động gần đây sẽ được cập nhật tại đây.');
+    lines.push('', '... đang chuẩn bị ...');
   }
-  return lines.join('\n').slice(0, 900);
+  return lines.join('\n').slice(0, 950);
 }
 
 function professionalTelegramSystem(modelLabel) {
@@ -1530,55 +1568,21 @@ async function handleMessage(token, msg, userId) {
     return;
   }
 
-  // Chat thường
+  // Chat thường — delegate to Python agent (same as web frontend Chat.jsx)
   await callTelegramAPI(token, 'sendChatAction', { chat_id: chatId, action: 'typing' });
 
   try {
     const sessionId = `tg-${chatId}`;
-    const { v4: uuidv4 } = await import('uuid');
-    const msgId = uuidv4(); // assistant msg
-    const userMsgId = uuidv4();
 
     const session = db.prepare('SELECT id FROM chat_sessions WHERE id = ?').get(sessionId);
     if (!session) {
       db.prepare('INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?)').run(sessionId, userId, `[Te] ${text.slice(0, 50)}`);
     }
 
-    const history = db.prepare(
-      'SELECT role, content FROM messages WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC'
-    ).all(sessionId, userId);
-
     const userRow = db.prepare('SELECT default_provider FROM users WHERE id = ?').get(userId);
     const providerName = userRow?.default_provider || 'deepseek';
     const config = getProviderClient(providerName, userId);
     const modelLabel = config.label || config.name;
-    const provider = { name: config.name, model: config.model };
-
-    let msgs = history.map(m => ({ role: m.role, content: m.content }));
-
-    // Load agent soul giống chat.js
-    const sessionRow = db.prepare('SELECT agent_id FROM chat_sessions WHERE id = ?').get(sessionId);
-    if (sessionRow?.agent_id) {
-      const agent = db.prepare('SELECT soul_content FROM agents WHERE id = ?').get(sessionRow.agent_id);
-      if (agent?.soul_content) {
-        msgs.unshift({ role: 'system', content: `[AGENT SOUL]\n${agent.soul_content}` });
-      }
-    }
-
-    // Thêm system prompt Telegram
-    msgs.unshift({ role: 'system', content: professionalTelegramSystem(modelLabel) });
-
-    // Dùng buildHagentContinuationTurn giống chat.js
-    const effectiveUserText = buildHagentContinuationTurn({
-      text,
-      history,
-      platform: 'telegram',
-    });
-    msgs.push({ role: 'user', content: effectiveUserText });
-
-    // Insert user message and empty assistant message to satisfy DB constraints for journals
-    db.prepare('INSERT INTO messages (id, session_id, user_id, role, content, provider) VALUES (?, ?, ?, ?, ?, ?)').run(userMsgId, sessionId, userId, 'user', text, provider.name);
-    db.prepare('INSERT INTO messages (id, session_id, user_id, role, content, provider) VALUES (?, ?, ?, ?, ?, ?)').run(msgId, sessionId, userId, 'assistant', '', provider.name);
 
     const initialRes = await callTelegramAPI(token, 'sendMessage', {
       chat_id: chatId,
@@ -1587,7 +1591,6 @@ async function handleMessage(token, msg, userId) {
     });
     const messageIdToEdit = initialRes.result?.message_id;
 
-    let thinkingBuffer = '';
     let lastProgressUpdate = 0;
     const progressActivities = [];
 
@@ -1608,124 +1611,111 @@ async function handleMessage(token, msg, userId) {
       lastProgressUpdate = now;
     };
 
-    const progressSend = async (type, data) => {
-      // 1. Log into DB
-      try {
-        if (type === 'think' && !data.append) {
-          db.prepare('INSERT INTO run_journals (message_id, session_id, type, content) VALUES (?, ?, ?, ?)').run(msgId, sessionId, 'think', data.content);
-        } else if (type === 'tool') {
-          db.prepare('INSERT INTO run_journals (message_id, session_id, type, event_name, status, count) VALUES (?, ?, ?, ?, ?, ?)').run(msgId, sessionId, 'tool', data.name, data.status, data.count || 0);
-        }
-      } catch (err) {
-        console.error('[Journal Logging Error]', err.message);
-      }
+    // Call Python agent SSE endpoint (same pipeline as web frontend Chat.jsx)
+    const { getPythonAgentBaseUrl } = await import('./python-agent.js');
+    const agentUrl = `${getPythonAgentBaseUrl()}/api/sessions/${sessionId}/messages`;
 
-      // 2. Update Telegram UI
-      if (type === 'think' && messageIdToEdit) {
-        if (data.append) {
-          thinkingBuffer += data.content;
-        } else {
-          thinkingBuffer = data.content;
-        }
+    // Resolve auth token for this userId
+    const sessionToken = db.prepare('SELECT id FROM sessions WHERE user_id = ?').get(userId)?.id || 'hat';
 
-        await pushTelegramActivity(thinkingBuffer, 'thinking');
-      }
-      if (type === 'tool' && data.status === 'start' && messageIdToEdit) {
-        await pushTelegramActivity(toolStatusDetail(data), 'tool', true);
-      }
-      if (type === 'tool' && data.status === 'done' && messageIdToEdit) {
-        await pushTelegramActivity(`${toolStatusDetail(data)} xong`, 'tool');
-      }
-    };
+    const history = listMessages(sessionId);
+    const turn = await buildTelegramUserTurn(text, history, msg);
+    const systemInstr = professionalTelegramSystem(modelLabel);
+    const enrichedMessage = `${systemInstr}\n\n${turn}`;
 
-    let { extraContext, state } = await decideAndExecuteTools(msgs, provider, userId, progressSend);
+    const agentRes = await fetch(agentUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify({
+        content: enrichedMessage,
+        provider: providerName,
+        model: config.model,
+      }),
+    });
 
+    if (!agentRes.ok) {
+      const errBody = await agentRes.text().catch(() => 'Unknown error');
+      throw new Error(`Python agent error ${agentRes.status}: ${errBody}`);
+    }
+
+    // Stream the SSE response from Python agent
     let collected = '';
+    let replyMessageId = '';
+    let totalUsage = {};
+    const decoder = new TextDecoder();
+    let sseBuffer = '';
+
+    for await (const chunk of agentRes.body) {
+      sseBuffer += decoder.decode(chunk, { stream: true });
+      const lines = sseBuffer.split('\n');
+      sseBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          switch (data.type) {
+            case 'think':
+              if (data.content) {
+                const line = sanitizeTelegramProgressLine(data.content);
+                if (line) {
+                  await pushTelegramActivity(line, 'thinking', !data.append);
+                }
+              }
+              break;
+            case 'tool':
+              if (data.status === 'start') {
+                await pushTelegramActivity(toolStatusDetail(data), 'tool', true);
+              } else if (data.status === 'done') {
+                await pushTelegramActivity(`${toolStatusDetail(data)} xong`, 'tool', true);
+              }
+              break;
+            case 'content':
+              collected += data.content || '';
+              break;
+            case 'done':
+              replyMessageId = data.messageId || '';
+              totalUsage = data.usage || {};
+              break;
+            case 'error':
+              collected = `❌ Lỗi: ${data.error || 'Agent error'}`;
+              break;
+          }
+        } catch { /* ignore malformed SSE */ }
+      }
+    }
+
+    // Send final reply
     if (messageIdToEdit) {
-      await callTelegramAPI(token, 'editMessageText', {
-        chat_id: chatId,
-        message_id: messageIdToEdit,
-        text: renderTelegramProgress({ phase: 'finalizing', modelLabel, activities: progressActivities }),
-      }).catch(() => { });
-    }
+      const formattedText = formatForTelegram(collected);
+      const modelTag = `\n\n<i>— ${modelLabel}</i>`;
+      const finalText = (formattedText || 'Xin lỗi, tôi không thể tạo câu trả lời.') + modelTag;
 
-    for await (const chunk of chatStream(msgs, provider, userId, extraContext)) {
-      if (chunk.type === 'content') {
-        collected += chunk.content;
-      }
-    }
-
-    if (isShortTelegramConfirmation(text) && isWeakTelegramFinal(collected)) {
-      const retryMsgs = [
-        ...msgs,
-        { role: 'assistant', content: collected || '(weak acknowledgement suppressed)' },
-        {
-          role: 'user',
-          content: 'You responded like a lightweight chat bot. In Hagent gateway mode, this user confirmation means continue the previous actionable task. Use tools if needed and provide the concrete result. Do not answer socially.',
-        },
-      ];
-      const retryDecision = await decideAndExecuteTools(retryMsgs, provider, userId, progressSend);
-      extraContext = retryDecision.extraContext;
-      state = retryDecision.state || state;
-      await pushTelegramActivity('Đang tiếp tục nhiệm vụ đã được xác nhận', 'thinking', true);
-      collected = '';
-      for await (const chunk of chatStream(retryMsgs, provider, userId, extraContext)) {
-        if (chunk.type === 'content') collected += chunk.content;
-      }
-    }
-
-    const hasToolResults = typeof extraContext === 'string' && extraContext.length > 50;
-
-    if (messageIdToEdit) {
-      let finalContent = collected;
-      if (collected.length < 50 && hasToolResults) {
-        if (extraContext.includes('**Phản hồi từ giai đoạn suy luận:**')) {
-          finalContent = extraContext.split('**Phản hồi từ giai đoạn suy luận:**')[1]?.trim() || collected;
-        } else {
-          finalContent = formatForTelegram(extraContext);
-        }
-      }
-
-      const cleanedText = cleanForTelegram(finalContent);
-      const modelTag = `\n\n— ${modelLabel}`;
-      let finalText = (cleanedText || 'Xin lỗi, tôi không thể tạo câu trả lời.') + modelTag;
-
-      const numberedRegex = /^(\d+\.\s)/gm;
-      const numberedMatch = finalText.match(numberedRegex);
-      if (numberedMatch && numberedMatch.length >= 3) {
-        const parts = finalText.split(numberedRegex).filter(Boolean);
-        const items = [];
-        let header = parts[0];
-        for (let i = 1; i < parts.length; i += 2) {
-          if (parts[i + 1] !== undefined) items.push(parts[i] + parts[i + 1]);
-        }
-        await callTelegramAPI(token, 'editMessageText', {
-          chat_id: chatId, message_id: messageIdToEdit,
-          text: header + items.slice(0, 1).join('')
-        }).catch(() => { });
-        for (const item of items.slice(1)) {
-          await callTelegramAPI(token, 'sendMessage', { chat_id: chatId, text: item, ...telegramReplyOptions(msg) }).catch(() => { });
-        }
-      } else {
-        const chunks = splitMessage(finalText, 3900);
-        await callTelegramAPI(token, 'editMessageText', {
-          chat_id: chatId, message_id: messageIdToEdit, text: chunks[0]
+      const chunks = splitMessage(finalText, 4000);
+      for (const chunk of chunks) {
+        await callTelegramAPI(token, 'sendMessage', {
+          chat_id: chatId,
+          text: chunk,
+          parse_mode: 'HTML',
+          ...telegramReplyOptions(msg),
         }).catch(() => {
-          callTelegramAPI(token, 'sendMessage', { chat_id: chatId, text: chunks[0], ...telegramReplyOptions(msg) });
+          // Fallback to plain text if HTML parsing fails (e.g. malformed tags)
+          callTelegramAPI(token, 'sendMessage', {
+            chat_id: chatId,
+            text: cleanForTelegram(finalText),
+            ...telegramReplyOptions(msg),
+          });
         });
-        for (const chunk of chunks.slice(1)) {
-          await callTelegramAPI(token, 'sendMessage', { chat_id: chatId, text: chunk, ...telegramReplyOptions(msg) }).catch(() => { });
-        }
       }
 
-      collected = finalContent;
+      // Cleanup progress message
+      await callTelegramAPI(token, 'deleteMessage', { chat_id: chatId, message_id: messageIdToEdit }).catch(() => { });
     }
 
-    const totalUsage = state?.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-    const toolResults = hasToolResults ? extraContext : '';
-
-    db.prepare('UPDATE messages SET content = ?, usage_json = ?, tool_results = ? WHERE id = ?').run(collected, JSON.stringify(totalUsage), toolResults, msgId);
-    db.prepare("UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?").run(sessionId);
+    // Sync to OmniChat
     if (omniConv?.id && collected) {
       const omniReplyId = `tg-reply-${chatId}-${Date.now()}`;
       db.prepare(`
@@ -1735,19 +1725,10 @@ async function handleMessage(token, msg, userId) {
       db.prepare("UPDATE omni_conversations SET last_message = ?, unread_count = 0, updated_at = datetime('now') WHERE id = ?").run(collected, omniConv.id);
     }
 
-    // Auto-extract and save Wiki knowledge
-    extract(text, collected, provider).then(async extracted => {
-      if (extracted) {
-        console.log(`[Telegram Wiki] Extracted knowledge: ${extracted.title}`);
-        await dedupAndSave({ userId, ...extracted, source: 'chat', provider });
-      } else {
-        console.log('[Telegram Wiki] Skip: No knowledge found');
-      }
-    }).catch(err => {
-      console.error('[Telegram Wiki Error]', err);
-    });
+    // Wiki extraction is handled by the Python agent — no need to duplicate here
 
   } catch (err) {
+    console.error('[Telegram Chat Error]', err.message);
     await callTelegramAPI(token, 'sendMessage', {
       chat_id: chatId,
       text: `Lỗi: ${err.message}`,

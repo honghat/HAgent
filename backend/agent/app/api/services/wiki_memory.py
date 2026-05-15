@@ -162,3 +162,38 @@ def extract_and_save_wiki(
     if not entry:
         return None
     return save_wiki_entry(user_id, entry, source="chat")
+
+
+def search_wiki(user_id: str, query: str, limit: int = 5) -> list[dict]:
+    if not HAGENT_DB_PATH.exists():
+        return []
+    q = f"%{query}%"
+    with sqlite3.connect(HAGENT_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT id, title, summary, content, topics, updated_at
+            FROM wiki_entries
+            WHERE user_id = ? AND (title LIKE ? OR summary LIKE ? OR content LIKE ?)
+            ORDER BY updated_at DESC LIMIT ?
+            """,
+            (user_id, q, q, q, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def list_wiki_entries(user_id: str, limit: int = 20) -> list[dict]:
+    if not HAGENT_DB_PATH.exists():
+        return []
+    with sqlite3.connect(HAGENT_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT id, title, summary, topics, updated_at
+            FROM wiki_entries
+            WHERE user_id = ?
+            ORDER BY updated_at DESC LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]

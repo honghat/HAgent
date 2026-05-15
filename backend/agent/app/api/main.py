@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import agents, config, health, messages, sessions, status, stop, workspace, job_hunter
+from api.routers import agents, config, health, messages, sessions, status, stop, workspace, job_hunter, wiki
 from api.services.db import init_db
 
 
@@ -30,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(agents.router, prefix="/api")
     app.include_router(config.router, prefix="/api")
     app.include_router(job_hunter.router, prefix="/api")
+    app.include_router(wiki.router, prefix="/api")
     return app
 
 

@@ -6,6 +6,7 @@ without risk of circular imports.
 
 import os
 from pathlib import Path
+from typing import Optional, Union, Dict
 
 
 _APP_ROOT = Path(__file__).resolve().parent
@@ -79,7 +80,7 @@ def get_default_hagent_root() -> Path:
     return env_path
 
 
-def get_optional_skills_dir(default: Path | None = None) -> Path:
+def get_optional_skills_dir(default: Optional[Path] = None) -> Path:
     """Return the optional-skills directory, honoring package-manager wrappers.
 
     Packaged installs may ship ``optional-skills`` outside the Python package
@@ -134,7 +135,7 @@ def display_hagent_home() -> str:
         return str(home)
 
 
-def get_subprocess_home() -> str | None:
+def get_subprocess_home() -> Optional[str]:
     """Return a per-profile HOME directory for subprocesses, or None.
 
     When ``{HAGENT_HOME}/home/`` exists on disk, subprocesses should use it
@@ -163,7 +164,7 @@ def get_subprocess_home() -> str | None:
 VALID_REASONING_EFFORTS = ("minimal", "low", "medium", "high", "xhigh")
 
 
-def parse_reasoning_effort(effort: str) -> dict | None:
+def parse_reasoning_effort(effort: str) -> Optional[dict]:
     """Parse a reasoning effort level into a config dict.
 
     Valid levels: "none", "minimal", "low", "medium", "high", "xhigh".
@@ -191,7 +192,7 @@ def is_termux() -> bool:
     return bool(os.getenv("TERMUX_VERSION") or "com.termux/files/usr" in prefix)
 
 
-_wsl_detected: bool | None = None
+_wsl_detected: Optional[bool] = None
 
 
 def is_wsl() -> bool:
@@ -212,7 +213,7 @@ def is_wsl() -> bool:
     return _wsl_detected
 
 
-_container_detected: bool | None = None
+_container_detected: Optional[bool] = None
 
 
 def is_container() -> bool:
@@ -322,7 +323,7 @@ AI_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1"
 _BANNED_PATH = Path.home() / ".hermes"
 
 
-def _guard_hermes_path(path: str | Path) -> None:
+def _guard_hermes_path(path: Union[str, Path]) -> None:
     """Raise if *path* resolves inside the banned ~/.hermes directory."""
     try:
         Path(path).resolve().relative_to(_BANNED_PATH.resolve())

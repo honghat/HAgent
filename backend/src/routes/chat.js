@@ -478,7 +478,7 @@ chatRouter.post('/sessions/:sessionId/async', async (req, res) => {
         const { extraContext, state } = await decideAndExecuteTools(msgs, provider, userId, send, { sessionId });
 
         let collectedText = '';
-        for await (const chunk of chatStream(msgs, provider, extraContext)) {
+        for await (const chunk of chatStream(msgs, provider, userId, extraContext)) {
           if (chunk.type === 'content') collectedText += chunk.content;
         }
 
@@ -496,7 +496,7 @@ chatRouter.post('/sessions/:sessionId/async', async (req, res) => {
         // Clear processing flag
         db.prepare('UPDATE chat_sessions SET processing = 0 WHERE id = ?').run(sessionId);
 
-        extract(content, collectedText, provider).then(extracted => {
+        extract(content, collectedText, provider, userId).then(extracted => {
           if (extracted) dedupAndSave({ userId, ...extracted, source: 'chat', provider });
         }).catch(() => {});
       } catch (e) {

@@ -47,3 +47,12 @@ export async function restructureWiki(token, provider = 'deepseek') {
   });
   return res.json();
 }
+
+export async function createEntry(data, token) {
+  const res = await fetch(`${API}/wiki`, {
+    method: 'POST',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}

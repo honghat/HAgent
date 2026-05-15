@@ -82,7 +82,15 @@ export default function App() {
 
   const fetchUser = () => {
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        if (r.ok) return r.json();
+        if (r.status === 401) {
+          setToken(null);
+          setUser(null);
+          localStorage.removeItem('token');
+        }
+        return null;
+      })
       .then(u => {
         if (u) {
           setUser({ ...u, displayName: u.display_name || u.displayName || u.username })
@@ -90,12 +98,9 @@ export default function App() {
             setProvider(u.default_provider)
             localStorage.setItem('hagent_provider', u.default_provider)
           }
-        } else {
-          setToken(null)
-          setUser(null)
-          localStorage.removeItem('token')
         }
       })
+      .catch(err => console.error('Error fetching user:', err))
   }
 
   const logout = () => {

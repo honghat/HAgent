@@ -160,14 +160,21 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     }
   }, [agents, selectedAgentId])
 
+  const [providerConfigs, setProviderConfigs] = useState({})
+
   useEffect(() => {
     fetch('/api/auth/providers', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(list => {
         if (Array.isArray(list)) {
-          const map = { ...defaultProviderLabels }
-          list.forEach(p => { if (p.name && p.label) map[p.name] = p.label })
-          setProviderLabels(map)
+          const labelMap = { ...defaultProviderLabels }
+          const configMap = {}
+          list.forEach(p => { 
+            if (p.name && p.label) labelMap[p.name] = p.label 
+            configMap[p.name] = p
+          })
+          setProviderLabels(labelMap)
+          setProviderConfigs(configMap)
         }
       })
       .catch(() => {})
@@ -488,7 +495,11 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
       const r = await fetch(withBackendBase(`/api/sessions/${currentId}/messages`, true), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: fullContent, provider, model: provider === 'cx' ? cxModel : undefined }),
+        body: JSON.stringify({ 
+          content: fullContent, 
+          provider, 
+          model: providerConfigs[provider]?.model 
+        }),
         signal: controller.signal
       })
       if (!r.ok) throw new Error('Yêu cầu thất bại')

@@ -4,6 +4,7 @@ import {
   ArrowUpDown,
   BookOpen,
   ChevronRight,
+  Clock,
   Download,
   Edit3,
   FileText,
@@ -17,7 +18,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { fetchWiki, restructureWiki, updateEntry, deleteEntry, exportWiki } from '../api.js'
+import { fetchWiki, restructureWiki, updateEntry, deleteEntry, exportWiki, createEntry } from '../api.js'
 
 export default function Wiki({ token, provider }) {
   const [entries, setEntries] = useState([])
@@ -30,8 +31,56 @@ export default function Wiki({ token, provider }) {
   const [editing, setEditing] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
   const [editForm, setEditForm] = useState({ title: '', content: '', summary: '', topics: '' })
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState(null)
 
   useEffect(() => { loadWiki() }, [])
+
+  // Auto-save khi nội dung thay đổi (debounce 1.5s)
+  useEffect(() => {
+    if (!editing) return
+    const timer = setTimeout(autoSave, 1500)
+    return () => clearTimeout(timer)
+  }, [editForm, editing])
+
+  function formatTime(date) {
+    const h = date.getHours().toString().padStart(2, '0')
+    const m = date.getMinutes().toString().padStart(2, '0')
+    return `${h}:${m}`
+  }
+
+  // Format ngày tháng (hỗ trợ định dạng SQLite và đa trình duyệt)
+  function formatDate(dateStr) {
+    if (!dateStr) return ''
+    
+    // Parse ngày tháng với các fallback cho Safari/iPad
+    let d = new Date(dateStr.replace(' ', 'T'))
+    if (isNaN(d.getTime())) {
+      d = new Date(dateStr.replace(/-/g, '/'))
+    }
+    
+    // Nếu vẫn không parse được, trả về chuỗi gốc (lấy phần ngày)
+    if (isNaN(d.getTime())) return dateStr.split(' ')[0]
+    
+    const now = new Date()
+    const diff = now - d
+    
+    // Thời gian tương đối
+    if (Math.abs(diff) < 60000) return 'Vừa xong'
+    if (diff > 0 && diff < 3600000) return `${Math.floor(diff / 60000)} phút`
+    if (diff > 0 && diff < 86400000) return `${Math.floor(diff / 3600000)} giờ`
+    if (diff > 0 && diff < 172800000) return 'Hôm qua'
+    
+    // Thời gian tuyệt đối
+    const options = { day: '2-digit', month: '2-digit' }
+    if (d.getFullYear() !== now.getFullYear()) options.year = 'numeric'
+    
+    try {
+      return d.toLocaleDateString('vi-VN', options)
+    } catch (e) {
+      return dateStr.split(' ')[0]
+    }
+  }
 
   async function loadWiki() {
     setLoading(true)
@@ -77,18 +126,23 @@ export default function Wiki({ token, provider }) {
     if (selectedEntry?.id === id) setSelectedEntry(null)
   }
 
-  async function saveEdit() {
+  function autoSave() {
+    if (!editForm.title.trim()) return
+    setIsSaving(true)
     const topicsArr = editForm.topics.split(',').map(t => t.trim()).filter(Boolean)
     const payload = { title: editForm.title, content: editForm.content, summary: editForm.summary, topics: topicsArr }
-
-    if (selectedEntry.id === 'new') {
-      alert('Chức năng tạo bài viết thủ công đang được đồng bộ với Backend.')
-    } else {
-      await updateEntry(selectedEntry.id, payload, token)
-    }
-    setEditing(false)
-    loadWiki()
+    const isNew = selectedEntry.id === 'new'
+    const fn = isNew ? createEntry(payload, token) : updateEntry(selectedEntry.id, payload, token)
+    fn.then(result => {
+      setLastSaved(new Date())
+      if (isNew && result.id) {
+        setSelectedEntry({ id: result.id, title: editForm.title, content: editForm.content, summary: editForm.summary, topics: topicsArr })
+        loadWiki()
+      }
+    }).catch(() => {}).finally(() => setIsSaving(false))
   }
+
+  function saveEdit() { autoSave() }
 
   const topicList = Object.keys(topics).sort((a, b) => a.localeCompare(b, 'vi'))
   const sourceEntries = selectedTopic ? (topics[selectedTopic] || []) : entries
@@ -105,7 +159,7 @@ export default function Wiki({ token, provider }) {
     <aside className="flex h-full flex-col bg-white">
       <div className="shrink-0 border-b border-gray-100 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 pr-12">
             <h2 className="truncate text-[15px] font-semibold leading-5 text-gray-950">Wiki</h2>
             <p className="mt-0.5 text-[11px] font-medium text-gray-400">{entries.length} mục tri thức</p>
           </div>
@@ -193,38 +247,46 @@ export default function Wiki({ token, provider }) {
           <div className="flex min-w-0 items-center gap-2">
             <button
               onClick={() => { setSelectedEntry(null); setEditing(false) }}
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-950 active:scale-95"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-950 active:scale-95"
               title="Quay lại"
             >
-              <ArrowLeft className="h-4.5 w-4.5" />
+              <ArrowLeft className="h-5 w-5" />
             </button>
-            <h2 className="truncate text-[14px] font-semibold text-gray-950 sm:max-w-[420px]">
+            <h2 className="truncate text-[14px] font-semibold text-gray-950 sm:max-w-[420px] max-w-[160px] xs:max-w-[220px] sm:max-w-[320px]">
               {selectedEntry.id === 'new' ? 'Bài viết mới' : selectedEntry.title}
             </h2>
           </div>
 
           {editing ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
+                {isSaving ? (
+                  <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Đang lưu...</span>
+                ) : lastSaved ? (
+                  <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-green-400" />Đã lưu {formatTime(lastSaved)}</span>
+                ) : null}
+              </div>
               <button
                 onClick={saveEdit}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-gray-950 px-3 text-[12px] font-medium text-white transition-all hover:bg-black active:scale-95"
+                className="flex h-10 items-center gap-1.5 rounded-2xl bg-gray-950 px-3 text-[12px] font-medium text-white transition-all hover:bg-black active:scale-95"
               >
                 <Save className="h-3.5 w-3.5" />
-                Lưu
+                <span className="hidden sm:inline">Lưu</span>
               </button>
               <button
                 onClick={() => setEditing(false)}
-                className="flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-[12px] font-medium text-gray-600 transition-all hover:bg-gray-50"
+                className="flex h-10 items-center justify-center rounded-2xl border border-gray-200 bg-white px-3 text-[12px] font-medium text-gray-600 transition-all hover:bg-gray-50 active:scale-95"
               >
-                Hủy
+                <span className="hidden sm:inline">Hủy</span>
+                <X className="h-4 w-4 sm:hidden" />
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-1">
-              <button onClick={() => setEditing(true)} className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-950" title="Chỉnh sửa">
+              <button onClick={() => setEditing(true)} className="flex h-10 w-10 items-center justify-center rounded-2xl text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-950 active:scale-95" title="Chỉnh sửa">
                 <Edit3 className="h-4 w-4" />
               </button>
-              <button onClick={() => handleDelete(selectedEntry.id)} className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 transition-all hover:bg-red-50 hover:text-red-500" title="Xóa">
+              <button onClick={() => handleDelete(selectedEntry.id)} className="flex h-10 w-10 items-center justify-center rounded-2xl text-gray-400 transition-all hover:bg-red-50 hover:text-red-500 active:scale-95" title="Xóa">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
@@ -234,17 +296,17 @@ export default function Wiki({ token, provider }) {
         <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
           <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10 pb-safe">
             {editing ? (
-              <div className="space-y-5">
-                <div className="space-y-2">
+              <div className="space-y-4 sm:space-y-5">
+                <div className="space-y-1.5 sm:space-y-2">
                   <label className="ml-1 text-[11px] font-semibold text-gray-400">Tiêu đề</label>
                   <input
                     value={editForm.title}
                     onChange={e => setEditForm(form => ({ ...form, title: e.target.value }))}
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xl font-semibold text-gray-950 outline-none transition-all placeholder:text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100 sm:text-2xl"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[16px] sm:text-[18px] font-semibold text-gray-950 outline-none transition-all placeholder:text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
                     placeholder="Tiêu đề bài viết"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5 sm:space-y-2">
                   <label className="ml-1 text-[11px] font-semibold text-gray-400">Tóm tắt</label>
                   <input
                     value={editForm.summary}
@@ -253,7 +315,7 @@ export default function Wiki({ token, provider }) {
                     placeholder="Tóm tắt ngắn"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5 sm:space-y-2">
                   <label className="ml-1 text-[11px] font-semibold text-gray-400">Chủ đề</label>
                   <input
                     value={editForm.topics}
@@ -262,12 +324,12 @@ export default function Wiki({ token, provider }) {
                     placeholder="cong-nghe, tai-chinh"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5 sm:space-y-2">
                   <label className="ml-1 text-[11px] font-semibold text-gray-400">Nội dung</label>
                   <textarea
                     value={editForm.content}
                     onChange={e => setEditForm(form => ({ ...form, content: e.target.value }))}
-                    className="min-h-[440px] w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-4 text-[14px] leading-7 text-gray-800 outline-none transition-all focus:border-gray-300 focus:ring-2 focus:ring-gray-100 sm:px-5"
+                    className="min-h-[320px] sm:min-h-[440px] w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-4 text-[14px] leading-[1.7] text-gray-800 outline-none transition-all focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
                   />
                 </div>
               </div>
@@ -275,10 +337,18 @@ export default function Wiki({ token, provider }) {
               <article className="rounded-2xl border border-gray-100 bg-white px-5 py-6 shadow-sm sm:px-8 sm:py-8">
                 <div className="mb-6 border-b border-gray-100 pb-6">
                   <h1 className="text-2xl font-semibold leading-tight tracking-tight text-gray-950 sm:text-3xl">{selectedEntry.title}</h1>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {(selectedEntry.topics || []).map(topic => (
-                      <span key={topic} className="rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">{topic}</span>
-                    ))}
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      {(selectedEntry.topics || []).map(topic => (
+                        <span key={topic} className="rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">{topic}</span>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-4 text-[11px] text-gray-400">
+                      <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" />Tạo: {formatDate(selectedEntry.created_at)}</span>
+                      {selectedEntry.updated_at && selectedEntry.updated_at !== selectedEntry.created_at && (
+                        <span className="flex items-center gap-1.5"><Edit3 className="h-3 w-3" />Sửa: {formatDate(selectedEntry.updated_at)}</span>
+                      )}
+                    </div>
                   </div>
                   {selectedEntry.summary && (
                     <p className="mt-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-[14px] leading-6 text-gray-600">{selectedEntry.summary}</p>
@@ -300,16 +370,16 @@ export default function Wiki({ token, provider }) {
   }
 
   return (
-    <div className="relative flex h-full overflow-hidden bg-[#f6f6f2] animate-in fade-in duration-300">
-      <div className="hidden w-[280px] shrink-0 border-r border-gray-100 bg-white md:flex">
+    <div className="relative flex h-full overflow-hidden bg-[#f6f6f2]">
+      <div className="hidden w-[280px] shrink-0 border-r border-gray-100 bg-white lg:flex">
         <SidebarContent />
       </div>
 
       {showSidebar && (
-        <div className="fixed inset-0 z-[60] bg-gray-950/30 backdrop-blur-sm md:hidden" onClick={() => setShowSidebar(false)}>
+        <div className="fixed inset-0 z-[200] bg-gray-950/30 backdrop-blur-sm lg:hidden" onClick={() => setShowSidebar(false)}>
           <div className="h-full w-[290px] bg-white shadow-2xl animate-in slide-in-from-left duration-200" onClick={event => event.stopPropagation()}>
-            <div className="absolute left-[246px] top-3 z-10">
-              <button onClick={() => setShowSidebar(false)} className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm">
+            <div className="absolute right-3 top-3 z-10">
+              <button onClick={() => setShowSidebar(false)} className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-500 shadow-sm hover:bg-gray-200 transition-colors">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -319,22 +389,22 @@ export default function Wiki({ token, provider }) {
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-100 bg-white/80 px-4 backdrop-blur-md sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <button onClick={() => setShowSidebar(true)} className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-600 transition-all hover:bg-gray-100 md:hidden">
-              <Menu className="h-4.5 w-4.5" />
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-100 bg-white/80 px-3 sm:px-4 backdrop-blur-md">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <button onClick={() => setShowSidebar(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-gray-600 transition-all hover:bg-gray-100 active:scale-95">
+              <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0">
-              <h1 className="truncate text-[15px] font-semibold leading-5 text-gray-950">{pageTitle}</h1>
+              <h1 className="truncate text-[14px] sm:text-[15px] font-semibold leading-5 text-gray-950">{pageTitle}</h1>
               <p className="text-[11px] font-medium text-gray-400">{displayEntries.length} mục đang hiển thị</p>
             </div>
           </div>
           <button
             onClick={startNew}
-            className="flex h-9 items-center gap-1.5 rounded-xl bg-gray-950 px-3 text-[12px] font-medium text-white transition-all hover:bg-black active:scale-95 md:hidden"
+            className="flex h-10 items-center gap-1.5 rounded-2xl bg-gray-950 px-3 text-[12px] font-medium text-white transition-all hover:bg-black active:scale-95"
           >
             <Plus className="h-3.5 w-3.5" />
-            Mới
+            <span className="hidden xs:inline">Mới</span>
           </button>
         </div>
 
@@ -355,10 +425,11 @@ export default function Wiki({ token, provider }) {
               </button>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <div className="hidden min-w-[760px] grid-cols-[minmax(220px,1.1fr)_minmax(280px,1.5fr)_220px_72px] border-b border-gray-100 bg-gray-50/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:grid">
+            <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm custom-scrollbar">
+              <div className="hidden min-w-[700px] grid-cols-[minmax(200px,1.2fr)_minmax(240px,1.8fr)_110px_minmax(140px,1fr)_72px] border-b border-gray-100 bg-gray-50/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:grid">
                 <div>Tiêu đề</div>
                 <div>Tóm tắt</div>
+                <div>Ngày sửa</div>
                 <div>Chủ đề</div>
                 <div className="text-right">Mở</div>
               </div>
@@ -368,7 +439,7 @@ export default function Wiki({ token, provider }) {
                   <div
                     key={entry.id}
                     onClick={() => openEntry(entry)}
-                    className="group cursor-pointer px-4 py-4 transition-colors hover:bg-gray-50/80 md:grid md:min-w-[760px] md:grid-cols-[minmax(220px,1.1fr)_minmax(280px,1.5fr)_220px_72px] md:items-center md:gap-4 md:py-3"
+                    className="group cursor-pointer px-4 py-4 transition-colors hover:bg-gray-50/80 md:grid md:min-w-[700px] md:grid-cols-[minmax(200px,1.2fr)_minmax(240px,1.8fr)_110px_minmax(140px,1fr)_72px] md:items-center md:gap-4 md:py-3"
                   >
                     <div className="flex min-w-0 items-start gap-3 md:items-center">
                       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 md:mt-0">
@@ -388,13 +459,18 @@ export default function Wiki({ token, provider }) {
                       </div>
                     </div>
 
-                    <p className="mt-3 line-clamp-2 text-[13px] leading-5 text-gray-500 md:mt-0">
+                    <p className="mt-3 line-clamp-2 min-w-0 break-words text-[13px] leading-5 text-gray-500 md:mt-0 overflow-hidden">
                       {entry.summary || 'Không có mô tả vắn tắt.'}
                     </p>
 
-                    <div className="hidden min-w-0 flex-wrap gap-1.5 md:flex">
-                      {(entry.topics || []).slice(0, 3).map(topic => (
-                        <span key={topic} className="max-w-[92px] truncate rounded-lg bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-500">
+                    <div className="hidden items-center gap-1.5 text-[12px] text-gray-400 md:flex">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{formatDate(entry.updated_at || entry.created_at)}</span>
+                    </div>
+
+                    <div className="hidden min-w-0 flex-wrap gap-1.5 md:flex lg:flex">
+                      {(entry.topics || []).slice(0, 2).map(topic => (
+                        <span key={topic} className="max-w-[100px] truncate rounded-lg bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-500">
                           {topic}
                         </span>
                       ))}

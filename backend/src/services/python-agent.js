@@ -119,6 +119,17 @@ export function pythonAgentProxy() {
         }
       });
 
+      // Stream SSE responses directly instead of buffering
+      const contentType = upstream.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream') && upstream.body) {
+        res.flushHeaders();
+        const { Readable } = await import('node:stream');
+        const readable = Readable.fromWeb(upstream.body);
+        readable.pipe(res);
+        readable.on('error', () => { try { res.end(); } catch {} });
+        return;
+      }
+
       const buffer = Buffer.from(await upstream.arrayBuffer());
       res.send(buffer);
     } catch (error) {

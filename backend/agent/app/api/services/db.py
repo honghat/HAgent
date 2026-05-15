@@ -17,6 +17,11 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def get_db() -> sqlite3.Connection:
+    """Alias for get_connection for FastAPI dependency injection or common use."""
+    return get_connection()
+
+
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(

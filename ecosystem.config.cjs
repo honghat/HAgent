@@ -16,7 +16,8 @@ module.exports = {
         PORT: 8004,
         NODE_ENV: 'production',
         HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
-        HAGENT_SKILLS_DIR: '/Users/nguyenhat/HAgent/backend/agent/app/skills'
+        HAGENT_SKILLS_DIR: '/Users/nguyenhat/HAgent/backend/agent/app/skills',
+        HAGENT_PYTHON_AGENT_AUTOSTART: 'false'
       }
     },
     {

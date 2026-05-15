@@ -119,6 +119,20 @@ def run_source_agent(
     sanitized_history = [{**item, "content": _sanitize_identity_text(item.get("content") or "")} for item in history]
     effective_message = _build_continuation_turn(user_message, sanitized_history)
     agent_prompt = _build_agent_prompt(agent_profile)
+
+    # Inject Wiki knowledge if available
+    try:
+        from api.services.wiki_memory import search_wiki
+        user_id = session.user_id if session else "hat"
+        wiki_results = search_wiki(user_id, user_message, limit=3)
+        if wiki_results:
+            wiki_text = "\n\n[KIẾN THỨC WIKI CỦA BẠN]\n" + "\n---\n".join(
+                [f"Tiêu đề: {r['title']}\nNội dung: {r['content']}" for r in wiki_results]
+            )
+            agent_prompt = (agent_prompt or "") + wiki_text
+    except Exception:
+        pass
+
     enabled_toolsets = _clean_list((agent_profile or {}).get("tool_groups"))
 
     agent = AIAgent(

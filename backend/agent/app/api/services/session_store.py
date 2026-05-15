@@ -12,6 +12,7 @@ class SessionRecord:
     session_id: str
     title: str
     agent_id: str | None = None
+    user_id: str = "hat"
     messages: list[dict] = field(default_factory=list)
     status: str = "idle"
 
@@ -21,8 +22,9 @@ def _row_to_session(row) -> SessionRecord:
     return SessionRecord(
         session_id=row["id"],
         title=row["title"],
+        user_id=row["user_id"] if "user_id" in row.keys() else "hat",
         agent_id=row["agent_id"] if "agent_id" in row.keys() else None,
-        status=row["status"],
+        status=row["status"] if "status" in row.keys() else "idle",
         messages=messages,
     )
 
@@ -41,7 +43,7 @@ def create_session(title: str | None = None, agent_id: str | None = None) -> Ses
 def get_session(session_id: str) -> SessionRecord | None:
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT id, title, agent_id, processing FROM chat_sessions WHERE id = ?",
+            "SELECT id, title, agent_id, user_id, processing FROM chat_sessions WHERE id = ?",
             (session_id,),
         ).fetchone()
     if not row:

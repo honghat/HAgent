@@ -12,7 +12,7 @@ class SessionRecord:
     session_id: str
     title: str
     agent_id: str | None = None
-    user_id: str = "hat"
+    user_id: str = "398f6a8a-8954-4315-8240-df769e664b54"
     messages: list[dict] = field(default_factory=list)
     status: str = "idle"
 
@@ -22,7 +22,7 @@ def _row_to_session(row) -> SessionRecord:
     return SessionRecord(
         session_id=row["id"],
         title=row["title"],
-        user_id=row["user_id"] if "user_id" in row.keys() else "hat",
+        user_id=row["user_id"] if "user_id" in row.keys() else "398f6a8a-8954-4315-8240-df769e664b54",
         agent_id=row["agent_id"] if "agent_id" in row.keys() else None,
         status=row["status"] if "status" in row.keys() else "idle",
         messages=messages,
@@ -35,7 +35,7 @@ def create_session(title: str | None = None, agent_id: str | None = None) -> Ses
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO chat_sessions (id, title, agent_id, user_id) VALUES (?, ?, ?, ?)",
-            (session_id, session_title, agent_id, "hat"),
+            (session_id, session_title, agent_id, "398f6a8a-8954-4315-8240-df769e664b54"),
         )
     return SessionRecord(session_id=session_id, title=session_title, agent_id=agent_id, status="idle")
 
@@ -84,7 +84,7 @@ def add_message(
         msg_id = str(uuid4())
         cursor = conn.execute(
             "INSERT INTO messages (id, session_id, role, content, provider, usage_json, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (msg_id, session_id, role, content, provider, json.dumps(usage) if usage else None, "hat"),
+            (msg_id, session_id, role, content, provider, json.dumps(usage) if usage else None, "398f6a8a-8954-4315-8240-df769e664b54"),
         )
         conn.execute(
             "UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",

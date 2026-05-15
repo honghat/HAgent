@@ -11,7 +11,7 @@ from api.services.provider_config import get_provider_config
 
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
 HAGENT_DB_PATH = PROJECT_ROOT / "data" / "hagent.db"
-DEFAULT_SESSION_TOKEN = "hat"
+DEFAULT_SESSION_TOKEN = "398f6a8a-8954-4315-8240-df769e664b54"
 DEFAULT_USERNAME = "hat"
 
 EXTRACT_PROMPT = """Trích xuất kiến thức hữu ích từ lượt hội thoại giữa Người dùng và Trợ lý.

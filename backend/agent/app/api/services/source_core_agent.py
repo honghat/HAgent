@@ -123,7 +123,7 @@ def run_source_agent(
     # Inject Wiki knowledge if available
     try:
         from api.services.wiki_memory import search_wiki
-        user_id = session.user_id if session else "hat"
+        user_id = session.user_id if session else "398f6a8a-8954-4315-8240-df769e664b54"
         wiki_results = search_wiki(user_id, user_message, limit=3)
         if wiki_results:
             wiki_text = "\n\n[KIẾN THỨC WIKI CỦA BẠN]\n" + "\n---\n".join(
@@ -155,7 +155,38 @@ def run_source_agent(
         status_callback=status_callback,
         step_callback=step_callback,
     )
-    reply = agent.run_conversation(effective_message, stream_callback=stream_callback)
+
+    # Wrap callbacks to check for stop requests
+    from api.services.run_control import is_stop_requested
+
+    def check_stop():
+        if is_stop_requested(session_id):
+            agent.interrupt("Xử lý đã bị dừng theo yêu cầu của người dùng.")
+
+    # Wrap the callbacks that are called frequently during the run
+    original_thinking = agent.thinking_callback
+    def thinking_wrapper(content):
+        check_stop()
+        if original_thinking: original_thinking(content)
+    agent.thinking_callback = thinking_wrapper
+
+    original_tool_progress = agent.tool_progress_callback
+    def tool_progress_wrapper(event_name, tool_name, preview=None, args=None, **kwargs):
+        check_stop()
+        if original_tool_progress: original_tool_progress(event_name, tool_name, preview, args, **kwargs)
+    agent.tool_progress_callback = tool_progress_wrapper
+
+    original_step = agent.step_callback
+    def step_wrapper(iteration, prev_tools):
+        check_stop()
+        if original_step: original_step(iteration, prev_tools)
+    agent.step_callback = step_wrapper
+
+    def stream_wrapper(delta):
+        check_stop()
+        if stream_callback: stream_callback(delta)
+
+    reply = agent.run_conversation(effective_message, stream_callback=stream_wrapper)
     if isinstance(reply, dict):
         text = reply.get("final_response")
         if not text and reply.get("error"):

@@ -34,7 +34,11 @@ export default function Wiki({ token, provider }) {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
 
-  useEffect(() => { loadWiki() }, [])
+  useEffect(() => {
+    loadWiki()
+    const interval = setInterval(() => loadWiki(true), 15000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Auto-save khi nội dung thay đổi (debounce 1.5s)
   useEffect(() => {
@@ -82,14 +86,14 @@ export default function Wiki({ token, provider }) {
     }
   }
 
-  async function loadWiki() {
-    setLoading(true)
+  async function loadWiki(silent = false) {
+    if (!silent) setLoading(true)
     try {
       const d = await fetchWiki(token)
       setEntries(d.entries || [])
       setTopics(d.topics || {})
     } catch {}
-    setLoading(false)
+    if (!silent) setLoading(false)
   }
 
   async function handleRestructure() {
@@ -344,9 +348,16 @@ export default function Wiki({ token, provider }) {
                       ))}
                     </div>
                     <div className="flex items-center gap-4 text-[11px] text-gray-400">
-                      <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" />Tạo: {formatDate(selectedEntry.created_at)}</span>
-                      {selectedEntry.updated_at && selectedEntry.updated_at !== selectedEntry.created_at && (
-                        <span className="flex items-center gap-1.5"><Edit3 className="h-3 w-3" />Sửa: {formatDate(selectedEntry.updated_at)}</span>
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="h-3 w-3" />
+                        Tạo: {formatDate(selectedEntry.created_at || selectedEntry.createdAt)}
+                      </span>
+                      {(selectedEntry.updated_at || selectedEntry.updatedAt) && 
+                        (selectedEntry.updated_at || selectedEntry.updatedAt) !== (selectedEntry.created_at || selectedEntry.createdAt) && (
+                        <span className="flex items-center gap-1.5">
+                          <Edit3 className="h-3 w-3" />
+                          Sửa: {formatDate(selectedEntry.updated_at || selectedEntry.updatedAt)}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -465,7 +476,7 @@ export default function Wiki({ token, provider }) {
 
                     <div className="hidden items-center gap-1.5 text-[12px] text-gray-400 md:flex">
                       <Clock className="h-3.5 w-3.5" />
-                      <span>{formatDate(entry.updated_at || entry.created_at)}</span>
+                      <span>{formatDate(entry.updated_at || entry.updatedAt || entry.created_at || entry.createdAt)}</span>
                     </div>
 
                     <div className="hidden min-w-0 flex-wrap gap-1.5 md:flex lg:flex">

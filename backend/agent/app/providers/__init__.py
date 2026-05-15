@@ -72,37 +72,44 @@ def get_provider_profile(name: str) -> ProviderProfile | None:
     canonical = _ALIASES.get(name, name)
     profile = _REGISTRY.get(canonical)
 
-    if profile:
-        # HAgent: Apply DB overrides from the main HAgent database
-        try:
-            import sqlite3
-            from pathlib import Path
-            
-            # DB is at <repo>/data/hagent.db. Current file is at <repo>/backend/agent/app/providers/__init__.py
-            # So repo root is 5 levels up.
-            db_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "hagent.db"
-            if db_path.exists():
-                conn = sqlite3.connect(str(db_path))
-                cursor = conn.cursor()
-                # We pick the first user's override for simplicity in single-user mode
-                cursor.execute(
-                    "SELECT label, type, base_url, api_key, model FROM custom_providers WHERE name = ? ORDER BY updated_at DESC LIMIT 1",
-                    (canonical,)
-                )
-                row = cursor.fetchone()
-                if row:
-                    label, p_type, base_url, api_key, model = row
+    # HAgent: Apply DB overrides or load custom providers from the main HAgent database
+    try:
+        import sqlite3
+        from hagent_constants import get_hagent_home
+        
+        # DB is at <repo>/data/hagent.db.
+        db_path = get_hagent_home().parent.parent.parent / "data" / "hagent.db"
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+            # We pick the first user's override for simplicity in single-user mode
+            cursor.execute(
+                "SELECT label, type, base_url, api_key, model FROM custom_providers WHERE name = ? ORDER BY updated_at DESC LIMIT 1",
+                (canonical,)
+            )
+            row = cursor.fetchone()
+            if row:
+                label, p_type, base_url, api_key, model = row
+                
+                # If no profile exists, create a dynamic one for custom providers
+                if not profile:
+                    from providers.base import ProviderProfile
+                    profile = ProviderProfile(
+                        name=canonical,
+                        display_name=label or canonical,
+                        base_url=base_url or "",
+                        auth_type="api_key",
+                        env_vars=("HAGENT_DB_MANAGED",)
+                    )
+                    # Register it so it's cached
+                    _REGISTRY[canonical] = profile
+                else:
+                    # Apply overrides to existing profile
                     if label: profile.display_name = label
                     if base_url: profile.base_url = base_url
-                    # For API key, we only override if not empty
-                    if api_key:
-                        # profile might not have a direct field for key in its dataclass, 
-                        # but some profiles use env_vars. For OpenRouter/OpenAI compat, 
-                        # setting base_url is usually enough if the key is in env.
-                        pass
-                conn.close()
-        except Exception as e:
-            logger.debug("Failed to load DB override for %s: %s", canonical, e)
+            conn.close()
+    except Exception as e:
+        logger.debug("Failed to load DB override for %s: %s", canonical, e)
 
     return profile
 
@@ -111,6 +118,30 @@ def list_providers() -> list[ProviderProfile]:
     """Return all registered provider profiles (one per canonical name)."""
     if not _discovered:
         _discover_providers()
+    
+    # HAgent: Load custom providers from the database into the registry before listing
+    try:
+        import sqlite3
+        from hagent_constants import get_hagent_home
+        db_path = get_hagent_home().parent.parent.parent / "data" / "hagent.db"
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+            cursor.execute("SELECT name, label, base_url FROM custom_providers")
+            for name, label, base_url in cursor.fetchall():
+                if name not in _REGISTRY:
+                    from providers.base import ProviderProfile
+                    _REGISTRY[name] = ProviderProfile(
+                        name=name,
+                        display_name=label or name,
+                        base_url=base_url or "",
+                        auth_type="api_key",
+                        env_vars=("HAGENT_DB_MANAGED",)
+                    )
+            conn.close()
+    except Exception:
+        pass
+
     # Deduplicate: _REGISTRY has canonical names; _ALIASES points to same objects
     seen: set[int] = set()
     result: list[ProviderProfile] = []

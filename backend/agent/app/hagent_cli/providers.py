@@ -453,6 +453,33 @@ def get_provider(name: str) -> Optional[ProviderDef]:
             source="hagent",
         )
 
+    # HAgent: Fallback to database for custom providers
+    try:
+        import sqlite3
+        from hagent_constants import get_hagent_home
+        db_path = get_hagent_home().parent.parent.parent / "data" / "hagent.db"
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+            cursor.execute("SELECT label, base_url FROM custom_providers WHERE name = ?", (canonical,))
+            row = cursor.fetchone()
+            if row:
+                label, base_url = row
+                conn.close()
+                return ProviderDef(
+                    id=canonical,
+                    name=label or canonical,
+                    transport="openai_chat",
+                    api_key_env_vars=(),
+                    base_url=base_url or "",
+                    is_aggregator=False,
+                    auth_type="api_key",
+                    source="user-db",
+                )
+            conn.close()
+    except Exception:
+        pass
+
     return None
 
 

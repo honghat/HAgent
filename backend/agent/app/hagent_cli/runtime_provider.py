@@ -372,7 +372,50 @@ def _get_named_custom_provider(requested_provider: str) -> Optional[Dict[str, An
             # the built-in. See tests/hagent_cli/test_runtime_provider_resolution.py
             # ``test_named_custom_provider_does_not_shadow_builtin_provider``.
             if (canonical or "").strip().lower() == requested_norm:
-                return None
+                pconfig = PROVIDER_REGISTRY.get(canonical)
+                if pconfig and "HAGENT_DB_MANAGED" in pconfig.api_key_env_vars:
+                    pass # Allow DB custom providers to be looked up
+                else:
+                    return None
+
+    # HAgent: Check database first for custom providers managed via Web UI
+    try:
+        import sqlite3
+        from hagent_constants import get_hagent_home
+        db_path = get_hagent_home().parent.parent.parent / "data" / "hagent.db"
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+            # Resolve requested_norm or custom:<norm>
+            name_to_check = requested_norm
+            if name_to_check.startswith("custom:"):
+                name_to_check = name_to_check[len("custom:"):]
+            
+            cursor.execute(
+                "SELECT name, label, base_url, api_key, model, type FROM custom_providers WHERE name = ?",
+                (name_to_check,)
+            )
+            row = cursor.fetchone()
+            if row:
+                name, label, base_url, api_key, model, p_type = row
+                conn.close()
+                result = {
+                    "name": label or name,
+                    "base_url": base_url.strip() if base_url else "",
+                    "api_key": api_key.strip() if api_key else "",
+                    "model": model.strip() if model else "",
+                }
+                # If type is specified, we might infer api_mode
+                if p_type == "anthropic":
+                    result["api_mode"] = "anthropic_messages"
+                elif p_type == "openai":
+                    result["api_mode"] = "chat_completions"
+                logger.warning(f"Found DB custom provider {name_to_check}: {result}")
+                return result
+            conn.close()
+            logger.warning(f"DB custom provider not found for {name_to_check}")
+    except Exception as e:
+        logger.warning("DB custom provider lookup failed for %s: %s", requested_provider, e)
 
     config = load_config()
     
@@ -852,7 +895,7 @@ def _resolve_explicit_runtime(
         )
 
     pconfig = PROVIDER_REGISTRY.get(provider)
-    if pconfig and pconfig.auth_type == "api_key":
+    if pconfig and "HAGENT_DB_MANAGED" not in pconfig.api_key_env_vars and pconfig.auth_type == "api_key":
         env_url = ""
         if pconfig.base_url_env_var:
             env_url = os.getenv(pconfig.base_url_env_var, "").strip().rstrip("/")
@@ -1283,7 +1326,7 @@ def resolve_runtime_provider(
 
     # API-key providers (z.ai/GLM, Kimi, MiniMax, MiniMax-CN)
     pconfig = PROVIDER_REGISTRY.get(provider)
-    if pconfig and pconfig.auth_type == "api_key":
+    if pconfig and "HAGENT_DB_MANAGED" not in pconfig.api_key_env_vars and pconfig.auth_type == "api_key":
         creds = resolve_api_key_provider_credentials(provider)
         # Honour model.base_url from config.yaml when the configured provider
         # matches this provider — mirrors the Anthropic path above.  Without

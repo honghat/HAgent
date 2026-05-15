@@ -666,7 +666,8 @@ async function completeTelegramQrLogin({ code, msg, defaultUserId, token }) {
 
   await callTelegramAPI(token, 'sendMessage', {
     chat_id: chatId,
-    text: 'Đã kết nối Telegram với HAgent. Bạn có thể nhắn trực tiếp ở đây.',
+    text: '<b>✅ ĐÃ KẾT NỐI THÀNH CÔNG!</b>\n\nHương vị HAgent đã sẵn sàng phục vụ bạn ngay trên Telegram. Hãy thử gửi một yêu cầu bất kỳ hoặc gõ /help để xem danh sách lệnh.',
+    parse_mode: 'HTML'
   }).catch(() => {});
 
   events.emit('qr_connected', { userId: row.user_id, chatId, username });
@@ -708,17 +709,20 @@ function formatForTelegram(text) {
     result = result.replace(metricsMatch[0], '');
   }
 
-  // Basic HTML escaping and formatting
+  // Pre-process markdown elements to HTML
   result = result
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/^#+\s+(.*)$/gm, '<b>$1</b>')
+    .replace(/^\s*[\*\-]\s+/gm, '• ')
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
     .replace(/__(.*?)__/g, '<u>$1</u>')
     .replace(/\*(.*?)\*/g, '<i>$1</i>')
     .replace(/_(.*?)_/g, '<i>$1</i>')
     .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
-    .replace(/`(.*?)`/g, '<code>$1</code>');
+    .replace(/`(.*?)`/g, '<code>$1</code>')
+    .replace(/---/g, '━━━━━━');
 
   if (metrics) {
     result += `\n\n<i>${metrics}</i>`;
@@ -727,16 +731,16 @@ function formatForTelegram(text) {
 }
 
 function telegramProgressText(kind, detail = '') {
-  const suffix = detail ? `\n${detail}` : '';
+  const suffix = detail ? `\n└ ${detail}` : '';
   switch (kind) {
     case 'thinking':
-      return `Đang xử lý yêu cầu...${suffix}`;
+      return `🤔 Đang phân tích yêu cầu...${suffix}`;
     case 'tool':
-      return `Đang thực thi và kiểm tra...${suffix}`;
+      return `🛠️ Đang xử lý nghiệp vụ...${suffix}`;
     case 'finalizing':
-      return `Đang tổng hợp kết quả...${suffix}`;
+      return `✍️ Đang soạn câu trả lời...${suffix}`;
     default:
-      return `Đang xử lý...${suffix}`;
+      return `🔄 Đang xử lý...${suffix}`;
   }
 }
 
@@ -747,26 +751,31 @@ function listMessages(sessionId) {
 function getToolEmoji(name) {
   const emojis = {
     'web_search': '🔍',
-    'terminal': '💻',
-    'read_file': '📖',
+    'google_search': '🌐',
+    'terminal': '🖥️',
+    'read_file': '📂',
     'write_file': '💾',
-    'patch': '🛠',
-    'image_generate': '🎨',
-    'browser_navigate': '🌐',
-    'browser_click': '🖱',
+    'patch': '🔧',
+    'image_generate': '🖼️',
+    'browser_navigate': '🌍',
+    'browser_click': '🖱️',
     'browser_type': '⌨️',
-    'vision_analyze': '👁',
-    'text_to_speech': '🔊',
-    'skill_view': '📚',
-    'skill_manage': '🛠',
-    'execute_code': '🚀',
-    'delegate_task': '👥',
-    'clarify': '❓',
+    'vision_analyze': '📸',
+    'text_to_speech': '🎙️',
+    'skill_view': '📘',
+    'skill_manage': '🛠️',
+    'execute_code': '⚡',
+    'delegate_task': '🤝',
+    'clarify': '💬',
     'memory': '🧠',
-    'todo': '📝',
-    'process': '🔄',
+    'todo': '📋',
+    'process': '⚙️',
+    'weather': '🌤️',
+    'gold_price': '💰',
+    'news': '📰',
+    'system': '📟'
   };
-  return emojis[name] || '⚙️';
+  return emojis[name] || '📦';
 }
 
 function toolStatusDetail(data = {}) {
@@ -792,25 +801,26 @@ function sanitizeTelegramProgressLine(text = '') {
 }
 
 function renderTelegramProgress({ phase = 'working', modelLabel = '', activities = [] } = {}) {
-  let header = '⏳ Đang xử lý...';
-  if (phase === 'thinking') header = '🧠 Đang suy nghĩ...';
-  if (phase === 'tool') header = '⚙️ Đang thực thi công cụ...';
-  if (phase === 'finalizing') header = '📝 Đang tổng hợp câu trả lời...';
+  let header = '<b>⏳ HAGENT ĐANG XỬ LÝ</b>';
+  if (phase === 'thinking') header = '<b>🧠 HAGENT ĐANG PHÂN TÍCH</b>';
+  if (phase === 'tool') header = '<b>⚙️ HAGENT ĐANG THỰC THI</b>';
+  if (phase === 'finalizing') header = '<b>✍️ HAGENT ĐANG HOÀN TẤT</b>';
 
   const lines = [header];
-  if (modelLabel) lines.push(`🤖 Trợ lý: ${modelLabel}`);
+  if (modelLabel) lines.push(`<i>🤖 Trợ lý: ${modelLabel}</i>`);
 
   const recent = activities.slice(-5);
   if (recent.length) {
     lines.push('');
     for (const item of recent) {
       const isDone = item.includes(' xong');
-      const icon = isDone ? '✅' : '';
-      lines.push(`${icon}${item}`);
+      const icon = isDone ? '✅' : '○';
+      lines.push(`${icon} ${item}`);
     }
   } else {
-    lines.push('', '... đang chuẩn bị ...');
+    lines.push('', '<i>○ Đang chuẩn bị môi trường...</i>');
   }
+
   return lines.join('\n').slice(0, 950);
 }
 
@@ -1227,26 +1237,22 @@ async function handleMessage(token, msg, userId) {
   if (/^\/start(?:\s|$)/i.test(text.trim())) {
     await callTelegramAPI(token, 'sendMessage', {
       chat_id: chatId,
-      text: '👋 Chào mừng bạn đến với HAgent!\n\nTôi là trợ lý AI đa năng của bạn. Dưới đây là danh sách các lệnh bạn có thể sử dụng:\n\n' +
-        '✨ /new - Bắt đầu phiên chat mới\n' +
-        '📊 /status - Trạng thái hệ thống\n' +
-        '☁️ /thoitiet - Xem thời tiết\n' +
-        '💰 /giavang - Xem giá vàng\n' +
-        '🤖 /chuyenmohinh - Đổi AI (DeepSeek/Local)\n' +
-        '💻 /bat - Bật máy tính (WOL)\n' +
-        '🔌 /tat - Tắt máy tính (SSH)\n' +
-        '🟢 /rustdesk_on - Bật RustDesk\n' +
-        '🔴 /rustdesk_off - Tắt RustDesk\n' +
-        '🚀 /lmstudio - Bật LM Studio (Tắt Ollama)\n' +
-        '🦙 /ollama - Bật Ollama (Tắt LM Studio)\n' +
-        '🏗️ /llamacpp - Bật Llama-cpp (8080)\n' +
-        '🛑 /off - Tắt tất cả dịch vụ AI Remote\n' +
-        '📰 /tinmoi - Đọc tin tức mới nhất\n' +
-        '🖥️ /lmstudio_local - Bật LM Studio trên Mac\n' +
-        '⚙️ /chuyenclaude - Đổi Claude Mode\n' +
-        '⚡ /terminal - Claude Terminal (Qwen)\n' +
-        '🔍 /deepseek - Claude Terminal (DeepSeek)\n' +
-        '❓ /help - Trợ giúp'
+      text: '<b>🚀 CHÀO MỪNG BẠN ĐẾN VỚI HAGENT</b>\n\n' +
+        'Tôi là <b>Trợ lý AI đa năng</b> của bạn, sẵn sàng hỗ trợ công việc, lập trình và tra cứu thông tin chuyên sâu.\n\n' +
+        '<b>🛠 DANH SÁCH LỆNH:</b>\n' +
+        '✨ <code>/new</code> — Bắt đầu phiên chat mới\n' +
+        '📊 <code>/status</code> — Kiểm tra hệ thống\n' +
+        '🌤 <code>/thoitiet</code> — Dự báo thời tiết\n' +
+        '💰 <code>/giavang</code> — Tỷ giá & Giá vàng\n' +
+        '📰 <code>/tinmoi</code> — Tin tức mới nhất\n\n' +
+        '<b>🖥 ĐIỀU KHIỂN HỆ THỐNG:</b>\n' +
+        '🤖 <code>/chuyenmohinh</code> — Đổi AI (DeepSeek/Local)\n' +
+        '⚡ <code>/terminal</code> — Claude Terminal (Qwen)\n' +
+        '💻 <code>/bat</code> — Bật máy tính (WOL)\n' +
+        '🔌 <code>/tat</code> — Tắt máy tính (SSH)\n' +
+        '🟢 <code>/rustdesk_on</code> — Bật RustDesk\n\n' +
+        '<i>Gửi tin nhắn bất kỳ để bắt đầu hội thoại!</i>',
+      parse_mode: 'HTML'
     });
     return;
   }
@@ -1560,11 +1566,13 @@ async function handleMessage(token, msg, userId) {
   // /status
   if (/^\/status/i.test(text.trim())) {
     const status = getBotStatus(userId);
-    const reply = `📊 *Trạng thái hệ thống*\n\n` +
-      `🤖 Bot: ${status.connected ? '🟢 Đang chạy' : '🔴 Đã dừng'}\n` +
-      `🔑 ID: \`${userId.substring(0, 8)}...\`\n` +
-      `📅 Time: ${new Date().toLocaleString('vi-VN')}`;
-    await callTelegramAPI(token, 'sendMessage', { chat_id: chatId, text: reply, parse_mode: 'Markdown' });
+    const reply = `<b>📊 TRẠNG THÁI HỆ THỐNG</b>\n\n` +
+      `<b>🤖 Trạng thái:</b> ${status.connected ? '🟢 Đang chạy' : '🔴 Đã dừng'}\n` +
+      `<b>🔑 User ID:</b> <code>${userId.substring(0, 8)}...</code>\n` +
+      `<b>🛰 Bot:</b> @${botUsername}\n` +
+      `<b>📅 Thời gian:</b> <code>${new Date().toLocaleString('vi-VN')}</code>\n\n` +
+      `<i>HAgent đã sẵn sàng phục vụ!</i>`;
+    await callTelegramAPI(token, 'sendMessage', { chat_id: chatId, text: reply, parse_mode: 'HTML' });
     return;
   }
 
@@ -1582,7 +1590,15 @@ async function handleMessage(token, msg, userId) {
     const userRow = db.prepare('SELECT default_provider FROM users WHERE id = ?').get(userId);
     const providerName = userRow?.default_provider || 'deepseek';
     const config = getProviderClient(providerName, userId);
-    const modelLabel = config.label || config.name;
+    // Show "Provider (model-name)" so the user knows the exact model being used
+    const modelLabel = config.model
+      ? `${config.label || config.name} (${config.model})`
+      : (config.label || config.name);
+
+    // Declare collected BEFORE pushTelegramActivity so the closure captures it correctly
+    let collected = '';
+    let replyMessageId = '';
+    let totalUsage = {};
 
     const initialRes = await callTelegramAPI(token, 'sendMessage', {
       chat_id: chatId,
@@ -1595,18 +1611,28 @@ async function handleMessage(token, msg, userId) {
     const progressActivities = [];
 
     const pushTelegramActivity = async (line, phase = 'working', force = false) => {
-      const clean = sanitizeTelegramProgressLine(line);
-      if (clean && progressActivities[progressActivities.length - 1] !== clean) {
-        progressActivities.push(clean);
-        if (progressActivities.length > 8) progressActivities.shift();
+      if (line) {
+        const clean = sanitizeTelegramProgressLine(line);
+        if (clean && progressActivities[progressActivities.length - 1] !== clean) {
+          progressActivities.push(clean);
+          if (progressActivities.length > 8) progressActivities.shift();
+        }
       }
       if (!messageIdToEdit) return;
       const now = Date.now();
       if (!force && now - lastProgressUpdate < 2500) return;
+      
+      let textToEdit = renderTelegramProgress({ phase, modelLabel, activities: progressActivities });
+      if (collected) {
+        const safeText = cleanForTelegram(collected).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        textToEdit += '\n\n' + safeText + ' ✍️...';
+      }
+      
       await callTelegramAPI(token, 'editMessageText', {
         chat_id: chatId,
         message_id: messageIdToEdit,
-        text: renderTelegramProgress({ phase, modelLabel, activities: progressActivities }),
+        text: textToEdit.slice(0, 4000),
+        parse_mode: 'HTML',
       }).catch(() => { });
       lastProgressUpdate = now;
     };
@@ -1642,9 +1668,7 @@ async function handleMessage(token, msg, userId) {
     }
 
     // Stream the SSE response from Python agent
-    let collected = '';
-    let replyMessageId = '';
-    let totalUsage = {};
+    // (collected, replyMessageId, totalUsage declared above before pushTelegramActivity)
     const decoder = new TextDecoder();
     let sseBuffer = '';
 
@@ -1675,6 +1699,7 @@ async function handleMessage(token, msg, userId) {
               break;
             case 'content':
               collected += data.content || '';
+              await pushTelegramActivity('', 'finalizing');
               break;
             case 'done':
               replyMessageId = data.messageId || '';

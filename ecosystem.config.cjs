@@ -126,6 +126,20 @@ module.exports = {
       env: {
         PYTHONPATH: '.'
       }
+    },
+    {
+      name: 'hagent-gateway',
+      cwd: './backend/agent/app',
+      script: '../.venv/bin/python',
+      args: '-m hagent_cli.main gateway run --accept-hooks',
+      error_file: `${LOG_DIR}/gateway-error.log`,
+      out_file: `${LOG_DIR}/gateway-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      env: {
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
+        PYTHONPATH: '.'
+      }
     }
   ]
 };

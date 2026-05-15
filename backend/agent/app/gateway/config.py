@@ -33,7 +33,7 @@ def _coerce_bool(value: Any, default: bool = True) -> bool:
         if lowered in ("false", "0", "no", "off"):
             return False
         return default
-    return is_truthy_value(value, default=default)
+    return is_truthy_value(value) if value is not None else default
 
 
 def _coerce_float(value: Any, default: float) -> float:

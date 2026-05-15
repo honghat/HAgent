@@ -1,0 +1,14 @@
+#!/bin/bash
+# HAgent CLI Wrapper
+# This script points to the Python environment and runs the HAgent CLI.
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+PYTHON_BIN="$DIR/backend/agent/.venv/bin/python"
+
+if [ ! -f "$PYTHON_BIN" ]; then
+    echo "Error: Python environment not found at $PYTHON_BIN"
+    exit 1
+fi
+
+export PYTHONPATH="$DIR/backend/agent/app"
+exec "$PYTHON_BIN" -m hagent_cli.main "$@"

@@ -41,11 +41,11 @@ def atomic_yaml_write(path: str | os.PathLike, data, **kwargs) -> None:
     atomic_write_text(path, text)
 
 
-def is_truthy_value(value) -> bool:
+def is_truthy_value(value, default: bool = False) -> bool:
+    if value is None:
+        return default
     if isinstance(value, bool):
         return value
-    if value is None:
-        return False
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on", "enable", "enabled"}
 
 

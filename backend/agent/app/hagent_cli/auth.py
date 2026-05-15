@@ -421,7 +421,10 @@ PROVIDER_REGISTRY: Dict[str, ProviderConfig] = {
 # plugins/model-providers/<name>/ plugin — no edits to this file required.
 try:
     from providers import list_providers as _list_providers_for_registry
-    for _pp in _list_providers_for_registry():
+    _all_pps = _list_providers_for_registry()
+    # logger.debug("Discovered %d providers from providers package", len(_all_pps))
+    for _pp in _all_pps:
+        # logger.debug("Registering provider: %s", _pp.name)
         if _pp.name in PROVIDER_REGISTRY:
             continue
         if _pp.auth_type != "api_key" or not _pp.env_vars:
@@ -557,6 +560,29 @@ def _resolve_api_key_provider_secret(
         val = (get_env_value(env_var) or "").strip()
         if has_usable_secret(val):
             return val, env_var
+
+    # HAgent: Fallback to database for custom providers
+    try:
+        import sqlite3
+        from hagent_constants import get_hagent_home
+        db_path = get_hagent_home().parent.parent.parent / "data" / "hagent.db"
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+            cursor.execute("SELECT api_key, base_url FROM custom_providers WHERE name = ?", (provider_id,))
+            row = cursor.fetchone()
+            if row:
+                val = str(row[0] or "").strip()
+                if not val:
+                    # For local/proxy providers, use a placeholder so the agent is considered "configured"
+                    val = "dummy-custom-key"
+                
+                if has_usable_secret(val):
+                    conn.close()
+                    return val, f"db:custom_providers:{provider_id}"
+            conn.close()
+    except Exception:
+        pass
 
     # Fallback: try credential pool (e.g. zai key stored via auth.json)
     try:

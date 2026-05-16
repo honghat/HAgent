@@ -160,6 +160,7 @@ from agent.prompt_builder import (
     MEMORY_GUIDANCE, SESSION_SEARCH_GUIDANCE, SKILLS_GUIDANCE,
     HAGENT_AGENT_HELP_GUIDANCE,
     KANBAN_GUIDANCE,
+    BASH_EXECUTION_GUIDANCE,
     build_nous_subscription_prompt,
 )
 from agent.model_metadata import (
@@ -5827,6 +5828,9 @@ class AIAgent:
         _env_hints = build_environment_hints()
         if _env_hints:
             prompt_parts.append(_env_hints)
+
+        if self.valid_tool_names:
+            prompt_parts.append(BASH_EXECUTION_GUIDANCE)
 
         platform_key = (self.platform or "").lower().strip()
         if platform_key in PLATFORM_HINTS:

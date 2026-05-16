@@ -268,6 +268,20 @@ TOOL_USE_ENFORCEMENT_GUIDANCE = (
     "without acting are not acceptable."
 )
 
+BASH_EXECUTION_GUIDANCE = (
+    "# Execution sequence\n"
+    "When you run a bash command or call any tool, you MUST follow this sequence:\n"
+    "1. Run the command — execute the bash/tool call\n"
+    "2. Wait for the actual result — do not guess, assume, or simulate the output\n"
+    "3. Read and analyze the result you received\n"
+    "4. Report to the user based on the real result\n"
+    "5. If more steps are needed: use the result to decide what to do next\n"
+    "\n"
+    "NEVER conclude or report before the tool returns. "
+    "NEVER fabricate results. "
+    "NEVER skip the tool call and answer from memory."
+)
+
 # Model name substrings that trigger tool-use enforcement guidance.
 # Add new patterns here when a model family needs explicit steering.
 TOOL_USE_ENFORCEMENT_MODELS = ("gpt", "codex", "gemini", "gemma", "grok")

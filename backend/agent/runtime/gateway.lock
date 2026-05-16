@@ -1,1 +1,0 @@
-{"pid": 17489, "kind": "hagent-gateway", "argv": ["/Users/nguyenhat/HAgent/backend/agent/app/hagent_cli/main.py", "gateway", "run", "--accept-hooks"], "start_time": null}

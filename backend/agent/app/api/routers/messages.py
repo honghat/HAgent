@@ -21,6 +21,7 @@ from api.services.session_store import (
     add_journal,
     add_message,
     clear_journal,
+    count_session_messages,
     delete_message,
     get_session,
     list_journal,
@@ -31,6 +32,10 @@ from api.services.source_core_agent import run_source_agent
 from api.services.source_core_agent import analyze_with_js_heuristics
 from api.services.workspace_state import record_tool, record_tool_result
 from api.services.wiki_memory import extract_and_save_wiki, resolve_user_id
+from api.services.session_summarizer import summarize_and_rotate, build_rotation_message
+
+# Auto-rotate session after this many user messages in a session
+_AUTO_ROTATE_THRESHOLD = 10
 
 router = APIRouter(tags=["messages"])
 
@@ -291,6 +296,17 @@ def create_message(session_id: str, payload: MessageRequest, request: Request) -
                 args=(user_id, payload.content, reply, payload.provider, payload.model, session_id),
                 daemon=True,
             ).start()
+
+            # Auto-rotate if session has enough exchanges
+            user_msg_count = count_session_messages(session_id) // 2
+            if user_msg_count >= _AUTO_ROTATE_THRESHOLD:
+                new_session_id = summarize_and_rotate(session_id, payload.provider)
+                if new_session_id:
+                    rotation_msg = build_rotation_message(session_id)
+                    emit("session_switch", {
+                        "newSessionId": new_session_id,
+                        "summary": rotation_msg or "",
+                    })
         except Exception as exc:  # noqa: BLE001
             error_text = f"Agent nguồn chưa chạy được: {exc}"
             message_id = add_message(session_id, "assistant", error_text, provider=_provider_name(payload.provider))

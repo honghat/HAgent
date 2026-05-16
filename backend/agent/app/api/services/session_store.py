@@ -212,3 +212,48 @@ def clear_journal(session_id: str) -> bool:
     with get_connection() as conn:
         result = conn.execute("DELETE FROM run_journals WHERE session_id = ?", (session_id,))
         return result.rowcount > 0
+
+
+def count_session_messages(session_id: str) -> int:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM messages WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        return row["cnt"] if row else 0
+
+
+def update_session_summary(session_id: str, summary: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE chat_sessions SET summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (summary, session_id),
+        )
+
+
+def get_session_summary(session_id: str) -> str | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT summary FROM chat_sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+        return row["summary"] if row else None
+
+
+def create_child_session(parent_session_id: str, title: str | None = None) -> SessionRecord:
+    """Create a new session linked to a parent session (for rotation)."""
+    session_id = str(uuid4())
+    session_title = title or "Cuộc trò chuyện mới"
+    with get_connection() as conn:
+        # Copy agent_id from parent
+        parent = conn.execute(
+            "SELECT agent_id, user_id FROM chat_sessions WHERE id = ?",
+            (parent_session_id,),
+        ).fetchone()
+        agent_id = parent["agent_id"] if parent else None
+        user_id = parent["user_id"] if parent else "398f6a8a-8954-4315-8240-df769e664b54"
+        conn.execute(
+            "INSERT INTO chat_sessions (id, title, agent_id, user_id, parent_session_id) VALUES (?, ?, ?, ?, ?)",
+            (session_id, session_title, agent_id, user_id, parent_session_id),
+        )
+    return SessionRecord(session_id=session_id, title=session_title, agent_id=agent_id, status="idle")

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import EducationAnimation from '../EducationAnimation.jsx';
 
-export default function VideoPage({ token: tokenProp, provider }) {
+export default function VideoPage({ token: tokenProp }) {
   const token = tokenProp || localStorage.getItem('token');
   const [view, setView] = useState('list');
   const [activeTaskId, setActiveTaskId] = useState(null);
@@ -36,12 +35,6 @@ export default function VideoPage({ token: tokenProp, provider }) {
               >
                 Dịch mới
               </button>
-              <button 
-                onClick={() => setView('animation')}
-                className={`px-4 sm:px-6 py-2 rounded-xl text-[12px] font-semibold transition-all ${view === 'animation' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                Hoạt hình
-              </button>
             </nav>
             <a 
               href={`/api/video/auth/youtube/login?t=${token}`} 
@@ -58,7 +51,6 @@ export default function VideoPage({ token: tokenProp, provider }) {
           {view === 'list' && <TaskList api={api} onNew={() => setView('new')} onOpen={(id) => { setActiveTaskId(id); setView('detail'); }} />}
           {view === 'new' && <NewTask api={api} onCreated={(id) => { setActiveTaskId(id); setView('detail'); }} onCancel={() => setView('list')} />}
           {view === 'detail' && <TaskDetail api={api} token={token} taskId={activeTaskId} onBack={() => setView('list')} />}
-          {view === 'animation' && <EducationAnimation token={token} provider={provider} embedded />}
         </main>
       </div>
     </div>

@@ -101,7 +101,7 @@ export default function CurriculumTab({ history, loadLesson, deleteUnit, startNe
         <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
           <span style={{ fontSize: '24px' }}>🗺️</span>
           <div>
-            <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)' }}>Lộ trình học {activeLevel}</div>
+            <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--text-main)' }}>Lộ trình học {activeLevel}</div>
             <div style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 500 }}>Hoàn thành 10 bài học để nâng cấp trình độ</div>
           </div>
         </div>

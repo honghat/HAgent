@@ -97,9 +97,9 @@ select {
   line-height: 1.3;
 }
 
-.prose h1 { font-size: 1.5em; }
-.prose h2 { font-size: 1.25em; }
-.prose h3 { font-size: 1.1em; }
+.prose h1 { font-size: 1.25em; }
+.prose h2 { font-size: 1.1em; }
+.prose h3 { font-size: 1em; }
 
 .prose ul, .prose ol {
   margin-top: 1em;

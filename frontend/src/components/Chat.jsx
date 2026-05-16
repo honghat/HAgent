@@ -622,6 +622,25 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                 await fetchSessions()
                 await fetchWorkspace(currentId)
                 break
+              case 'session_switch':
+                // Auto-rotation: switch to new session and show summary
+                setStreamingText('')
+                setSteps([])
+                setLoading(false)
+                if (data.summary) {
+                  setMessages((p) => [...p, { role: 'assistant', content: data.summary, id: 'rotation-' + Date.now() }])
+                }
+                // Prepare to switch to new session
+                const newId = data.newSessionId
+                if (newId && newId !== currentId) {
+                  // Small delay to let the summary display, then switch
+                  setTimeout(async () => {
+                    setActiveId(newId)
+                    await fetchSessions()
+                    await fetchWorkspace(newId)
+                  }, 100)
+                }
+                break
               case 'error':
                 setMessages((p) => [...p, { role: 'assistant', content: 'Lỗi: ' + (data.error || 'Yêu cầu thất bại'), id: data.messageId || 'err-' + Date.now() }])
                 setStreamingText('')
@@ -662,10 +681,6 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           <div className="px-2 py-1.5 flex items-center justify-between">
             <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Lịch sử</span>
-            <div className="flex gap-1">
-              <button onClick={() => setFilterSource('chat')} className={`px-1.5 py-0.5 text-[9px] font-medium rounded-md transition-all ${filterSource === 'chat' ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}>💬</button>
-              <button onClick={() => setFilterSource('telegram')} className={`px-1.5 py-0.5 text-[9px] font-medium rounded-md transition-all ${filterSource === 'telegram' ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}>📱</button>
-            </div>
           </div>
           {Array.isArray(sessions) && sessions
             .filter(s => filterSource === 'all' || (filterSource === 'telegram' ? s.title?.startsWith('[Te]') : !s.title?.startsWith('[Te]')))
@@ -685,7 +700,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
           <button onClick={() => { setShowSidebar(true); setShowJournal(false); setShowWorkspace(false) }} className="sm:hidden p-2 text-gray-500">≡</button>
           <div className="flex items-center gap-2 sm:gap-3 overflow-hidden min-w-0">
             <div className={`w-2 h-2 rounded-full shrink-0 transition-all duration-500 ${providerActive ? 'bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.3)]' : 'bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.3)]'}`} />
-            <h1 className="text-[13px] leading-5 font-semibold text-gray-900 truncate min-w-0">
+            <h1 className="text-[11px] leading-5 font-semibold text-gray-900 truncate min-w-0">
               {activeSession?.title || 'Cuộc trò chuyện'}
             </h1>
             <span className="flex items-center justify-center h-8 px-3 shrink-0 rounded-full bg-gray-100 text-xs font-medium text-gray-600">

@@ -15,7 +15,7 @@ module.exports = {
       env: {
         PORT: 8004,
         NODE_ENV: 'production',
-        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/data',
         HAGENT_SKILLS_DIR: '/Users/nguyenhat/HAgent/backend/agent/app/skills',
         HAGENT_PYTHON_AGENT_AUTOSTART: 'false'
       }
@@ -30,7 +30,7 @@ module.exports = {
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
-        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/data',
         PYTHONPATH: '.'
       }
     },
@@ -72,7 +72,7 @@ module.exports = {
       env: {
         PORT: 20128,
         HOSTNAME: '0.0.0.0',
-        HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime/9router'
+        HOME: '/Users/nguyenhat/HAgent/backend/agent/data/9router'
       }
     },
     {
@@ -137,7 +137,7 @@ module.exports = {
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
-        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/data',
         PYTHONPATH: '.'
       }
     },

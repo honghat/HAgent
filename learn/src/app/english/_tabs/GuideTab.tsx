@@ -2,7 +2,7 @@ export default function GuideTab() {
   return (
     <div className="fade-in">
       <div className="card" style={{ borderLeft: '4px solid var(--accent)', background: 'var(--surface2)', padding: '24px' }}>
-        <h2 className="section-title" style={{ color: 'var(--accent)', fontSize: 20, marginBottom: '20px' }}>📘 Hướng dẫn học Tiếng Anh với NewHat AI</h2>
+        <h2 className="section-title" style={{ color: 'var(--accent)', fontSize: 16, marginBottom: '20px' }}>📘 Hướng dẫn học Tiếng Anh với NewHat AI</h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <section>

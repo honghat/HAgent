@@ -1552,7 +1552,7 @@ Return JSON ONLY (no markdown code blocks, just raw json):
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h1 className="page-title" style={{ fontSize: '20px', fontWeight: 900, marginBottom: '4px' }}>🇬🇧 Luyện Tiếng Anh</h1>
+          <h1 className="page-title" style={{ fontSize: '16px', fontWeight: 900, marginBottom: '4px' }}>🇬🇧 Luyện Tiếng Anh</h1>
         </div>
         <div suppressHydrationWarning className="pill" style={{ borderColor: ttsOnline ? 'var(--green)' : 'var(--orange)', color: ttsOnline ? 'var(--green)' : 'var(--orange)', background: ttsOnline ? '#3fb95011' : '#d2992211' }}>
           {ttsOnline ? '☁️ AI Cloud' : '🔇 Browser TTS'}
@@ -1731,7 +1731,7 @@ Return JSON ONLY (no markdown code blocks, just raw json):
                 <div className="card" style={{ marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
                     <div style={{ flex: 1 }}>
-                      <div className="section-title" style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>🎧 Bài Nghe</div>
+                      <div className="section-title" style={{ margin: 0, fontSize: 12, fontWeight: 800 }}>🎧 Bài Nghe</div>
                       {(() => {
                         const item = history.find(h => h.type === 'listen' && h.content === listenText);
                         if (item && (item.learnCount ?? 0) > 0) {

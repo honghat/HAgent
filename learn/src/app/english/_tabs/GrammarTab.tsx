@@ -42,7 +42,7 @@ export default function GrammarTab({
         <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '80px', opacity: 0.05, transform: 'rotate(15deg)', pointerEvents: 'none' }}>📐</div>
         
         <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-          <span style={{ fontSize: '24px' }}>📐</span>
+          <span style={{ fontSize: '20px' }}>📐</span>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 900 }}>Luyện Ngữ Pháp AI</div>
             <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 500 }}>Nâng cao cấu trúc câu và sự chính xác</div>

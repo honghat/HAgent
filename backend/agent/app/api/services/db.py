@@ -74,6 +74,8 @@ def init_db() -> None:
         )
         _ensure_column(conn, "chat_sessions", "agent_id", "TEXT")
         _ensure_column(conn, "chat_sessions", "processing", "INTEGER DEFAULT 0")
+        _ensure_column(conn, "chat_sessions", "summary", "TEXT")
+        _ensure_column(conn, "chat_sessions", "parent_session_id", "TEXT")
         _ensure_column(conn, "messages", "provider", "TEXT")
         _ensure_column(conn, "messages", "usage_json", "TEXT")
 

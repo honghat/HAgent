@@ -115,7 +115,7 @@ body {
     align-items: start;
   }
   .card { padding: 20px; }
-  .page-title { font-size: 24px !important; }
+  .page-title { font-size: 18px !important; }
   .btn { font-size: 15px; }
   .input { font-size: 15px; }
 }

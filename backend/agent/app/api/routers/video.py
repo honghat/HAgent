@@ -253,7 +253,7 @@ async def task_progress(task_id: str, request: Request):
     async def event_generator():
         yield {"data": json.dumps({"message": "connected"})}
         i = 0
-        while i < 24:
+        while i < 120:
             task = _get_task(task_id)
             if task and task.get("status") in ("done", "error"):
                 if task["status"] == "done":

@@ -32,6 +32,10 @@ __pycache__/
 *.pyc
 *.err
 
+# Runtime state (secrets, sessions, etc.)
+backend/agent/runtime/auth.json
+backend/agent/data/auth.json
+
 # Projects environments
 .venv/
 */.venv/

@@ -127,6 +127,20 @@ module.exports = {
         PYTHONPATH: '.'
       }
     },
+    {
+      name: 'hagent-telegram',
+      cwd: './backend/agent/app',
+      script: 'telegram_bot.py',
+      interpreter: '/Users/nguyenhat/HAgent/backend/agent/.venv/bin/python',
+      error_file: `${LOG_DIR}/telegram-error.log`,
+      out_file: `${LOG_DIR}/telegram-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      env: {
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/runtime',
+        PYTHONPATH: '.'
+      }
+    },
   ]
 };
 

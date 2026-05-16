@@ -716,15 +716,31 @@ def main():
     async def _register_commands(app: Application):
         try:
             from telegram import BotCommand
-            from hagent_cli.commands import telegram_menu_commands
-            menu_commands, hidden_count = telegram_menu_commands(max_commands=100)
-            bot_commands = [BotCommand(name, desc) for name, desc in menu_commands]
-            await app.bot.set_my_commands(bot_commands)
-            # Gắn nhãn Telegram để phân biệt với các giao diện khác
+
+            custom_commands = [
+                BotCommand("giavang", "💰 Giá vàng DOJI"),
+                BotCommand("thoitiet", "🌤 Dự báo thời tiết"),
+                BotCommand("tinmoi", "📰 Tin tức mới nhất"),
+                BotCommand("new", "🔄 Phiên chat mới"),
+                BotCommand("status", "📊 Trạng thái hệ thống"),
+                BotCommand("goal", "🎯 Xem/đặt mục tiêu"),
+                BotCommand("terminal", "🖥 Mở Terminal Claude"),
+                BotCommand("chuyenclaude", "⚙️ Đổi Claude Terminal model"),
+                BotCommand("bat", "💻 Bật máy (WOL)"),
+                BotCommand("tat", "🔌 Tắt máy (SSH)"),
+                BotCommand("rustdesk", "🟢 Bật/tắt RustDesk"),
+                BotCommand("chuyenmohinh", "🤖 Đổi AI"),
+                BotCommand("lmstudio", "🚀 LM Studio Remote"),
+                BotCommand("lmstudio_local", "💻 LM Studio Local"),
+                BotCommand("ollama", "🦙 Ollama Remote"),
+                BotCommand("llamacpp", "🏗️ Llama-cpp Remote"),
+                BotCommand("off", "🛑 Tắt tất cả dịch vụ"),
+            ]
+
+            await app.bot.set_my_commands(custom_commands)
             await app.bot.set_my_name("HAgent [Telegram]")
             await app.bot.set_my_description("Trợ lý AI đa năng qua Telegram")
-            if hidden_count:
-                logger.info("Telegram menu: %d commands registered, %d hidden (over 100 limit)", len(menu_commands), hidden_count)
+            logger.info("Telegram menu: %d commands registered", len(custom_commands))
         except Exception as e:
             logger.warning("Could not register Telegram command menu: %s", e)
 

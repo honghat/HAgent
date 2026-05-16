@@ -24,7 +24,7 @@ _env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
 if os.path.exists(_env_path):
     try:
         import dotenv
-        dotenv.load_dotenv(_env_path)
+        dotenv.load_dotenv(_env_path, override=True)
     except ImportError:
         pass  # dotenv not installed, rely on system env vars
     except Exception:

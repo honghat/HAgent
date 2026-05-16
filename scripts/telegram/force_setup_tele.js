@@ -1,4 +1,4 @@
-const token = '8632522003:AAEtdta05B4xUzCPQA9-bQ4QmIFvuc1Y1z4';
+const token = process.env.TELEGRAM_BOT_TOKEN;
 
 async function callTelegramAPI(method, body) {
   const url = `https://api.telegram.org/bot${token}/${method}`;

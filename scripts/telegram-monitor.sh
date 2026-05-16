@@ -5,7 +5,7 @@
 #   ./telegram-monitor.sh check    — read & clear new messages from inbox
 #   ./telegram-monitor.sh stop     — kill daemon
 
-BOT_TOKEN="8079757619:AAHOsEAKci-oQ8M87fp-lysd1z3jOCKIJyo"
+BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 PID_FILE="/tmp/tg-daemon.pid"
 INBOX="/tmp/tg-inbox.jsonl"
 OFFSET_FILE="/tmp/tg-last-update-id"

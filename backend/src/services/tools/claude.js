@@ -14,7 +14,7 @@ export async function openClaudeTelegram() {
     
     const command = `osascript -e 'tell application "Terminal"
       activate
-      do script "export TELEGRAM_BOT_TOKEN=\\"8079757619:AAHOsEAKci-oQ8M87fp-lysd1z3jOCKIJyo\\" && export ANTHROPIC_MODEL=\\"qwen3.5:latest\\" && cd \\"${projectRoot}\\" && claude \\"${initialPrompt}\\" --channels plugin:telegram@claude-plugins-official"
+      do script "export TELEGRAM_BOT_TOKEN=\\"\${TELEGRAM_BOT_TOKEN}\\" && export ANTHROPIC_MODEL=\\"qwen3.5:latest\\" && cd \\"${projectRoot}\\" && claude \\"${initialPrompt}\\" --channels plugin:telegram@claude-plugins-official"
     end tell'`;
     await execAsync(command);
     return '✅ Đã mở Terminal và đang chạy Claude Code (Qwen) với plugin Telegram.';

@@ -99,7 +99,8 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     ['tinmoi', 'Tin tức mới'],
     ['thoitiet', 'Thời tiết'],
     ['giavang', 'Giá vàng'],
-    ['tygia', 'Tỷ giá']
+    ['tygia', 'Tỷ giá'],
+    ['vieclam', 'Tìm việc làm'],
   ]
   const workspaceToolCount = Number.isFinite(workspace.summary?.toolCount)
     ? workspace.summary.toolCount
@@ -704,15 +705,15 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                   ))}
                 </select>
               ) : (
-                <span className="flex items-center justify-center h-7 px-2.5 shrink-0 rounded-full bg-emerald-50 text-[10px] font-medium text-emerald-700">
+                <span className="flex items-center justify-center h-7 px-2.5 shrink-0 rounded-full bg-emerald-50 text-[9px] font-medium text-emerald-700">
                   HAgent
                 </span>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex text-[10px] font-semibold items-center justify-center w-7 h-7 rounded-full border transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>AI</button>
-            <button onClick={() => { setShowJournal(!showJournal); setShowWorkspace(false); setShowSidebar(false) }} className={`flex text-[10px] font-semibold items-center justify-center w-7 h-7 rounded-full border transition-all ${showJournal ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>J</button>
+            <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex text-[9px] font-semibold items-center justify-center w-7 h-7 rounded-full border transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>AI</button>
+            <button onClick={() => { setShowJournal(!showJournal); setShowWorkspace(false); setShowSidebar(false) }} className={`flex text-[9px] font-semibold items-center justify-center w-7 h-7 rounded-full border transition-all ${showJournal ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>J</button>
           </div>
         </header>
 

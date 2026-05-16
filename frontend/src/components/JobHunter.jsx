@@ -52,6 +52,21 @@ export default function JobHunter({ token }) {
   const search = useCallback(async () => {
     setSearching(true); setError(''); setStatus('')
     try {
+      // If a search keyword is provided, scrape fresh jobs first
+      if (keywordSearch.trim()) {
+        const scrapeRes = await fetch('/api/job-hunter/scrape', {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            keywords: keywordSearch.split(',').map(k => k.trim()).filter(Boolean),
+            sources,
+            max_pages: maxPages
+          })
+        })
+        const scrapeData = await scrapeRes.json()
+        if (!scrapeRes.ok) throw new Error(scrapeData.detail || 'Lỗi tìm kiếm')
+      }
+
+      // Then filter/search through cache
       const params = new URLSearchParams()
       if (keywordSearch) params.set('keyword', keywordSearch)
       if (sourceFilter) params.set('source', sourceFilter)
@@ -63,9 +78,10 @@ export default function JobHunter({ token }) {
       if (!res.ok) throw new Error(data.detail || 'Lỗi tìm kiếm')
       setJobs(data.jobs)
       setStatus(`${data.count} kết quả`)
+      loadStats()
     } catch (err) { setError(err.message) }
     setSearching(false)
-  }, [keywordSearch, sourceFilter, locationSearch, salaryMin, headers])
+  }, [keywordSearch, sourceFilter, locationSearch, salaryMin, sources, maxPages, headers])
 
   const exportCsv = useCallback(async () => {
     try {

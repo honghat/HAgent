@@ -649,7 +649,16 @@ async def handle_goal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if cmd == "clear":
         result = await _call_api("delete", "/api/goals")
         if result is not None:
-            await update.message.reply_text("🗑 Đã xoá tất cả mục tiêu.", parse_mode="HTML")
+            # Remove the goal cron job
+            try:
+                from cron.jobs import list_jobs, remove_job
+                existing = list_jobs(include_disabled=True)
+                for j in existing:
+                    if j.get("name") == "goal-auto":
+                        remove_job(j["id"])
+            except Exception:
+                pass
+            await update.message.reply_text("🗑 Đã xoá tất cả mục tiêu và dừng lịch tự động.", parse_mode="HTML")
         else:
             await update.message.reply_text("❌ Lỗi xoá mục tiêu.")
     elif cmd == "resume":
@@ -661,7 +670,39 @@ async def handle_goal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         result = await _call_api("post", "/api/goals", {"goal": args_text})
         if result:
-            await update.message.reply_text(f"✅ Đã đặt mục tiêu: <b>{_esc(args_text)}</b>", parse_mode="HTML")
+            await update.message.reply_text(f"✅ Đã đặt mục tiêu: <b>{_esc(args_text)}</b>\n🔄 Đang tạo lịch chạy tự động...", parse_mode="HTML")
+            # Create a cron job to continuously work on the goal
+            try:
+                from cron.jobs import create_job, list_jobs, remove_job
+                # Remove any existing goal job first
+                existing = list_jobs(include_disabled=True)
+                for j in existing:
+                    if j.get("name") == "goal-auto":
+                        remove_job(j["id"])
+                # Create a job that runs every 30 minutes to work on the goal
+                job = create_job(
+                    name="goal-auto",
+                    schedule="every 30m",
+                    prompt=f"""Bạn là trợ lý AI. Mục tiêu hiện tại: {args_text}
+
+Hãy làm việc để hoàn thành mục tiêu này. Các bước:
+1. Đọc và hiểu mục tiêu
+2. Thực hiện các hành động cần thiết (tra cứu, tính toán, xử lý file...)
+3. Báo cáo tiến độ: những gì đã làm, còn lại gì
+4. Nếu mục tiêu đã hoàn thành: báo "MỤC TIÊU ĐÃ HOÀN THÀNH" và mô tả kết quả
+5. Nếu chưa hoàn thành: mô tả những gì đã làm và những gì cần làm tiếp
+
+Khi chạy lệnh bash hoặc tool: chạy → đợi kết quả → đọc → báo cáo → tiếp tục.""",
+                    deliver="origin",
+                )
+                if job:
+                    await update.message.reply_text(f"✅ Mục tiêu sẽ được chạy tự động mỗi 30 phút. Theo dõi kết quả qua tin nhắn.", parse_mode="HTML")
+                else:
+                    await update.message.reply_text("⚠️ Đã lưu mục tiêu nhưng không tạo được lịch tự động.", parse_mode="HTML")
+            except Exception as e:
+                import traceback
+                logger.warning("Failed to create goal cron job: %s", traceback.format_exc())
+                await update.message.reply_text(f"✅ Đã lưu mục tiêu.", parse_mode="HTML")
         else:
             await update.message.reply_text("❌ Lỗi đặt mục tiêu.")
 

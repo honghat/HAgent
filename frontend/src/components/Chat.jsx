@@ -136,12 +136,17 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   }
 
   useEffect(() => {
+    let cancelled = false;
     fetchSessions()
       .then((list) => {
+        if (cancelled) return;
         if (list.length > 0) setActiveId(list[0].id)
         else createSession()
       })
-      .catch(() => createSession())
+      .catch(() => {
+        if (!cancelled) createSession();
+      })
+    return () => { cancelled = true; };
   }, [])
 
   useEffect(() => {
@@ -300,29 +305,35 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     }
   }
 
+  const createSessionPromise = useRef(null)
   async function createSession() {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
-    setLoading(false)
-    setStreamingText('')
-    setSteps([])
-    setCurrentClarification(null)
-    const r = await fetch(withBackendBase('/api/sessions', true), {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: null, agentId: selectedAgentId || null })
-    })
-    const s = await jsonOrThrow(r)
-    const normalized = normalizeSession(s)
-    const sessionId = normalized.id
-    setSessions((p) => [normalized, ...(Array.isArray(p) ? p : [])])
-    setActiveId(sessionId)
-    setMessages([])
-    setWorkspace({ tools: [], todos: [], summary: null })
-    setLoading(false)
-    return normalized
+    if (createSessionPromise.current) return createSessionPromise.current;
+    createSessionPromise.current = (async () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+      setLoading(false)
+      setStreamingText('')
+      setSteps([])
+      setCurrentClarification(null)
+      const r = await fetch(withBackendBase('/api/sessions', true), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: null, agentId: selectedAgentId || null })
+      })
+      const s = await jsonOrThrow(r)
+      const normalized = normalizeSession(s)
+      const sessionId = normalized.id
+      setSessions((p) => [normalized, ...(Array.isArray(p) ? p : [])])
+      setActiveId(sessionId)
+      setMessages([])
+      setWorkspace({ tools: [], todos: [], summary: null })
+      setLoading(false)
+      createSessionPromise.current = null;
+      return normalized
+    })();
+    return createSessionPromise.current;
   }
 
   async function deleteSession(id) {
@@ -621,25 +632,6 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                 setLoading(false)
                 await fetchSessions()
                 await fetchWorkspace(currentId)
-                break
-              case 'session_switch':
-                // Auto-rotation: switch to new session and show summary
-                setStreamingText('')
-                setSteps([])
-                setLoading(false)
-                if (data.summary) {
-                  setMessages((p) => [...p, { role: 'assistant', content: data.summary, id: 'rotation-' + Date.now() }])
-                }
-                // Prepare to switch to new session
-                const newId = data.newSessionId
-                if (newId && newId !== currentId) {
-                  // Small delay to let the summary display, then switch
-                  setTimeout(async () => {
-                    setActiveId(newId)
-                    await fetchSessions()
-                    await fetchWorkspace(newId)
-                  }, 100)
-                }
                 break
               case 'error':
                 setMessages((p) => [...p, { role: 'assistant', content: 'Lỗi: ' + (data.error || 'Yêu cầu thất bại'), id: data.messageId || 'err-' + Date.now() }])

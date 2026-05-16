@@ -1,0 +1,41 @@
+{
+  "ai-model-management": {
+    "archived_at": null,
+    "created_at": "2026-05-11T17:34:16.006295+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-05-11T17:37:45.351903+00:00",
+    "last_used_at": null,
+    "last_viewed_at": null,
+    "patch_count": 2,
+    "pinned": false,
+    "state": "active",
+    "use_count": 0,
+    "view_count": 0
+  },
+  "platforms-integration": {
+    "archived_at": null,
+    "created_at": "2026-05-11T10:02:35.332903+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-05-11T16:00:56.962203+00:00",
+    "last_used_at": "2026-05-11T16:58:49.689279+00:00",
+    "last_viewed_at": "2026-05-11T16:58:49.688193+00:00",
+    "patch_count": 19,
+    "pinned": false,
+    "state": "active",
+    "use_count": 22,
+    "view_count": 22
+  },
+  "social-messaging-automation": {
+    "archived_at": null,
+    "created_at": "2026-05-11T16:08:24.304824+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-05-11T16:44:56.542739+00:00",
+    "last_used_at": "2026-05-11T17:03:56.696734+00:00",
+    "last_viewed_at": "2026-05-11T17:03:56.694883+00:00",
+    "patch_count": 12,
+    "pinned": false,
+    "state": "active",
+    "use_count": 8,
+    "view_count": 8
+  }
+}

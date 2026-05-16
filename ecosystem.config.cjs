@@ -15,22 +15,22 @@ module.exports = {
       env: {
         PORT: 8004,
         NODE_ENV: 'production',
-        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/data',
-        HAGENT_SKILLS_DIR: '/Users/nguyenhat/HAgent/backend/agent/app/skills',
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend',
+        HAGENT_SKILLS_DIR: '/Users/nguyenhat/HAgent/backend/skills',
         HAGENT_PYTHON_AGENT_AUTOSTART: 'false'
       }
     },
     {
       name: 'hagent-fastapi',
-      cwd: './backend/agent/app',
-      script: '../.venv/bin/python',
+      cwd: './backend',
+      script: '.venv/bin/python',
       args: '-m uvicorn api.main:app --host 127.0.0.1 --port 8010',
       error_file: `${LOG_DIR}/fastapi-error.log`,
       out_file: `${LOG_DIR}/fastapi-out.log`,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
-        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/data',
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend',
         PYTHONPATH: '.'
       }
     },
@@ -72,7 +72,7 @@ module.exports = {
       env: {
         PORT: 20128,
         HOSTNAME: '0.0.0.0',
-        HOME: '/Users/nguyenhat/HAgent/backend/agent/data/9router'
+        HOME: '/Users/nguyenhat/HAgent/backend/9router'
       }
     },
     {
@@ -129,15 +129,15 @@ module.exports = {
     },
     {
       name: 'hagent-telegram',
-      cwd: './backend/agent/app',
+      cwd: './backend',
       script: 'telegram_bot.py',
-      interpreter: '/Users/nguyenhat/HAgent/backend/agent/.venv/bin/python',
+      interpreter: '/Users/nguyenhat/HAgent/backend/.venv/bin/python',
       error_file: `${LOG_DIR}/telegram-error.log`,
       out_file: `${LOG_DIR}/telegram-out.log`,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
-        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend/agent/data',
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend',
         PYTHONPATH: '.'
       }
     },

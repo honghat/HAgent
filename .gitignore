@@ -34,9 +34,44 @@ __pycache__/
 *.pyc
 *.err
 
-# Runtime state (secrets, sessions, etc.)
-backend/agent/runtime/auth.json
-backend/agent/data/auth.json
+# Runtime state (sessions, logs, cache, secrets)
+backend/sessions/
+backend/logs/
+backend/cache/
+backend/memories/
+backend/profiles/*/.env
+backend/bin/
+backend/platforms/
+backend/sandboxes/
+backend/state/
+backend/auth.json
+backend/auth.lock
+backend/config.yaml
+backend/gateway_state.json
+backend/google_client_secret.json
+backend/google_token.json
+backend/channel_directory.json
+backend/processes.json
+backend/models_dev_cache.json
+backend/ollama_cloud_models_cache.json
+backend/.hagent_history
+backend/.skills_prompt_snapshot.json
+backend/SOUL.md
+backend/claude_terminal_mode.json
+backend/slack-manifest.json
+backend/google_chat_bot_id.json
+backend/google_chat_thread_counts.json
+backend/perf.log
+backend/.clean_shutdown
+backend/hbbr.log
+backend/kanban.db
+backend/kanban.db-shm
+backend/kanban.db-wal
+backend/mcp-tokens/
+backend/9router/
+backend/cron/.tick.lock
+backend/cron/output/
+backend/cron/*.log
 
 # Projects environments
 .venv/

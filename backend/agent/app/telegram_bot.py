@@ -19,8 +19,80 @@ logger = logging.getLogger(__name__)
 
 import html as _html
 
+# Load .env from project root if available
+_env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+if os.path.exists(_env_path):
+    try:
+        import dotenv
+        dotenv.load_dotenv(_env_path)
+    except ImportError:
+        pass  # dotenv not installed, rely on system env vars
+    except Exception:
+        pass
+
 API_URL = os.environ.get("HAGENT_API_URL", "http://127.0.0.1:8010")
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+
+# ── Claude Terminal Config ─────────────────────────────────────────
+
+CLAUDE_TERMINAL_MODES = {
+    "deepseek": {
+        "label": "DeepSeek Proxy",
+        "base_url": "https://api.deepseek.com/anthropic",
+        "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+        "api_key": os.environ.get("DEEPSEEK_API_KEY", ""),
+    },
+    "ollama": {
+        "label": "Ollama Remote",
+        "base_url": os.environ.get("CLAUDE_OLLAMA_URL", "http://100.69.50.64:11434"),
+        "model": os.environ.get("CLAUDE_OLLAMA_MODEL", "qwen"),
+        "api_key": "xxx",
+    },
+    "lmstudio": {
+        "label": "LM Studio Remote",
+        "base_url": os.environ.get("CLAUDE_LM_STUDIO_URL", "http://100.69.50.64:1234"),
+        "model": os.environ.get("CLAUDE_LM_STUDIO_MODEL", "qwen/qwen3.5-9b"),
+        "api_key": "xxx",
+    },
+    "llamacpp": {
+        "label": "Llama.cpp Remote",
+        "base_url": os.environ.get("CLAUDE_LLAMACPP_URL", "http://100.69.50.64:8080"),
+        "model": os.environ.get("CLAUDE_LLAMACPP_MODEL", "google/gemma-4-e4b"),
+        "api_key": "xxx",
+    },
+    "lmstudio_local": {
+        "label": "LM Studio Local",
+        "base_url": os.environ.get("CLAUDE_LM_STUDIO_LOCAL_URL", "http://localhost:1234"),
+        "model": os.environ.get("CLAUDE_LM_STUDIO_LOCAL_MODEL", "google/gemma-4-e4b"),
+        "api_key": "xxx",
+    },
+    "cx": {
+        "label": "9Router",
+        "base_url": "",
+        "model": "",
+        "api_key": "",
+    },
+}
+
+CLAUDE_MODE_ORDER = ["deepseek", "ollama", "lmstudio", "llamacpp", "lmstudio_local", "cx"]
+
+CLAUDE_MODE_PATH = os.path.join(os.path.dirname(__file__), "..", "runtime", "claude_terminal_mode.json")
+
+
+def _read_claude_terminal_mode() -> str:
+    try:
+        if os.path.exists(CLAUDE_MODE_PATH):
+            with open(CLAUDE_MODE_PATH) as f:
+                return json.load(f).get("mode", "deepseek")
+    except Exception:
+        pass
+    return "deepseek"
+
+
+def _write_claude_terminal_mode(mode: str) -> None:
+    os.makedirs(os.path.dirname(CLAUDE_MODE_PATH), exist_ok=True)
+    with open(CLAUDE_MODE_PATH, "w") as f:
+        json.dump({"mode": mode}, f)
 
 # ── Format helpers ───────────────────────────────────────────────────
 
@@ -168,7 +240,7 @@ async def _get_gold_price() -> str:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "<b>🚀 CHÀO MỪNG BẠN ĐẾN VỚI HAGENT</b>\n\n"
+        "<b>🚀 [Telegram] CHÀO MỪNG BẠN ĐẾN VỚI HAGENT</b>\n\n"
         "Tôi là <b>Trợ lý AI đa năng</b>, sẵn sàng hỗ trợ công việc, lập trình và tra cứu thông tin.\n\n"
         "<b>📋 LỆNH CHÍNH:</b>\n"
         "  💰 /giavang — Giá vàng DOJI\n"
@@ -177,18 +249,47 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  🔄 /new — Phiên chat mới\n"
         "  📊 /status — Trạng thái hệ thống\n"
         "  🎯 /goal — Xem/đặt mục tiêu\n"
-        "  🖥 /terminal — Terminal Claude\n\n"
+        "  🖥 /terminal — Mở Terminal Claude\n"
+        "  ⚙️ /chuyenclaude — Đổi Claude Terminal model\n\n"
         "<b>🖥 ĐIỀU KHIỂN:</b>\n"
         "  💻 /bat — Bật máy (WOL)\n"
         "  🔌 /tat — Tắt máy (SSH)\n"
         "  🟢 /rustdesk — Bật/tắt RustDesk\n"
         "  🤖 /chuyenmohinh — Đổi AI\n\n"
+        "<b>🛠 DỊCH VỤ REMOTE:</b>\n"
+        "  🚀 /lmstudio — LM Studio Remote\n"
+        "  💻 /lmstudio_local — LM Studio Local\n"
+        "  🦙 /ollama — Ollama Remote\n"
+        "  🏗️ /llamacpp — Llama-cpp Remote\n"
+        "  🛑 /off — Tắt tất cả dịch vụ\n\n"
         "<i>Gửi tin nhắn bất kỳ để bắt đầu!</i>",
         parse_mode="HTML",
     )
 
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "<b>ℹ️ GIỚI THIỆU HAGENT BOT</b>\n\n"
+        "<b>HAgent</b> là trợ lý AI cá nhân, giúp bạn:\n"
+        "• Trò chuyện & trả lời câu hỏi với AI\n"
+        "• Tra cứu giá vàng, thời tiết, tin tức\n"
+        "• Điều khiển máy tính từ xa (bật/tắt)\n"
+        "• Quản lý RustDesk, dịch vụ AI\n"
+        "• Mở Claude Terminal với nhiều model\n\n"
+        "<b>📋 TRA CỨU:</b>\n"
+        "  /giavang | /thoitiet | /tinmoi | /status\n\n"
+        "<b>💬 TRÒ CHUYỆN AI:</b>\n"
+        "  /new | /goal | gửi tin nhắn bất kỳ\n\n"
+        "<b>🖥 ĐIỀU KHIỂN:</b>\n"
+        "  /bat | /tat | /rustdesk | /terminal | /chuyenmohinh | /chuyenclaude\n\n"
+        "<b>🛠 DỊCH VỤ:</b>\n"
+        "  /lmstudio | /lmstudio_local | /ollama | /llamacpp | /off\n\n"
+        "<i>Bot chạy trên Python + PTB, backend FastAPI.</i>",
+        parse_mode="HTML",
+    )
+
 async def new_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    result = await _call_api("post", "/api/sessions", {"title": "[Telegram-bot] Chat"})
+    result = await _call_api("post", "/api/sessions", {"title": "[Te] Chat"})
     if result:
         context.user_data["session_id"] = result["id"]
         await update.message.reply_text("✅ Đã tạo phiên mới.", parse_mode="HTML")
@@ -200,21 +301,79 @@ async def gold_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = await _get_gold_price()
     await update.message.reply_text(result[:4000], parse_mode="HTML")
 
+async def chuyenclaude(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Chọn Claude Terminal mode — inline keyboard."""
+    current = _read_claude_terminal_mode()
+    modes = {
+        "deepseek": "🟢 DeepSeek Proxy",
+        "ollama": "🔵 Ollama Remote",
+        "lmstudio": "🟡 LM Studio Remote",
+        "llamacpp": "🟣 Llama.cpp",
+        "lmstudio_local": "🟠 LM Studio Local",
+        "cx": "🌐 9Router",
+    }
+    keyboard = []
+    for key, label in modes.items():
+        marker = "✅ " if key == current else ""
+        keyboard.append([InlineKeyboardButton(f"{marker}{label}", callback_data=f"claudemode:{key}")])
+    await update.message.reply_text(
+        "<b>⚙️ Chọn Claude Terminal Mode:</b>\n"
+        f"Hiện tại: <b>{_esc(modes.get(current, current))}</b>\n\n"
+        f"Dùng /terminal để mở Terminal với mode đã chọn.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML",
+    )
+
+
 async def terminal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Mở terminal Claude — dùng 9Router model."""
-    prompt = " ".join(context.args).strip()
-    if not prompt:
+    """Mở Terminal.app với Claude Code + model đã chọn."""
+    current_mode = _read_claude_terminal_mode()
+    config = CLAUDE_TERMINAL_MODES.get(current_mode, {})
+
+    label = config.get("label", current_mode)
+    base_url = config.get("base_url", "")
+    model = config.get("model", "")
+    api_key = config.get("api_key", "")
+
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    if current_mode == "cx":
+        tg_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        export_cmd = f'export TELEGRAM_BOT_TOKEN="{tg_token}" && cd "{project_root}" && claude "Calling plugin:telegram:telegram" --channels plugin:telegram@claude-plugins-official'
+    else:
+        tg_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        export_cmd = (
+            f'export TELEGRAM_BOT_TOKEN="{tg_token}"'
+            f' && export ANTHROPIC_BASE_URL="{base_url}"'
+            f' && export ANTHROPIC_API_KEY="{api_key}"'
+            f' && export ANTHROPIC_MODEL="{model}"'
+            f' && cd "{project_root}"'
+            f' && claude "Calling plugin:telegram:telegram"'
+            f' --channels plugin:telegram@claude-plugins-official'
+        )
+
+    escaped = export_cmd.replace('"', '\\"')
+    apple_script = (
+        f'tell application "Terminal" to activate\n'
+        f'tell application "Terminal" to do script "{escaped}"'
+    )
+
+    try:
+        subprocess.run(["osascript", "-e", apple_script], capture_output=True, text=True, timeout=10)
         await update.message.reply_text(
-            "<b>🖥 Terminal (9Router)</b>\n"
-            "Gõ lệnh sau /terminal:\n"
-            "<code>/terminal kiểm tra ổ cứng</code>\n"
-            "<code>/terminal cài package XXX</code>",
+            f"🚀 Đang mở Terminal...\n"
+            f"Mô hình: <b>{_esc(label)}</b>\n\n"
+            f"Nếu không thấy Terminal bật lên, hãy copy lệnh:\n"
+            f"<pre>{_esc(export_cmd)}</pre>",
             parse_mode="HTML",
         )
-        return
-    # Switch to 9Router provider for this session
-    await _call_api("put", "/api/auth/provider", {"provider": "cx"})
-    await _forward_to_agent(update, context, f"[TERMINAL] {prompt}")
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Lỗi mở Terminal: {_esc(str(e))}\n\n"
+            f"Lệnh thủ công:\n<pre>{_esc(export_cmd)}</pre>",
+            parse_mode="HTML",
+        )
+
 
 async def weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
     location = " ".join(context.args) or "Ho Chi Minh"
@@ -258,11 +417,13 @@ async def weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Loi lay thoi tiet: {e}")
 
 async def news(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⏳ Đang lấy tin tức...")
-    result = await _call_api("get", "/api/wiki/search?q=tin+tuc")
-    if result and len(result) > 0:
-        lines = [f"{i+1}. {_esc(e['title'])}" for i, e in enumerate(result[:5])]
-        await update.message.reply_text("📰 <b>Tin tức:</b>\n" + "\n".join(lines), parse_mode="HTML")
+    await update.message.reply_text("⏳ Đang lấy tin tức từ VnExpress...")
+    from tools.news_tool import _fetch_vnexpress
+    result = await _fetch_vnexpress()
+    if result:
+        formatted = format_for_telegram(result)
+        for chunk in [formatted[i:i+4000] for i in range(0, len(formatted), 4000)]:
+            await update.message.reply_text(chunk, parse_mode="HTML")
     else:
         await update.message.reply_text("❌ Không lấy được tin tức.")
 
@@ -279,14 +440,89 @@ async def shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🔌 {_esc(result)}", parse_mode="HTML")
 
 async def rustdesk(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.args and context.args[0] == "off":
-        script = os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts", "rustdesk-off.sh")
-        result = subprocess.run(["bash", script], capture_output=True, text=True)
-        await update.message.reply_text(f"🔴 RustDesk OFF: {_esc(result.stdout or result.stderr)}", parse_mode="HTML")
+    """Điều khiển RustDesk — inline buttons On/Off."""
+    keyboard = [[
+        InlineKeyboardButton("🟢 Bật RustDesk", callback_data="rustdesk:on"),
+        InlineKeyboardButton("🔴 Tắt RustDesk", callback_data="rustdesk:off"),
+    ]]
+    await update.message.reply_text(
+        "🖥 <b>RustDesk Server</b>\nChọn hành động:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML",
+    )
+
+
+# ── Remote Service Control ──────────────────────────────────────────
+
+async def _remote_service(cmd_suffix: str, label: str, emoji: str) -> str:
+    """SSH into remote machine and run a systemctl command."""
+    from tools.remote_power_tool import _ssh_exec
+    result = await _ssh_exec(cmd_suffix)
+    if result.startswith("❌") or result.startswith("⏰"):
+        return result
+    return f"{emoji} Đã bật {label} và tắt các dịch vụ khác."
+
+
+async def lmstudio_service(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳ Đang bật LM Studio trên máy remote...")
+    from tools.remote_power_tool import _ssh_exec
+    result = await _ssh_exec(
+        "sudo systemctl stop ollama && systemctl --user stop llamacpp.service "
+        "&& systemctl --user start lmstudio.service"
+    )
+    if result.startswith("❌") or result.startswith("⏰"):
+        await update.message.reply_text(f"❌ Lỗi bật LM Studio: {_esc(result)}", parse_mode="HTML")
     else:
-        script = os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts", "rustdesk-on.sh")
-        result = subprocess.run(["bash", script], capture_output=True, text=True)
-        await update.message.reply_text(f"🟢 RustDesk ON: {_esc(result.stdout or result.stderr)}", parse_mode="HTML")
+        await update.message.reply_text("🚀 Đã bật LM Studio (Remote) và tắt các dịch vụ khác.", parse_mode="HTML")
+
+
+async def ollama_service(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳ Đang bật Ollama trên máy remote...")
+    from tools.remote_power_tool import _ssh_exec
+    result = await _ssh_exec(
+        "systemctl --user stop lmstudio.service && systemctl --user stop llamacpp.service "
+        "&& sudo systemctl start ollama"
+    )
+    if result.startswith("❌") or result.startswith("⏰"):
+        await update.message.reply_text(f"❌ Lỗi bật Ollama: {_esc(result)}", parse_mode="HTML")
+    else:
+        await update.message.reply_text("🦙 Đã bật Ollama (Remote) và tắt các dịch vụ khác.", parse_mode="HTML")
+
+
+async def llamacpp_service(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳ Đang bật Llama-cpp trên máy remote...")
+    from tools.remote_power_tool import _ssh_exec
+    result = await _ssh_exec(
+        "sudo systemctl stop ollama && systemctl --user stop lmstudio.service "
+        "&& systemctl --user start llamacpp.service"
+    )
+    if result.startswith("❌") or result.startswith("⏰"):
+        await update.message.reply_text(f"❌ Lỗi bật Llama-cpp: {_esc(result)}", parse_mode="HTML")
+    else:
+        await update.message.reply_text("🏗️ Đã bật Llama-cpp (Remote) và tắt các dịch vụ khác.", parse_mode="HTML")
+
+
+async def stop_all_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳ Đang tắt tất cả dịch vụ trên máy remote...")
+    from tools.remote_power_tool import _ssh_exec
+    result = await _ssh_exec(
+        "sudo systemctl stop ollama && systemctl --user stop lmstudio.service "
+        "&& systemctl --user stop llamacpp.service"
+    )
+    if result.startswith("❌") or result.startswith("⏰"):
+        await update.message.reply_text(f"❌ Lỗi tắt dịch vụ: {_esc(result)}", parse_mode="HTML")
+    else:
+        await update.message.reply_text("🛑 Đã tắt tất cả dịch vụ AI trên Remote.", parse_mode="HTML")
+
+
+async def lmstudio_local(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳ Đang mở LM Studio trên máy Mac...")
+    try:
+        subprocess.run(["open", "-a", "LM Studio"], capture_output=True, text=True, timeout=5)
+        await update.message.reply_text("💻 Đã mở LM Studio trên máy Mac (Local).", parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Lỗi mở LM Studio: {_esc(str(e))}", parse_mode="HTML")
+
 
 async def change_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
     providers = {
@@ -316,21 +552,13 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
     )
 
-async def _get_or_create_session(context: ContextTypes.DEFAULT_TYPE) -> Optional[str]:
+async def _forward_to_agent(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     sid = context.user_data.get("session_id")
     if not sid:
-        result = await _call_api("post", "/api/sessions", {"title": "[Telegram-bot] Chat"})
-        if not result:
-            return None
-        sid = result["id"]
-        context.user_data["session_id"] = sid
-    return sid
-
-
-async def _forward_to_agent(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
-    sid = await _get_or_create_session(context)
-    if not sid:
-        await update.message.reply_text("❌ Lỗi khởi tạo phiên.", parse_mode="HTML")
+        await update.message.reply_text(
+            "❌ Chưa có phiên chat. Vui lòng tạo phiên trước bằng lệnh /new.",
+            parse_mode="HTML",
+        )
         return
     await update.message.reply_chat_action("typing")
     try:
@@ -353,20 +581,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_goal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Xem hoặc đặt mục tiêu cho phiên chat."""
+    """Xem, đặt, xoá hoặc tiếp tục mục tiêu."""
     args_text = " ".join(context.args).strip()
+
     if not args_text:
-        await _forward_to_agent(update, context, "/goal")
+        result = await _call_api("get", "/api/goals")
+        if result and len(result) > 0:
+            lines = [f"{i+1}. {_esc(g.get('title', ''))}" for i, g in enumerate(result[:10])]
+            await update.message.reply_text("🎯 <b>Mục tiêu hiện tại:</b>\n" + "\n".join(lines), parse_mode="HTML")
+        else:
+            await update.message.reply_text("📭 Không có mục tiêu nào. Gõ /goal <mục tiêu> để đặt.", parse_mode="HTML")
+        return
+
+    cmd = args_text.lower()
+    if cmd == "clear":
+        result = await _call_api("delete", "/api/goals")
+        if result is not None:
+            await update.message.reply_text("🗑 Đã xoá tất cả mục tiêu.", parse_mode="HTML")
+        else:
+            await update.message.reply_text("❌ Lỗi xoá mục tiêu.")
+    elif cmd == "resume":
+        result = await _call_api("post", "/api/goals/resume")
+        if result:
+            await update.message.reply_text("▶️ Đã tiếp tục mục tiêu trước đó.", parse_mode="HTML")
+        else:
+            await update.message.reply_text("❌ Lỗi tiếp tục mục tiêu.")
     else:
-        await _forward_to_agent(update, context, f"/goal {args_text}")
+        result = await _call_api("post", "/api/goals", {"goal": args_text})
+        if result:
+            await update.message.reply_text(f"✅ Đã đặt mục tiêu: <b>{_esc(args_text)}</b>", parse_mode="HTML")
+        else:
+            await update.message.reply_text("❌ Lỗi đặt mục tiêu.")
 
 
 async def handle_fallback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Catch-all for commands not handled by specific handlers — forwards to agent (uses all tools)."""
-    text = (update.message.text or "").strip()
-    if not text:
-        return
-    await _forward_to_agent(update, context, text)
+    cmd = (update.message.text or "").strip().split()[0]
+    await update.message.reply_text(
+        f"❌ Lệnh <code>{_esc(cmd)}</code> không tồn tại. Gõ /help để xem danh sách lệnh.",
+        parse_mode="HTML",
+    )
 
 
 # ── Callback Handler ─────────────────────────────────────────────────
@@ -375,15 +628,16 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data or ""
+
     if data.startswith("provider:"):
         provider = data.split(":", 1)[1]
         labels = {
-            "deepseek": "DeepSeek V3",
-            "lmstudio": "LM Studio (Remote)",
-            "lmstudio_local": "LM Studio (Local)",
-            "ollama": "Ollama",
-            "llamacpp": "Llama.cpp",
-            "cx": "9Router",
+            "deepseek": "🟢 DeepSeek V3",
+            "lmstudio": "🟡 LM Studio (Remote)",
+            "lmstudio_local": "🟠 LM Studio (Local)",
+            "ollama": "🔵 Ollama",
+            "llamacpp": "🟣 Llama.cpp",
+            "cx": "🌐 9Router",
         }
         result = await _call_api("put", "/api/auth/provider", {"provider": provider})
         if result:
@@ -392,7 +646,32 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML",
             )
         else:
-            await query.edit_message_text("❌ Lỗi chuyển provider.")
+            await query.edit_message_text("❌ Lỗi chuyển đổi nhà cung cấp AI.")
+
+    elif data.startswith("claudemode:"):
+        mode = data.split(":", 1)[1]
+        _write_claude_terminal_mode(mode)
+        config = CLAUDE_TERMINAL_MODES.get(mode, {})
+        await query.edit_message_text(
+            f"✅ Đã chọn Claude Terminal mode: <b>{_esc(config.get('label', mode))}</b>\n\n"
+            f"Dùng /terminal để mở Terminal với mode này.",
+            parse_mode="HTML",
+        )
+
+    elif data.startswith("rustdesk:"):
+        action = data.split(":", 1)[1]
+        try:
+            if action == "on":
+                os.system("killall hbbs hbbr 2>/dev/null; kill -9 $(lsof -ti :8006 :8007) 2>/dev/null &")
+                await asyncio.sleep(0.5)
+                os.system("bash /Users/nguyenhat/HAgent/scripts/rustdesk-on.sh &")
+                await query.edit_message_text("🖥 <b>RustDesk</b>\n🟢 Đã bật.", parse_mode="HTML")
+            else:
+                os.system("killall hbbs hbbr RustDesk 2>/dev/null")
+                os.system("bash /Users/nguyenhat/HAgent/scripts/rustdesk-off.sh &")
+                await query.edit_message_text("🖥 <b>RustDesk</b>\n🔴 Đã tắt.", parse_mode="HTML")
+        except Exception as e:
+            await query.edit_message_text(f"❌ Lỗi: {_esc(str(e))}", parse_mode="HTML")
 
 
 # ── Main ────────────────────────────────────────────────────────────
@@ -407,6 +686,7 @@ def main():
     sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("new", new_session))
     app.add_handler(CommandHandler("bat", wake_on_lan))
     app.add_handler(CommandHandler("tat", shutdown))
@@ -415,14 +695,18 @@ def main():
     app.add_handler(CommandHandler("tinmoi", news))
     app.add_handler(CommandHandler("rustdesk", rustdesk))
     app.add_handler(CommandHandler("chuyenmohinh", change_model))
-    app.add_handler(CommandHandler("chuyenclaude", change_model))
+    app.add_handler(CommandHandler("lmstudio", lmstudio_service))
+    app.add_handler(CommandHandler("lmstudio_local", lmstudio_local))
+    app.add_handler(CommandHandler("ollama", ollama_service))
+    app.add_handler(CommandHandler("llamacpp", llamacpp_service))
+    app.add_handler(CommandHandler("off", stop_all_services))
+    app.add_handler(CommandHandler("chuyenclaude", chuyenclaude))
     app.add_handler(CommandHandler("terminal", terminal))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("goal", handle_goal))
     app.add_handler(CallbackQueryHandler(callback_handler))
-    # Fallback (group=1): catch commands not handled by specific handlers above,
-    # forwarding them to the agent which has access to all tools.
-    app.add_handler(MessageHandler(filters.COMMAND, handle_fallback_command), group=1)
+    # Fallback for unknown commands — must be last in group 0 so it only fires if no CommandHandler matched
+    app.add_handler(MessageHandler(filters.COMMAND, handle_fallback_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Register Telegram bot commands from the central COMMAND_REGISTRY
@@ -436,6 +720,9 @@ def main():
             menu_commands, hidden_count = telegram_menu_commands(max_commands=100)
             bot_commands = [BotCommand(name, desc) for name, desc in menu_commands]
             await app.bot.set_my_commands(bot_commands)
+            # Gắn nhãn Telegram để phân biệt với các giao diện khác
+            await app.bot.set_my_name("HAgent [Telegram]")
+            await app.bot.set_my_description("Trợ lý AI đa năng qua Telegram")
             if hidden_count:
                 logger.info("Telegram menu: %d commands registered, %d hidden (over 100 limit)", len(menu_commands), hidden_count)
         except Exception as e:

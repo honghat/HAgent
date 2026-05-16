@@ -1,10 +1,7 @@
 agent
 batch_runner
-cli
 cron
-gateway
 hagent_bootstrap
-hagent_cli
 hagent_constants
 hagent_logging
 hagent_state

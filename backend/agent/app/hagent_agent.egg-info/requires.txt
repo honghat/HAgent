@@ -10,7 +10,6 @@ ruamel.yaml<0.19,>=0.18.16
 requests<3,>=2.33.0
 jinja2<4,>=3.1.5
 pydantic<3,>=2.12.5
-prompt_toolkit<4,>=3.0.52
 exa-py<3,>=2.9.0
 firecrawl-py<5,>=4.16.0
 parallel-web<1,>=0.4.2
@@ -32,7 +31,6 @@ hagent-agent[daytona]
 hagent-agent[vercel]
 hagent-agent[messaging]
 hagent-agent[cron]
-hagent-agent[cli]
 hagent-agent[dev]
 hagent-agent[tts-premium]
 hagent-agent[slack]
@@ -56,9 +54,6 @@ hagent-agent[matrix]
 
 [bedrock]
 boto3<2,>=1.35.0
-
-[cli]
-simple-term-menu<2,>=1.0
 
 [computer-use]
 mcp<2,>=1.2.0
@@ -150,7 +145,6 @@ aiohttp<4,>=3.9.0
 [termux]
 python-telegram-bot[webhooks]<23,>=22.6
 hagent-agent[cron]
-hagent-agent[cli]
 hagent-agent[pty]
 hagent-agent[mcp]
 hagent-agent[honcho]

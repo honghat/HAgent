@@ -31,10 +31,12 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   const [showWorkspace, setShowWorkspace] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [copiedId, setCopiedId] = useState(null)
+  const [speakingId, setSpeakingId] = useState(null)
   const [pastedImages, setPastedImages] = useState([])
   const [workspace, setWorkspace] = useState({ tools: [], todos: [], summary: null })
   const [selectedAgentId, setSelectedAgentId] = useState(null)
   const [providerActive, setProviderActive] = useState(true)
+  const [filterSource, setFilterSource] = useState('all')
 
   const fileInputRef = useRef(null)
   const useNewBackend = true
@@ -335,6 +337,54 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  const speakAudioRef = useRef(null)
+
+  const handleSpeak = async (content, id) => {
+    // Toggle: if already speaking this message, stop
+    if (speakingId === id) {
+      if (speakAudioRef.current) speakAudioRef.current.pause()
+      speakAudioRef.current = null
+      setSpeakingId(null)
+      return
+    }
+    // Stop any previous audio
+    if (speakAudioRef.current) speakAudioRef.current.pause()
+    speakAudioRef.current = null
+
+    const text = content
+      .replace(/<[^>]*>/g, '')
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/[*_~`#]/g, '')
+      .replace(/[\u{1F600}-\u{1F9FF}]/gu, '')
+      .replace(/[\u{2600}-\u{27BF}]/gu, '')
+      .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!text) return
+
+    setSpeakingId(id)
+
+    try {
+      const res = await fetch('http://127.0.0.1:5002/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice: 'vi-VN-HoaiMyNeural', rate: '+0%' }),
+      })
+      if (!res.ok) throw new Error('TTS failed: ' + res.status)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      speakAudioRef.current = audio
+      audio.onended = () => { setSpeakingId(null); speakAudioRef.current = null; URL.revokeObjectURL(url) }
+      audio.onerror = () => { setSpeakingId(null); speakAudioRef.current = null; URL.revokeObjectURL(url) }
+      audio.play().catch(() => { setSpeakingId(null); speakAudioRef.current = null })
+    } catch (e) {
+      setSpeakingId(null)
+      speakAudioRef.current = null
+      console.error('TTS error:', e)
+    }
+  }
+
   function handlePaste(e) {
     const items = e.clipboardData?.items
     if (!items) return
@@ -604,8 +654,16 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
           <button onClick={() => setShowSidebar(false)} className="sm:hidden p-2 text-gray-400">×</button>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="px-2 py-1.5 text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Lịch sử</div>
-          {Array.isArray(sessions) && sessions.map((s) => (
+          <div className="px-2 py-1.5 flex items-center justify-between">
+            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Lịch sử</span>
+            <div className="flex gap-1">
+              <button onClick={() => setFilterSource('chat')} className={`px-1.5 py-0.5 text-[9px] font-medium rounded-md transition-all ${filterSource === 'chat' ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}>💬</button>
+              <button onClick={() => setFilterSource('telegram')} className={`px-1.5 py-0.5 text-[9px] font-medium rounded-md transition-all ${filterSource === 'telegram' ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}>📱</button>
+            </div>
+          </div>
+          {Array.isArray(sessions) && sessions
+            .filter(s => filterSource === 'all' || (filterSource === 'telegram' ? s.title?.startsWith('[Te]') : !s.title?.startsWith('[Te]')))
+            .map((s) => (
             <div key={s.id} className={`group mx-1 mb-0.5 flex items-center rounded-lg transition-all ${s.id === activeId ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/[0.04]' : 'text-gray-500 hover:bg-white/70 hover:text-gray-900'}`}>
               <button onClick={() => { setActiveId(s.id); setShowSidebar(false) }} className="flex-1 text-left px-2 py-1.5 font-normal truncate" style={{ fontSize: '14px' }}>{s.title}</button>
               <button onClick={() => deleteSession(s.id)} className="px-2 text-gray-300 hover:text-red-500 transition-all opacity-60 group-hover:opacity-100" style={{ fontSize: '14px' }}>×</button>
@@ -641,15 +699,15 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                   ))}
                 </select>
               ) : (
-                <span className="flex items-center justify-center h-8 px-3 shrink-0 rounded-full bg-emerald-50 text-xs font-medium text-emerald-700">
+                <span className="flex items-center justify-center h-7 px-2.5 shrink-0 rounded-full bg-emerald-50 text-xs font-medium text-emerald-700">
                   HAgent
                 </span>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex text-xs font-semibold items-center justify-center w-8 h-8 rounded-full border transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>AI</button>
-            <button onClick={() => { setShowJournal(!showJournal); setShowWorkspace(false); setShowSidebar(false) }} className={`flex text-xs font-semibold items-center justify-center w-8 h-8 rounded-full border transition-all ${showJournal ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>J</button>
+            <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex text-xs font-semibold items-center justify-center w-7 h-7 rounded-full border transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>AI</button>
+            <button onClick={() => { setShowJournal(!showJournal); setShowWorkspace(false); setShowSidebar(false) }} className={`flex text-xs font-semibold items-center justify-center w-7 h-7 rounded-full border transition-all ${showJournal ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>J</button>
           </div>
         </header>
 
@@ -672,6 +730,27 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                 <div className={`flex items-center gap-3 mt-1.5 px-3 w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {m.usage && m.role === 'assistant' && <span className="text-[12px] leading-4 text-gray-400 font-normal mr-2">Token: {fmtToken(m.usage.total_tokens)}</span>}
                   <button onClick={() => handleCopy(m.content, m.id)} className="flex h-5 w-5 items-center justify-center rounded-md text-gray-300 transition-all hover:bg-gray-100 hover:text-gray-500">{copiedId === m.id ? '✓' : '⧉'}</button>
+                  {m.role === 'assistant' && (
+                    <button onClick={() => handleSpeak(m.content, m.id)}
+                      className={`flex h-5 w-5 items-center justify-center rounded-md transition-all ${
+                        speakingId === m.id ? 'text-blue-500 bg-blue-50 ring-1 ring-blue-300' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'
+                      }`}
+                      title={speakingId === m.id ? 'Đang phát...' : 'Đọc to'}>
+                      {speakingId === m.id ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        </svg>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                          <line x1="23" y1="9" x2="17" y2="15"/>
+                          <line x1="17" y1="9" x2="23" y2="15"/>
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   <button onClick={() => deleteMessage(m.id)} className="flex h-5 w-5 items-center justify-center rounded-md text-gray-300 transition-all hover:bg-red-50 hover:text-red-500">×</button>
                 </div>
               </div>

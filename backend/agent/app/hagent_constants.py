@@ -269,6 +269,11 @@ def get_env_path() -> Path:
     return get_hagent_home() / ".env"
 
 
+def get_session_env(key: str, default: str = "") -> str:
+    """Read a session-scoped environment variable."""
+    return os.environ.get(key, default)
+
+
 # ─── Network Preferences ─────────────────────────────────────────────────────
 
 

@@ -29,22 +29,21 @@ async def handle_tts(request: web.Request) -> web.StreamResponse:
         # Tạo communicator
         communicate = edge_tts.Communicate(text, voice, rate=rate)
         
-        # Thu thập tất cả audio chunks vào buffer
-        audio_buffer = io.BytesIO()
+        # Stream và collect audio data
+        audio_data = io.BytesIO()
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
-                audio_buffer.write(chunk["data"])
+                audio_data.write(chunk["data"])
         
-        audio_data = audio_buffer.getvalue()
-        if not audio_data:
-            print(f"[EdgeTTS Server] FAILED: No audio generated for text: {text[:100]}", file=sys.stderr)
-            return web.json_response({'error': 'Empty audio'}, status=500)
+        audio_bytes = audio_data.getvalue()
+        print(f"[EdgeTTS Server] Done: {len(audio_bytes)} bytes")
         
         return web.Response(
-            body=audio_data,
+            body=audio_bytes,
             content_type='audio/mpeg',
             headers={'Cache-Control': 'no-cache'}
         )
+        
     except Exception as e:
         print(f"[EdgeTTS Server] Error: {e}", file=sys.stderr)
         return web.json_response({'error': str(e)}, status=500)
@@ -52,15 +51,31 @@ async def handle_tts(request: web.Request) -> web.StreamResponse:
 async def handle_health(request: web.Request) -> web.Response:
     return web.json_response({'status': 'ok', 'engine': 'edge-tts'})
 
+
+@web.middleware
+async def cors_middleware(request, handler):
+    if request.method == 'OPTIONS':
+        return web.Response(
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+            }
+        )
+    response = await handler(request)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
+
 def main():
-    app = web.Application()
+    app = web.Application(middlewares=[cors_middleware])
     app.router.add_post('/tts', handle_tts)
     app.router.add_get('/health', handle_health)
-    
+
     print(f"🔊 Edge TTS Server starting on port {PORT}...")
     print(f"   Voice: vi-VN-HoaiMyNeural (default)")
     print(f"   Engine: edge-tts (Microsoft)")
-    web.run_app(app, host='127.0.0.1', port=PORT, print=None)
+    web.run_app(app, host='0.0.0.0', port=PORT, print=None)
 
 if __name__ == '__main__':
     main()

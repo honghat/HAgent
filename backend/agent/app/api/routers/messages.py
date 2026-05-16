@@ -239,7 +239,11 @@ def create_message(session_id: str, payload: MessageRequest, request: Request) -
     def worker() -> None:
         mark_running(session_id)
         if not record.messages:
-            update_session_title(session_id, payload.content)
+            # Giữ nguyên title [Te]... nếu session từ Telegram
+            from api.services.session_store import get_session
+            current = get_session(session_id)
+            if not current or not (current.title or "").startswith("[Te]"):
+                update_session_title(session_id, payload.content)
         user_message_id = add_message(
             session_id,
             "user",

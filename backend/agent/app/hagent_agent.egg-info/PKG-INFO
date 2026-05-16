@@ -18,7 +18,6 @@ Requires-Dist: ruamel.yaml<0.19,>=0.18.16
 Requires-Dist: requests<3,>=2.33.0
 Requires-Dist: jinja2<4,>=3.1.5
 Requires-Dist: pydantic<3,>=2.12.5
-Requires-Dist: prompt_toolkit<4,>=3.0.52
 Requires-Dist: exa-py<3,>=2.9.0
 Requires-Dist: firecrawl-py<5,>=4.16.0
 Requires-Dist: parallel-web<1,>=0.4.2
@@ -62,8 +61,6 @@ Requires-Dist: Markdown<4,>=3.6; extra == "matrix"
 Requires-Dist: aiosqlite>=0.20; extra == "matrix"
 Requires-Dist: asyncpg>=0.29; extra == "matrix"
 Requires-Dist: aiohttp-socks<1,>=0.10; extra == "matrix"
-Provides-Extra: cli
-Requires-Dist: simple-term-menu<2,>=1.0; extra == "cli"
 Provides-Extra: tts-premium
 Requires-Dist: elevenlabs<2,>=1.0; extra == "tts-premium"
 Provides-Extra: voice
@@ -92,7 +89,6 @@ Requires-Dist: boto3<2,>=1.35.0; extra == "bedrock"
 Provides-Extra: termux
 Requires-Dist: python-telegram-bot[webhooks]<23,>=22.6; extra == "termux"
 Requires-Dist: hagent-agent[cron]; extra == "termux"
-Requires-Dist: hagent-agent[cli]; extra == "termux"
 Requires-Dist: hagent-agent[pty]; extra == "termux"
 Requires-Dist: hagent-agent[mcp]; extra == "termux"
 Requires-Dist: hagent-agent[honcho]; extra == "termux"
@@ -141,7 +137,6 @@ Requires-Dist: hagent-agent[vercel]; extra == "all"
 Requires-Dist: hagent-agent[messaging]; extra == "all"
 Requires-Dist: hagent-agent[matrix]; sys_platform == "linux" and extra == "all"
 Requires-Dist: hagent-agent[cron]; extra == "all"
-Requires-Dist: hagent-agent[cli]; extra == "all"
 Requires-Dist: hagent-agent[dev]; extra == "all"
 Requires-Dist: hagent-agent[tts-premium]; extra == "all"
 Requires-Dist: hagent-agent[slack]; extra == "all"

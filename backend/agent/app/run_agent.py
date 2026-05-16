@@ -68,7 +68,26 @@ from urllib.parse import urlparse, parse_qs, urlunparse
 from datetime import datetime
 from pathlib import Path
 
-from hagent_constants import get_hagent_home
+from hagent_constants import get_hagent_home, get_session_env
+import builtins
+builtins.get_session_env = get_session_env
+from hagent_cli.timeouts import get_provider_request_timeout, get_provider_stale_timeout
+
+
+def load_hagent_dotenv(hagent_home=None, project_env=None):
+    """Load .env files with priority: ~/.hagent/.env > project/.env"""
+    from dotenv import load_dotenv as _ld
+    loaded = []
+    if hagent_home:
+        p = Path(hagent_home) / ".env"
+        if p.exists():
+            _ld(str(p), override=True)
+            loaded.append(str(p))
+    if project_env:
+        if project_env.exists() and str(project_env) not in loaded:
+            _ld(str(project_env), override=False)
+            loaded.append(str(project_env))
+    return loaded
 
 
 _OPENAI_CLS_CACHE: Optional[type] = None
@@ -102,10 +121,6 @@ OpenAI = _OpenAIProxy()
 
 # Load .env from ~/.hagent/.env first, then project root as dev fallback.
 # User-managed env files should override stale shell exports on restart.
-    get_provider_request_timeout,
-    get_provider_stale_timeout,
-)
-
 _hagent_home = get_hagent_home()
 _project_env = Path(__file__).parent / '.env'
 _loaded_env_paths = load_hagent_dotenv(hagent_home=_hagent_home, project_env=_project_env)

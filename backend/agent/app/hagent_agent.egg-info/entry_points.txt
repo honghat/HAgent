@@ -1,4 +1,3 @@
 [console_scripts]
-hagent = hagent_cli.main:main
 hagent-acp = acp_adapter.entry:main
 hagent-agent = run_agent:main

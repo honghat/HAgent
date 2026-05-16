@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from api.routers import agents, auth, config, health, messages, sessions, services, skills, status, stop, video, web, workspace, job_hunter, wiki
+from api.routers import agents, auth, config, goals, health, messages, sessions, services, skills, status, stop, video, web, workspace, job_hunter, wiki
 from api.services.db import init_db
 
 
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(job_hunter.router, prefix="/api")
     app.include_router(services.router, prefix="/api")
     app.include_router(video.router)
+    app.include_router(goals.router)
     app.include_router(skills.router)
     app.include_router(web.router)
     app.include_router(wiki.router)

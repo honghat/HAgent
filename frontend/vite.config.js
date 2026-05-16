@@ -1,5 +1,4 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 const learnProxy = {
@@ -8,11 +7,16 @@ const learnProxy = {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+  },
+  plugins: [tailwindcss()],
   server: {
     port: 3004,
-    host: true,
-    allowedHosts: ['hatai.io.vn'],
+    host: '0.0.0.0',
+    strictPort: true,
+    allowedHosts: true,
     proxy: {
       '/learn': learnProxy,
       '/_next': learnProxy,
@@ -35,10 +39,8 @@ export default defineConfig({
       '/api/tts': learnProxy,
       '/api/users': learnProxy,
       '/api/wol': learnProxy,
-      '/uploads': { target: 'http://127.0.0.1:8004', changeOrigin: true },
-      '/v1': { target: 'http://127.0.0.1:8004', changeOrigin: true },
-      '/api/video': { target: 'http://127.0.0.1:8004', changeOrigin: true },
-      '/api': 'http://127.0.0.1:8004',
+      '/api': 'http://127.0.0.1:8010',
+      '/uploads': 'http://127.0.0.1:8010',
     },
   },
 })

@@ -11,7 +11,8 @@ from typing import Optional, Union, Dict
 
 _APP_ROOT = Path(__file__).resolve().parent
 _AGENT_ROOT = _APP_ROOT.parent
-_PROJECT_HAGENT_HOME = _AGENT_ROOT / "runtime"
+# Fixed runtime data path for project deployment
+_PROJECT_HAGENT_HOME = _AGENT_ROOT / "data"
 _PROJECT_SKILLS_DIR = _APP_ROOT / "skills"
 
 
@@ -19,11 +20,12 @@ _profile_fallback_warned: bool = False
 
 
 def get_hagent_home() -> Path:
-    """Return HAgent's in-project runtime directory.
+    """Return HAgent's home directory.
 
     Reads HAGENT_HOME when explicitly set, otherwise falls back to
-    ``backend/agent/runtime``. HAgent does not use ``~/.hagent`` as its default
-    state directory.
+    ``backend/agent/data`` for project-deployed state (config, sessions,
+    logs, memories, etc.). HAgent does not use ``~/.hagent`` as its
+    default state directory.
 
     When ``HAGENT_HOME`` is unset but an ``active_profile`` file indicates
     a non-default profile is active, logs a loud one-shot warning to
@@ -120,8 +122,8 @@ def display_hagent_home() -> str:
 
     Uses ``~/`` shorthand for readability::
 
-        default:  ``backend/agent/runtime``
-        profile:  ``backend/agent/runtime/profiles/coder``
+        default:  ``backend/agent/data``
+        profile:  ``backend/agent/data/profiles/coder``
         custom:   ``/opt/hagent-custom``
 
     Use this in **user-facing** print/log messages instead of hardcoding

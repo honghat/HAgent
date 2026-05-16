@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
-from api.routers import agents, config, health, messages, sessions, status, stop, workspace, job_hunter, wiki
+from api.routers import agents, auth, config, health, messages, sessions, services, skills, status, stop, video, web, workspace, job_hunter, wiki
 from api.services.db import init_db
 
 
@@ -21,7 +23,13 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Static file serving for uploads
+    uploads_dir = Path(__file__).resolve().parents[5] / "data" / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
+
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(sessions.router, prefix="/api")
     app.include_router(messages.router, prefix="/api")
     app.include_router(status.router, prefix="/api")
@@ -30,7 +38,11 @@ def create_app() -> FastAPI:
     app.include_router(agents.router, prefix="/api")
     app.include_router(config.router, prefix="/api")
     app.include_router(job_hunter.router, prefix="/api")
-    app.include_router(wiki.router, prefix="/api")
+    app.include_router(services.router, prefix="/api")
+    app.include_router(video.router)
+    app.include_router(skills.router)
+    app.include_router(web.router)
+    app.include_router(wiki.router)
     return app
 
 

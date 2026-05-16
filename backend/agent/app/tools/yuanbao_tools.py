@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 def _get_active_adapter():
     """Lazy import to avoid ImportError when gateway.platforms.yuanbao is unavailable."""
     try:
-        from gateway.platforms.yuanbao import get_active_adapter
         return get_active_adapter()
     except ImportError:
         return None
@@ -176,7 +175,6 @@ async def search_sticker(query: str = "", limit: int = 10) -> dict:
     返回每条候选的 sticker_id / name / description / package_id，
     供 LLM 选择后传给 send_sticker。空 query 时返回前 N 条。
     """
-    from gateway.platforms.yuanbao_sticker import search_stickers
 
     try:
         safe_limit = max(1, min(50, int(limit) if limit else 10))
@@ -221,8 +219,6 @@ async def send_sticker(
 
     Returns: ``{"success": bool, ...}``
     """
-    from gateway.session_context import get_session_env
-    from gateway.platforms.yuanbao_sticker import (
         get_sticker_by_id,
         get_sticker_by_name,
         get_random_sticker,
@@ -420,7 +416,6 @@ from tools.registry import registry, tool_result  # noqa: E402
 def _check_yuanbao():
     """Toolset availability check — True when running in a yuanbao gateway session."""
     try:
-        from gateway.session_context import get_session_env
         if get_session_env("HAGENT_SESSION_PLATFORM", "") == "yuanbao":
             return True
     except Exception:
@@ -448,7 +443,6 @@ async def _handle_yb_send_dm(args, **kw):
     group_code = args.get("group_code", "")
     if not group_code:
         try:
-            from gateway.session_context import get_session_env
             chat_id = get_session_env("HAGENT_SESSION_CHAT_ID", "")
             # chat_id format: "group:<code>" → extract the code part
             if chat_id.startswith("group:"):
@@ -468,7 +462,6 @@ async def _handle_yb_send_dm(args, **kw):
     # Extract MEDIA:<path> tags embedded in the message text (LLM often puts
     # file paths there instead of using the media_files parameter).
     message = args.get("message", "")
-    from gateway.platforms.base import BasePlatformAdapter
     embedded_media, message = BasePlatformAdapter.extract_media(message)
     if embedded_media:
         media_files.extend(embedded_media)

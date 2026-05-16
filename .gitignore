@@ -13,7 +13,7 @@ data/
 *.db
 *.sqlite
 *.sqlite3
-backend/agent/runtime/
+backend/agent/data/
 .9router/
 9router/
 tts/piper_voices/

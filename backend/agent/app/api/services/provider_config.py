@@ -82,7 +82,7 @@ _PROVIDER_CONFIGS: dict[str, ProviderConfig] = {
 
 def get_provider_config(provider_name: str | None, model_override: str | None = None) -> ProviderConfig:
     if not provider_name:
-        config = _PROVIDER_CONFIGS["lmstudio_local"]
+        config = _PROVIDER_CONFIGS["lmstudio"]
     elif provider_name not in _PROVIDER_CONFIGS:
         raise ValueError(f"Provider không khớp frontend hoặc chưa được cấu hình ở backend: {provider_name}")
     else:

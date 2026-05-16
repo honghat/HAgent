@@ -1,0 +1,4595 @@
+{
+  "achievements": [
+    {
+      "category": "Agent Autonomy",
+      "criteria": "Requirement: tool calls in one session. Tier ladder: Copper 200, Silver 500, Gold 1200, Diamond 3000, Olympian 8000.",
+      "description": "Let Hagent run a serious autonomous tool chain in one session.",
+      "discovered": true,
+      "evidence": {
+        "session_id": "20260514_102828_036169",
+        "title": "Vietnamese Greeting Exchange #4",
+        "value": 206
+      },
+      "icon": "flame",
+      "id": "let_him_cook",
+      "kind": "best_session",
+      "name": "Let Him Cook",
+      "next_threshold": 500,
+      "next_tier": "Silver",
+      "progress": 206,
+      "progress_pct": 2,
+      "state": "unlocked",
+      "threshold_metric": "max_tool_calls_in_session",
+      "tier": "Copper",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 200
+        },
+        {
+          "name": "Silver",
+          "threshold": 500
+        },
+        {
+          "name": "Gold",
+          "threshold": 1200
+        },
+        {
+          "name": "Diamond",
+          "threshold": 3000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 8000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Agent Autonomy",
+      "criteria": "Requirement: lifetime Hagent tool calls. Tier ladder: Copper 1000, Silver 3000, Gold 8000, Diamond 20000, Olympian 50000.",
+      "description": "Accumulate a lifetime avalanche of Hagent tool calls across sessions.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "avalanche",
+      "id": "autonomous_avalanche",
+      "kind": "lifetime",
+      "name": "Autonomous Avalanche",
+      "next_threshold": 3000,
+      "next_tier": "Silver",
+      "progress": 1413,
+      "progress_pct": 20,
+      "state": "unlocked",
+      "threshold_metric": "total_tool_calls",
+      "tier": "Copper",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 1000
+        },
+        {
+          "name": "Silver",
+          "threshold": 3000
+        },
+        {
+          "name": "Gold",
+          "threshold": 8000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 20000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 50000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Agent Autonomy",
+      "criteria": "Requirement: distinct Hagent tools used in one session. Tier ladder: Copper 18, Silver 28, Gold 45, Diamond 70, Olympian 100.",
+      "description": "Use a wide spread of distinct Hagent tools in one session.",
+      "discovered": true,
+      "icon": "nodes",
+      "id": "toolchain_maxxer",
+      "kind": "best_session",
+      "name": "Toolchain Maxxer",
+      "next_threshold": 18,
+      "next_tier": "Copper",
+      "progress": 11,
+      "progress_pct": 61,
+      "state": "discovered",
+      "threshold_metric": "max_distinct_tools_in_session",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 18
+        },
+        {
+          "name": "Silver",
+          "threshold": 28
+        },
+        {
+          "name": "Gold",
+          "threshold": 45
+        },
+        {
+          "name": "Diamond",
+          "threshold": 70
+        },
+        {
+          "name": "Olympian",
+          "threshold": 100
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Agent Autonomy",
+      "criteria": "Requirement: terminal calls in one session \u2265 180; file/search/patch calls in one session \u2265 120; web search/extract or browser calls in one session \u2265 60.",
+      "description": "Terminal, files, and web/browser all get involved in one real run.",
+      "discovered": true,
+      "icon": "rocket",
+      "id": "full_send",
+      "kind": "multi_condition",
+      "name": "Full Send",
+      "next_threshold": 100,
+      "next_tier": null,
+      "progress": 49,
+      "progress_pct": 49,
+      "requirements": [
+        {
+          "gte": 180,
+          "metric": "max_terminal_calls_in_session"
+        },
+        {
+          "gte": 120,
+          "metric": "max_file_tool_calls_in_session"
+        },
+        {
+          "gte": 60,
+          "metric": "max_web_browser_calls_in_session"
+        }
+      ],
+      "state": "discovered",
+      "tier": null,
+      "unlocked": false
+    },
+    {
+      "category": "Agent Autonomy",
+      "criteria": "Requirement: lifetime delegate_task calls. Tier ladder: Copper 5, Silver 40, Gold 100, Diamond 1000, Olympian 5000.",
+      "description": "Coordinate delegated agent work.",
+      "discovered": true,
+      "icon": "branch",
+      "id": "subagent_commander",
+      "kind": "lifetime",
+      "name": "Subagent Commander",
+      "next_threshold": 5,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "total_delegate_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 5
+        },
+        {
+          "name": "Silver",
+          "threshold": 40
+        },
+        {
+          "name": "Gold",
+          "threshold": 100
+        },
+        {
+          "name": "Diamond",
+          "threshold": 1000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 5000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Agent Autonomy",
+      "criteria": "Requirement: lifetime background process operations. Tier ladder: Copper 300, Silver 800, Gold 2000, Diamond 6000, Olympian 15000.",
+      "description": "Start or control enough long-running processes to deserve the title.",
+      "discovered": true,
+      "icon": "daemon",
+      "id": "background_process_enjoyer",
+      "kind": "lifetime",
+      "name": "Background Process Enjoyer",
+      "next_threshold": 300,
+      "next_tier": "Copper",
+      "progress": 28,
+      "progress_pct": 9,
+      "state": "discovered",
+      "threshold_metric": "total_process_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 300
+        },
+        {
+          "name": "Silver",
+          "threshold": 800
+        },
+        {
+          "name": "Gold",
+          "threshold": 2000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 6000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 15000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Agent Autonomy",
+      "criteria": "Requirement: lifetime scheduled-job operations. Tier ladder: Copper 1000, Silver 3000, Gold 8000, Diamond 20000, Olympian 50000.",
+      "description": "Raise scheduled autonomous jobs from the dead.",
+      "discovered": true,
+      "icon": "clock",
+      "id": "cron_necromancer",
+      "kind": "lifetime",
+      "name": "Cron Necromancer",
+      "next_threshold": 1000,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "total_cron_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 1000
+        },
+        {
+          "name": "Silver",
+          "threshold": 3000
+        },
+        {
+          "name": "Gold",
+          "threshold": 8000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 20000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 50000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: error/failed/traceback messages observed. Tier ladder: Copper 1500, Silver 4000, Gold 10000, Diamond 25000, Olympian 75000.",
+      "description": "Encounter enough errors to develop a palate for red text.",
+      "discovered": true,
+      "icon": "warning",
+      "id": "red_text_connoisseur",
+      "kind": "lifetime",
+      "name": "Red Text Connoisseur",
+      "next_threshold": 1500,
+      "next_tier": "Copper",
+      "progress": 578,
+      "progress_pct": 38,
+      "state": "discovered",
+      "threshold_metric": "total_errors",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 1500
+        },
+        {
+          "name": "Silver",
+          "threshold": 4000
+        },
+        {
+          "name": "Gold",
+          "threshold": 10000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 25000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 75000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: traceback or exception mentions. Tier ladder: Copper 300, Silver 1000, Gold 3000, Diamond 8000, Olympian 20000.",
+      "description": "Taste tracebacks by the flight, not by the sip.",
+      "discovered": true,
+      "icon": "wine",
+      "id": "stack_trace_sommelier",
+      "kind": "lifetime",
+      "name": "Stack Trace Sommelier",
+      "next_threshold": 300,
+      "next_tier": "Copper",
+      "progress": 149,
+      "progress_pct": 49,
+      "state": "discovered",
+      "threshold_metric": "traceback_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 300
+        },
+        {
+          "name": "Silver",
+          "threshold": 1000
+        },
+        {
+          "name": "Gold",
+          "threshold": 3000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 8000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 20000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: log inspections. Tier ladder: Copper 1000, Silver 3000, Gold 8000, Diamond 20000, Olympian 50000.",
+      "description": "Inspect logs repeatedly instead of guessing.",
+      "discovered": true,
+      "icon": "scroll",
+      "id": "actually_read_the_logs",
+      "kind": "lifetime",
+      "name": "Actually Read The Logs",
+      "next_threshold": 1000,
+      "next_tier": "Copper",
+      "progress": 113,
+      "progress_pct": 11,
+      "state": "discovered",
+      "threshold_metric": "log_read_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 1000
+        },
+        {
+          "name": "Silver",
+          "threshold": 3000
+        },
+        {
+          "name": "Gold",
+          "threshold": 8000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 20000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 50000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: dev-server port conflict detections. Tier ladder: Copper 15, Silver 40, Gold 100, Diamond 300, Olympian 1000.",
+      "description": "Discover dev-server port conflict patterns enough times to become numb.",
+      "discovered": true,
+      "icon": "plug",
+      "id": "port_3000_taken",
+      "kind": "lifetime",
+      "name": "Port 3000 Is Taken",
+      "next_threshold": 15,
+      "next_tier": "Copper",
+      "progress": 4,
+      "progress_pct": 26,
+      "secret": true,
+      "state": "discovered",
+      "threshold_metric": "port_conflict_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 15
+        },
+        {
+          "name": "Silver",
+          "threshold": 40
+        },
+        {
+          "name": "Gold",
+          "threshold": 100
+        },
+        {
+          "name": "Diamond",
+          "threshold": 300
+        },
+        {
+          "name": "Olympian",
+          "threshold": 1000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: permission-denied errors. Tier ladder: Copper 25, Silver 75, Gold 200, Diamond 600, Olympian 1500.",
+      "description": "Speedrun into permission walls.",
+      "discovered": true,
+      "icon": "lock",
+      "id": "permission_denied_any_percent",
+      "kind": "lifetime",
+      "name": "Permission Denied Any%",
+      "next_threshold": 25,
+      "next_tier": "Copper",
+      "progress": 4,
+      "progress_pct": 16,
+      "secret": true,
+      "state": "discovered",
+      "threshold_metric": "permission_denied_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 25
+        },
+        {
+          "name": "Silver",
+          "threshold": 75
+        },
+        {
+          "name": "Gold",
+          "threshold": 200
+        },
+        {
+          "name": "Diamond",
+          "threshold": 600
+        },
+        {
+          "name": "Olympian",
+          "threshold": 1500
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: package-install failures \u2265 25; successful package installs after package work \u2265 10.",
+      "description": "Package installs fail, then somehow life continues.",
+      "discovered": true,
+      "icon": "package_skull",
+      "id": "dependency_hell_tourist",
+      "kind": "multi_condition",
+      "name": "Dependency Hell Tourist",
+      "next_threshold": 100,
+      "next_tier": null,
+      "progress": 78,
+      "progress_pct": 78,
+      "requirements": [
+        {
+          "gte": 25,
+          "metric": "install_error_events"
+        },
+        {
+          "gte": 10,
+          "metric": "install_success_events"
+        }
+      ],
+      "state": "discovered",
+      "tier": null,
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: restart/reload actions after error clusters \u2265 50; error/failed/traceback messages observed \u2265 4000.",
+      "description": "Restart after enough error clusters to call it a technique.",
+      "discovered": true,
+      "icon": "restart",
+      "id": "the_fix_was_restarting",
+      "kind": "multi_condition",
+      "name": "The Fix Was Restarting It",
+      "next_threshold": 100,
+      "next_tier": null,
+      "progress": 28,
+      "progress_pct": 28,
+      "requirements": [
+        {
+          "gte": 50,
+          "metric": "restart_after_error_events"
+        },
+        {
+          "gte": 4000,
+          "metric": "total_errors"
+        }
+      ],
+      "state": "discovered",
+      "tier": null,
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: missing auth/config/environment-variable events. Tier ladder: Copper 5000, Silver 15000, Gold 40000, Diamond 100000, Olympian 250000.",
+      "description": "Auth or configuration failed because an environment variable was missing.",
+      "discovered": true,
+      "icon": "key",
+      "id": "forgot_the_env_var",
+      "kind": "lifetime",
+      "name": "Forgot The Env Var",
+      "next_threshold": 5000,
+      "next_tier": "Copper",
+      "progress": 580,
+      "progress_pct": 11,
+      "secret": true,
+      "state": "discovered",
+      "threshold_metric": "env_var_error_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 5000
+        },
+        {
+          "name": "Silver",
+          "threshold": 15000
+        },
+        {
+          "name": "Gold",
+          "threshold": 40000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 100000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 250000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: YAML/config parse incidents. Tier ladder: Copper 1000, Silver 3000, Gold 8000, Diamond 20000, Olympian 50000.",
+      "description": "Configuration syntax bites back.",
+      "discovered": true,
+      "icon": "colon",
+      "id": "yaml_colon_incident",
+      "kind": "lifetime",
+      "name": "YAML Colon Incident",
+      "next_threshold": 1000,
+      "next_tier": "Copper",
+      "progress": 197,
+      "progress_pct": 19,
+      "secret": true,
+      "state": "discovered",
+      "threshold_metric": "yaml_error_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 1000
+        },
+        {
+          "name": "Silver",
+          "threshold": 3000
+        },
+        {
+          "name": "Gold",
+          "threshold": 8000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 20000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 50000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Debugging Chaos",
+      "criteria": "Requirement: Docker/container-name conflicts. Tier ladder: Copper 75, Silver 200, Gold 600, Diamond 1500, Olympian 4000.",
+      "description": "A container name already exists. Of course it does.",
+      "discovered": true,
+      "icon": "container",
+      "id": "docker_name_collision",
+      "kind": "lifetime",
+      "name": "Docker Name Collision",
+      "next_threshold": 75,
+      "next_tier": "Copper",
+      "progress": 3,
+      "progress_pct": 4,
+      "secret": true,
+      "state": "discovered",
+      "threshold_metric": "docker_conflict_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 75
+        },
+        {
+          "name": "Silver",
+          "threshold": 200
+        },
+        {
+          "name": "Gold",
+          "threshold": 600
+        },
+        {
+          "name": "Diamond",
+          "threshold": 1500
+        },
+        {
+          "name": "Olympian",
+          "threshold": 4000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Vibe Coding",
+      "criteria": "Requirement: messages in one session. Tier ladder: Copper 300, Silver 600, Gold 1200, Diamond 2500, Olympian 6000.",
+      "description": "A tiny ask becomes an entire expedition.",
+      "discovered": true,
+      "evidence": {
+        "session_id": "20260514_102828_036169",
+        "title": "Vietnamese Greeting Exchange #4",
+        "value": 397
+      },
+      "icon": "melting_clock",
+      "id": "supposed_to_be_quick",
+      "kind": "best_session",
+      "name": "This Was Supposed To Be Quick",
+      "next_threshold": 600,
+      "next_tier": "Silver",
+      "progress": 397,
+      "progress_pct": 32,
+      "state": "unlocked",
+      "threshold_metric": "max_messages_in_session",
+      "tier": "Copper",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 300
+        },
+        {
+          "name": "Silver",
+          "threshold": 600
+        },
+        {
+          "name": "Gold",
+          "threshold": 1200
+        },
+        {
+          "name": "Diamond",
+          "threshold": 2500
+        },
+        {
+          "name": "Olympian",
+          "threshold": 6000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Vibe Coding",
+      "criteria": "Requirement: file/search/patch calls in one session. Tier ladder: Copper 150, Silver 400, Gold 1000, Diamond 3000, Olympian 8000.",
+      "description": "Make enough file edits in one session to invalidate the phrase small change.",
+      "discovered": true,
+      "icon": "pencil",
+      "id": "one_more_small_change",
+      "kind": "best_session",
+      "name": "One More Small Change",
+      "next_threshold": 150,
+      "next_tier": "Copper",
+      "progress": 145,
+      "progress_pct": 96,
+      "state": "discovered",
+      "threshold_metric": "max_file_tool_calls_in_session",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 150
+        },
+        {
+          "name": "Silver",
+          "threshold": 400
+        },
+        {
+          "name": "Gold",
+          "threshold": 1000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 3000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 8000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Vibe Coding",
+      "criteria": "Requirement: files touched in one session. Tier ladder: Copper 300, Silver 700, Gold 1500, Diamond 4000, Olympian 10000.",
+      "description": "Touch a broad surface area in one project session.",
+      "discovered": true,
+      "icon": "blueprint",
+      "id": "vibe_architect",
+      "kind": "best_session",
+      "name": "Vibe Architect",
+      "next_threshold": 300,
+      "next_tier": "Copper",
+      "progress": 95,
+      "progress_pct": 31,
+      "state": "discovered",
+      "threshold_metric": "max_files_touched_in_session",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 300
+        },
+        {
+          "name": "Silver",
+          "threshold": 700
+        },
+        {
+          "name": "Gold",
+          "threshold": 1500
+        },
+        {
+          "name": "Diamond",
+          "threshold": 4000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 10000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Vibe Coding",
+      "criteria": "Requirement: frontend/CSS/SVG/React activity mentions. Tier ladder: Copper 20000, Silver 50000, Gold 120000, Diamond 300000, Olympian 800000.",
+      "description": "Do sustained frontend, CSS, SVG, or visual tuning.",
+      "discovered": true,
+      "icon": "pixel",
+      "id": "pixel_goblin",
+      "kind": "lifetime",
+      "name": "Pixel Goblin",
+      "next_threshold": 20000,
+      "next_tier": "Copper",
+      "progress": 1645,
+      "progress_pct": 8,
+      "state": "discovered",
+      "threshold_metric": "frontend_activity_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 20000
+        },
+        {
+          "name": "Silver",
+          "threshold": 50000
+        },
+        {
+          "name": "Gold",
+          "threshold": 120000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 300000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 800000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Vibe Coding",
+      "criteria": "Requirement: git workflow commands \u2265 50; tool calls in one session \u2265 500.",
+      "description": "Git activity after a serious tool chain.",
+      "discovered": true,
+      "icon": "ship",
+      "id": "ship_first_ask_later",
+      "kind": "multi_condition",
+      "name": "Ship First, Ask Later",
+      "next_threshold": 100,
+      "next_tier": null,
+      "progress": 20,
+      "progress_pct": 20,
+      "requirements": [
+        {
+          "gte": 50,
+          "metric": "git_events"
+        },
+        {
+          "gte": 500,
+          "metric": "max_tool_calls_in_session"
+        }
+      ],
+      "state": "discovered",
+      "tier": null,
+      "unlocked": false
+    },
+    {
+      "category": "Vibe Coding",
+      "criteria": "Requirement: CSS, styling, Tailwind, or className activity. Tier ladder: Copper 10000, Silver 30000, Gold 80000, Diamond 200000, Olympian 500000.",
+      "description": "Cast repeated styling demons out of the interface.",
+      "discovered": true,
+      "icon": "spark_cursor",
+      "id": "css_exorcist",
+      "kind": "lifetime",
+      "name": "CSS Exorcist",
+      "next_threshold": 10000,
+      "next_tier": "Copper",
+      "progress": 993,
+      "progress_pct": 9,
+      "state": "discovered",
+      "threshold_metric": "css_activity_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 10000
+        },
+        {
+          "name": "Silver",
+          "threshold": 30000
+        },
+        {
+          "name": "Gold",
+          "threshold": 80000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 200000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 500000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Vibe Coding",
+      "criteria": "Requirement: tiny typo-style fixes after error clusters \u2265 5; error/failed/traceback messages observed \u2265 4000.",
+      "description": "A tiny edit after a pile of errors. Painful. Beautiful.",
+      "discovered": true,
+      "icon": "needle",
+      "id": "one_character_fix",
+      "kind": "multi_condition",
+      "name": "One Character Fix",
+      "next_threshold": 100,
+      "next_tier": null,
+      "progress": 17,
+      "progress_pct": 17,
+      "requirements": [
+        {
+          "gte": 5,
+          "metric": "tiny_patch_after_errors_events"
+        },
+        {
+          "gte": 4000,
+          "metric": "total_errors"
+        }
+      ],
+      "secret": true,
+      "state": "discovered",
+      "tier": null,
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: Hagent skill mentions or tool use. Tier ladder: Copper 5000, Silver 15000, Gold 40000, Diamond 100000, Olympian 250000.",
+      "description": "Work with Hagent skills enough to leave fingerprints.",
+      "discovered": true,
+      "icon": "hammer_scroll",
+      "id": "skillsmith",
+      "kind": "lifetime",
+      "name": "Skillsmith",
+      "next_threshold": 5000,
+      "next_tier": "Copper",
+      "progress": 507,
+      "progress_pct": 10,
+      "state": "discovered",
+      "threshold_metric": "skill_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 5000
+        },
+        {
+          "name": "Silver",
+          "threshold": 15000
+        },
+        {
+          "name": "Gold",
+          "threshold": 40000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 100000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 250000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: skill_manage create/patch/delete operations. Tier ladder: Copper 25, Silver 75, Gold 200, Diamond 600, Olympian 1500.",
+      "description": "Create or patch durable procedures instead of repeating yourself.",
+      "discovered": true,
+      "icon": "anvil",
+      "id": "skill_issue_skill_created",
+      "kind": "lifetime",
+      "name": "Skill Issue? Skill Created.",
+      "next_threshold": 25,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "skill_manage_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 25
+        },
+        {
+          "name": "Silver",
+          "threshold": 75
+        },
+        {
+          "name": "Gold",
+          "threshold": 200
+        },
+        {
+          "name": "Diamond",
+          "threshold": 600
+        },
+        {
+          "name": "Olympian",
+          "threshold": 1500
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: memory or Mnemosyne tool events. Tier ladder: Copper 100, Silver 300, Gold 1000, Diamond 3000, Olympian 8000.",
+      "description": "Persist durable knowledge with memory or Mnemosyne.",
+      "discovered": true,
+      "icon": "crystal",
+      "id": "memory_keeper",
+      "kind": "lifetime",
+      "name": "Memory Keeper",
+      "next_threshold": 100,
+      "next_tier": "Copper",
+      "progress": 9,
+      "progress_pct": 9,
+      "state": "discovered",
+      "threshold_metric": "memory_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 100
+        },
+        {
+          "name": "Silver",
+          "threshold": 300
+        },
+        {
+          "name": "Gold",
+          "threshold": 1000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 3000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 8000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: durable memory writes. Tier ladder: Copper 100, Silver 300, Gold 1000, Diamond 3000, Olympian 8000.",
+      "description": "Build a serious durable-memory trail.",
+      "discovered": true,
+      "icon": "palace",
+      "id": "memory_palace",
+      "kind": "lifetime",
+      "name": "Memory Palace",
+      "next_threshold": 100,
+      "next_tier": "Copper",
+      "progress": 9,
+      "progress_pct": 9,
+      "state": "discovered",
+      "threshold_metric": "memory_write_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 100
+        },
+        {
+          "name": "Silver",
+          "threshold": 300
+        },
+        {
+          "name": "Gold",
+          "threshold": 1000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 3000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 8000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: context, compression, token, or cache-pressure mentions. Tier ladder: Copper 5000, Silver 15000, Gold 40000, Diamond 100000, Olympian 250000.",
+      "description": "Brush against compression, huge context, or token pressure repeatedly.",
+      "discovered": true,
+      "icon": "dragon",
+      "id": "context_dragon",
+      "kind": "lifetime",
+      "name": "Context Dragon",
+      "next_threshold": 5000,
+      "next_tier": "Copper",
+      "progress": 1524,
+      "progress_pct": 30,
+      "state": "discovered",
+      "threshold_metric": "context_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 5000
+        },
+        {
+          "name": "Silver",
+          "threshold": 15000
+        },
+        {
+          "name": "Gold",
+          "threshold": 40000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 100000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 250000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: gateway/API/chat-platform activity. Tier ladder: Copper 5000, Silver 15000, Gold 40000, Diamond 100000, Olympian 250000.",
+      "description": "Live through gateway-connected Hagent workflows.",
+      "discovered": true,
+      "icon": "antenna",
+      "id": "gateway_dweller",
+      "kind": "lifetime",
+      "name": "Gateway Dweller",
+      "next_threshold": 5000,
+      "next_tier": "Copper",
+      "progress": 1270,
+      "progress_pct": 25,
+      "state": "discovered",
+      "threshold_metric": "gateway_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 5000
+        },
+        {
+          "name": "Silver",
+          "threshold": 15000
+        },
+        {
+          "name": "Gold",
+          "threshold": 40000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 100000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 250000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: dashboard plugin development or usage signals. Tier ladder: Copper 1000, Silver 3000, Gold 8000, Diamond 20000, Olympian 50000.",
+      "description": "Use or develop plugins enough that the dashboard notices.",
+      "discovered": true,
+      "icon": "puzzle",
+      "id": "plugin_goblin",
+      "kind": "lifetime",
+      "name": "Plugin Goblin",
+      "next_threshold": 1000,
+      "next_tier": "Copper",
+      "progress": 643,
+      "progress_pct": 64,
+      "state": "discovered",
+      "threshold_metric": "plugin_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 1000
+        },
+        {
+          "name": "Silver",
+          "threshold": 3000
+        },
+        {
+          "name": "Gold",
+          "threshold": 8000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 20000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 50000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: rollback/checkpoint recovery mentions. Tier ladder: Copper 500, Silver 1500, Gold 4000, Diamond 10000, Olympian 25000.",
+      "description": "Invoke rollback/checkpoint recovery magic.",
+      "discovered": true,
+      "icon": "rewind",
+      "id": "rollback_wizard",
+      "kind": "lifetime",
+      "name": "Rollback Wizard",
+      "next_threshold": 500,
+      "next_tier": "Copper",
+      "progress": 28,
+      "progress_pct": 5,
+      "secret": true,
+      "state": "discovered",
+      "threshold_metric": "rollback_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 500
+        },
+        {
+          "name": "Silver",
+          "threshold": 1500
+        },
+        {
+          "name": "Gold",
+          "threshold": 4000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 10000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 25000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Research/Web",
+      "criteria": "Requirement: lifetime web_search/web_extract calls. Tier ladder: Copper 400, Silver 1200, Gold 3000, Diamond 8000, Olympian 20000.",
+      "description": "Search or extract enough web content to qualify as a research spiral.",
+      "discovered": true,
+      "icon": "spiral",
+      "id": "rabbit_hole_certified",
+      "kind": "lifetime",
+      "name": "Rabbit Hole Certified",
+      "next_threshold": 400,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "total_web_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 400
+        },
+        {
+          "name": "Silver",
+          "threshold": 1200
+        },
+        {
+          "name": "Gold",
+          "threshold": 3000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 8000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 20000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Research/Web",
+      "criteria": "Requirement: lifetime web_extract calls. Tier ladder: Copper 100, Silver 300, Gold 1000, Diamond 3000, Olympian 8000.",
+      "description": "Extract enough web pages to become a tiny librarian.",
+      "discovered": true,
+      "icon": "quote",
+      "id": "citation_goblin",
+      "kind": "lifetime",
+      "name": "Citation Goblin",
+      "next_threshold": 100,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "total_web_extract_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 100
+        },
+        {
+          "name": "Silver",
+          "threshold": 300
+        },
+        {
+          "name": "Gold",
+          "threshold": 1000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 3000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 8000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Research/Web",
+      "criteria": "Requirement: documentation/README/docs activity. Tier ladder: Copper 5000, Silver 15000, Gold 40000, Diamond 100000, Olympian 250000.",
+      "description": "Dig through documentation sources over and over.",
+      "discovered": true,
+      "icon": "compass",
+      "id": "docs_archaeologist",
+      "kind": "lifetime",
+      "name": "Docs Archaeologist",
+      "next_threshold": 5000,
+      "next_tier": "Copper",
+      "progress": 406,
+      "progress_pct": 8,
+      "state": "discovered",
+      "threshold_metric": "docs_activity_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 5000
+        },
+        {
+          "name": "Silver",
+          "threshold": 15000
+        },
+        {
+          "name": "Gold",
+          "threshold": 40000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 100000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 250000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Research/Web",
+      "criteria": "Requirement: lifetime browser automation calls. Tier ladder: Copper 75, Silver 200, Gold 600, Diamond 1500, Olympian 4000.",
+      "description": "Possess a browser through automation repeatedly.",
+      "discovered": true,
+      "icon": "browser",
+      "id": "browser_possession",
+      "kind": "lifetime",
+      "name": "Browser Possession",
+      "next_threshold": 75,
+      "next_tier": "Copper",
+      "progress": 56,
+      "progress_pct": 74,
+      "state": "discovered",
+      "threshold_metric": "browser_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 75
+        },
+        {
+          "name": "Silver",
+          "threshold": 200
+        },
+        {
+          "name": "Gold",
+          "threshold": 600
+        },
+        {
+          "name": "Diamond",
+          "threshold": 1500
+        },
+        {
+          "name": "Olympian",
+          "threshold": 4000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Tool Mastery",
+      "criteria": "Requirement: lifetime terminal calls. Tier ladder: Copper 750, Silver 2000, Gold 6000, Diamond 15000, Olympian 50000.",
+      "description": "Spend serious time in shell-land.",
+      "discovered": true,
+      "icon": "terminal",
+      "id": "terminal_goblin",
+      "kind": "lifetime",
+      "name": "Terminal Goblin",
+      "next_threshold": 750,
+      "next_tier": "Copper",
+      "progress": 427,
+      "progress_pct": 56,
+      "state": "discovered",
+      "threshold_metric": "total_terminal_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 750
+        },
+        {
+          "name": "Silver",
+          "threshold": 2000
+        },
+        {
+          "name": "Gold",
+          "threshold": 6000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 15000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 50000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Tool Mastery",
+      "criteria": "Requirement: lifetime targeted patch edits. Tier ladder: Copper 250, Silver 750, Gold 2000, Diamond 6000, Olympian 15000.",
+      "description": "Bend files to your will with targeted patches.",
+      "discovered": true,
+      "icon": "wand",
+      "id": "patch_wizard",
+      "kind": "lifetime",
+      "name": "Patch Wizard",
+      "next_threshold": 250,
+      "next_tier": "Copper",
+      "progress": 193,
+      "progress_pct": 77,
+      "state": "discovered",
+      "threshold_metric": "total_patch_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 250
+        },
+        {
+          "name": "Silver",
+          "threshold": 750
+        },
+        {
+          "name": "Gold",
+          "threshold": 2000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 6000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 15000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Tool Mastery",
+      "criteria": "Requirement: lifetime read_file/search_files calls. Tier ladder: Copper 750, Silver 2000, Gold 6000, Diamond 15000, Olympian 50000.",
+      "description": "Dig through the filesystem with reads and searches.",
+      "discovered": true,
+      "icon": "folder",
+      "id": "file_archaeologist",
+      "kind": "lifetime",
+      "name": "File Archaeologist",
+      "next_threshold": 750,
+      "next_tier": "Copper",
+      "progress": 342,
+      "progress_pct": 45,
+      "state": "discovered",
+      "threshold_metric": "total_file_reads_searches",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 750
+        },
+        {
+          "name": "Silver",
+          "threshold": 2000
+        },
+        {
+          "name": "Gold",
+          "threshold": 6000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 15000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 50000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Tool Mastery",
+      "criteria": "Requirement: image generation or vision tool calls. Tier ladder: Copper 100, Silver 300, Gold 1000, Diamond 3000, Olympian 8000.",
+      "description": "Use image generation or vision tools enough for visual work.",
+      "discovered": true,
+      "icon": "eye",
+      "id": "image_whisperer",
+      "kind": "lifetime",
+      "name": "Image Whisperer",
+      "next_threshold": 100,
+      "next_tier": "Copper",
+      "progress": 11,
+      "progress_pct": 11,
+      "state": "discovered",
+      "threshold_metric": "image_vision_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 100
+        },
+        {
+          "name": "Silver",
+          "threshold": 300
+        },
+        {
+          "name": "Gold",
+          "threshold": 1000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 3000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 8000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Tool Mastery",
+      "criteria": "Requirement: text-to-speech or voice tool calls. Tier ladder: Copper 10, Silver 30, Gold 100, Diamond 300, Olympian 800.",
+      "description": "Use text-to-speech or voice tooling repeatedly.",
+      "discovered": true,
+      "icon": "wave",
+      "id": "voice_of_the_machine",
+      "kind": "lifetime",
+      "name": "Voice Of The Machine",
+      "next_threshold": 10,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "tts_calls",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 10
+        },
+        {
+          "name": "Silver",
+          "threshold": 30
+        },
+        {
+          "name": "Gold",
+          "threshold": 100
+        },
+        {
+          "name": "Diamond",
+          "threshold": 300
+        },
+        {
+          "name": "Olympian",
+          "threshold": 800
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: model/provider-related activity. Tier ladder: Copper 10000, Silver 30000, Gold 80000, Diamond 200000, Olympian 500000.",
+      "description": "Switch or inspect providers/models enough to count as a habit.",
+      "discovered": true,
+      "icon": "swap",
+      "id": "model_hopper",
+      "kind": "lifetime",
+      "name": "Model Hopper",
+      "next_threshold": 10000,
+      "next_tier": "Copper",
+      "progress": 3469,
+      "progress_pct": 34,
+      "state": "discovered",
+      "threshold_metric": "model_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 10000
+        },
+        {
+          "name": "Silver",
+          "threshold": 30000
+        },
+        {
+          "name": "Gold",
+          "threshold": 80000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 200000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 500000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: OpenRouter mentions. Tier ladder: Copper 250, Silver 750, Gold 2000, Diamond 6000, Olympian 15000.",
+      "description": "Route model work through OpenRouter repeatedly.",
+      "discovered": true,
+      "icon": "router",
+      "id": "openrouter_enjoyer",
+      "kind": "lifetime",
+      "name": "OpenRouter Enjoyer",
+      "next_threshold": 250,
+      "next_tier": "Copper",
+      "progress": 164,
+      "progress_pct": 65,
+      "state": "discovered",
+      "threshold_metric": "openrouter_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 250
+        },
+        {
+          "name": "Silver",
+          "threshold": 750
+        },
+        {
+          "name": "Gold",
+          "threshold": 2000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 6000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 15000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: Codex mentions. Tier ladder: Copper 500, Silver 1500, Gold 4000, Diamond 10000, Olympian 25000.",
+      "description": "Summon Codex-flavored assistance often enough for a ritual.",
+      "discovered": true,
+      "icon": "codex",
+      "id": "codex_conjurer",
+      "kind": "lifetime",
+      "name": "Codex Conjurer",
+      "next_threshold": 500,
+      "next_tier": "Copper",
+      "progress": 48,
+      "progress_pct": 9,
+      "state": "discovered",
+      "threshold_metric": "codex_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 500
+        },
+        {
+          "name": "Silver",
+          "threshold": 1500
+        },
+        {
+          "name": "Gold",
+          "threshold": 4000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 10000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 25000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: distinct model names seen in session metadata. Tier ladder: Copper 10, Silver 20, Gold 40, Diamond 80, Olympian 160.",
+      "description": "Use a real spread of distinct model names across Hagent history.",
+      "discovered": true,
+      "icon": "prism",
+      "id": "multi_model_mage",
+      "kind": "lifetime",
+      "name": "Multi-Model Mage",
+      "next_threshold": 10,
+      "next_tier": "Copper",
+      "progress": 3,
+      "progress_pct": 30,
+      "state": "discovered",
+      "threshold_metric": "distinct_model_count",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 10
+        },
+        {
+          "name": "Silver",
+          "threshold": 20
+        },
+        {
+          "name": "Gold",
+          "threshold": 40
+        },
+        {
+          "name": "Diamond",
+          "threshold": 80
+        },
+        {
+          "name": "Olympian",
+          "threshold": 160
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: distinct model names seen in session metadata. Tier ladder: Copper 5, Silver 10, Gold 20, Diamond 40, Olympian 80.",
+      "description": "Try at least five distinct LLMs instead of marrying the first model that answers.",
+      "discovered": true,
+      "icon": "prism",
+      "id": "five_model_flight",
+      "kind": "lifetime",
+      "name": "Five-Model Flight",
+      "next_threshold": 5,
+      "next_tier": "Copper",
+      "progress": 3,
+      "progress_pct": 60,
+      "state": "discovered",
+      "threshold_metric": "distinct_model_count",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 5
+        },
+        {
+          "name": "Silver",
+          "threshold": 10
+        },
+        {
+          "name": "Gold",
+          "threshold": 20
+        },
+        {
+          "name": "Diamond",
+          "threshold": 40
+        },
+        {
+          "name": "Olympian",
+          "threshold": 80
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: distinct model providers inferred from session metadata. Tier ladder: Copper 2, Silver 3, Gold 5, Diamond 8, Olympian 12.",
+      "description": "Use models from multiple providers across Hagent history.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "swap",
+      "id": "provider_polyglot",
+      "kind": "lifetime",
+      "name": "Provider Polyglot",
+      "next_threshold": 3,
+      "next_tier": "Silver",
+      "progress": 2,
+      "progress_pct": 0,
+      "state": "unlocked",
+      "threshold_metric": "distinct_provider_count",
+      "tier": "Copper",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 2
+        },
+        {
+          "name": "Silver",
+          "threshold": 3
+        },
+        {
+          "name": "Gold",
+          "threshold": 5
+        },
+        {
+          "name": "Diamond",
+          "threshold": 8
+        },
+        {
+          "name": "Olympian",
+          "threshold": 12
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: model/provider-related activity. Tier ladder: Copper 250, Silver 750, Gold 2000, Diamond 6000, Olympian 15000.",
+      "description": "Taste enough model/provider conversations to develop preferences.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "wine",
+      "id": "model_sommelier",
+      "kind": "lifetime",
+      "name": "Model Sommelier",
+      "next_threshold": 6000,
+      "next_tier": "Diamond",
+      "progress": 3469,
+      "progress_pct": 36,
+      "state": "unlocked",
+      "threshold_metric": "model_events",
+      "tier": "Gold",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 250
+        },
+        {
+          "name": "Silver",
+          "threshold": 750
+        },
+        {
+          "name": "Gold",
+          "threshold": 2000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 6000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 15000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: Claude/Anthropic model mentions. Tier ladder: Copper 50, Silver 150, Gold 500, Diamond 1500, Olympian 4000.",
+      "description": "Bring Claude-flavored reasoning into the workflow repeatedly.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "quote",
+      "id": "claude_confidant",
+      "kind": "lifetime",
+      "name": "Claude Confidant",
+      "next_threshold": 500,
+      "next_tier": "Gold",
+      "progress": 325,
+      "progress_pct": 50,
+      "state": "unlocked",
+      "threshold_metric": "claude_events",
+      "tier": "Silver",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 50
+        },
+        {
+          "name": "Silver",
+          "threshold": 150
+        },
+        {
+          "name": "Gold",
+          "threshold": 500
+        },
+        {
+          "name": "Diamond",
+          "threshold": 1500
+        },
+        {
+          "name": "Olympian",
+          "threshold": 4000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: Gemini/Google model mentions. Tier ladder: Copper 50, Silver 150, Gold 500, Diamond 1500, Olympian 4000.",
+      "description": "Map enough Gemini-related workflows to know the terrain.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "compass",
+      "id": "gemini_cartographer",
+      "kind": "lifetime",
+      "name": "Gemini Cartographer",
+      "next_threshold": 150,
+      "next_tier": "Silver",
+      "progress": 127,
+      "progress_pct": 77,
+      "state": "unlocked",
+      "threshold_metric": "gemini_events",
+      "tier": "Copper",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 50
+        },
+        {
+          "name": "Silver",
+          "threshold": 150
+        },
+        {
+          "name": "Gold",
+          "threshold": 500
+        },
+        {
+          "name": "Diamond",
+          "threshold": 1500
+        },
+        {
+          "name": "Olympian",
+          "threshold": 4000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Model Lore",
+      "criteria": "Requirement: Hagent sessions whose model metadata is local/open-weight. Tier ladder: Copper 1, Silver 3, Gold 10, Diamond 30, Olympian 100.",
+      "description": "Actually chat with local/open-weight models through Hagent session metadata.",
+      "discovered": true,
+      "icon": "terminal",
+      "id": "open_weights_pilgrim",
+      "kind": "lifetime",
+      "name": "Open Weights Pilgrim",
+      "next_threshold": 1,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "local_model_chat_sessions",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 1
+        },
+        {
+          "name": "Silver",
+          "threshold": 3
+        },
+        {
+          "name": "Gold",
+          "threshold": 10
+        },
+        {
+          "name": "Diamond",
+          "threshold": 30
+        },
+        {
+          "name": "Olympian",
+          "threshold": 100
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: toolset or tool-family mentions. Tier ladder: Copper 20, Silver 60, Gold 200, Diamond 600, Olympian 1500.",
+      "description": "Navigate Hagent toolsets deliberately instead of treating tools as a blur.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "compass",
+      "id": "toolset_cartographer",
+      "kind": "lifetime",
+      "name": "Toolset Cartographer",
+      "next_threshold": 200,
+      "next_tier": "Gold",
+      "progress": 116,
+      "progress_pct": 40,
+      "state": "unlocked",
+      "threshold_metric": "toolset_events",
+      "tier": "Silver",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 20
+        },
+        {
+          "name": "Silver",
+          "threshold": 60
+        },
+        {
+          "name": "Gold",
+          "threshold": 200
+        },
+        {
+          "name": "Diamond",
+          "threshold": 600
+        },
+        {
+          "name": "Olympian",
+          "threshold": 1500
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Hagent Native",
+      "criteria": "Requirement: configuration/environment/manifest activity. Tier ladder: Copper 100, Silver 300, Gold 1000, Diamond 3000, Olympian 10000.",
+      "description": "Operate on real config files, manifests, env files, and dashboard settings without flinching.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "key",
+      "id": "config_surgeon",
+      "kind": "lifetime",
+      "name": "Config Surgeon",
+      "next_threshold": 1000,
+      "next_tier": "Gold",
+      "progress": 332,
+      "progress_pct": 4,
+      "state": "unlocked",
+      "threshold_metric": "config_events",
+      "tier": "Silver",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 100
+        },
+        {
+          "name": "Silver",
+          "threshold": 300
+        },
+        {
+          "name": "Gold",
+          "threshold": 1000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 3000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 10000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Vibe Coding",
+      "criteria": "Requirement: git history operations such as rebase, merge, fetch, push, or tag. Tier ladder: Copper 10, Silver 30, Gold 100, Diamond 300, Olympian 800.",
+      "description": "Handle real git history surgery: rebase, conflict, merge, fetch, push.",
+      "discovered": true,
+      "icon": "branch",
+      "id": "rebase_acrobat",
+      "kind": "lifetime",
+      "name": "Rebase Acrobat",
+      "next_threshold": 10,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "git_history_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 10
+        },
+        {
+          "name": "Silver",
+          "threshold": 30
+        },
+        {
+          "name": "Gold",
+          "threshold": 100
+        },
+        {
+          "name": "Diamond",
+          "threshold": 300
+        },
+        {
+          "name": "Olympian",
+          "threshold": 800
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Tool Mastery",
+      "criteria": "Requirement: test/check/verification command mentions. Tier ladder: Copper 100, Silver 300, Gold 800, Diamond 2400, Olympian 6000.",
+      "description": "Run enough verification commands that green text becomes part of the ritual.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "daemon",
+      "id": "test_suite_tamer",
+      "kind": "lifetime",
+      "name": "Test Suite Tamer",
+      "next_threshold": 800,
+      "next_tier": "Gold",
+      "progress": 606,
+      "progress_pct": 61,
+      "state": "unlocked",
+      "threshold_metric": "test_events",
+      "tier": "Silver",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 100
+        },
+        {
+          "name": "Silver",
+          "threshold": 300
+        },
+        {
+          "name": "Gold",
+          "threshold": 800
+        },
+        {
+          "name": "Diamond",
+          "threshold": 2400
+        },
+        {
+          "name": "Olympian",
+          "threshold": 6000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Tool Mastery",
+      "criteria": "Requirement: screenshot, Playwright, PNG, or vision-inspection activity. Tier ladder: Copper 50, Silver 150, Gold 500, Diamond 1500, Olympian 5000.",
+      "description": "Capture, inspect, and polish visual proof instead of just claiming it works.",
+      "discovered": true,
+      "evidence": null,
+      "icon": "eye",
+      "id": "screenshot_hunter",
+      "kind": "lifetime",
+      "name": "Screenshot Hunter",
+      "next_threshold": 500,
+      "next_tier": "Gold",
+      "progress": 263,
+      "progress_pct": 32,
+      "state": "unlocked",
+      "threshold_metric": "screenshot_events",
+      "tier": "Silver",
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 50
+        },
+        {
+          "name": "Silver",
+          "threshold": 150
+        },
+        {
+          "name": "Gold",
+          "threshold": 500
+        },
+        {
+          "name": "Diamond",
+          "threshold": 1500
+        },
+        {
+          "name": "Olympian",
+          "threshold": 5000
+        }
+      ],
+      "unlocked": true,
+      "unlocked_at": 1778730696
+    },
+    {
+      "category": "Lifestyle",
+      "criteria": "Requirement: Hagent sessions. Tier ladder: Copper 75, Silver 200, Gold 500, Diamond 1500, Olympian 5000.",
+      "description": "Accumulate a serious number of Hagent sessions.",
+      "discovered": true,
+      "icon": "marathon",
+      "id": "marathon_operator",
+      "kind": "lifetime",
+      "name": "Marathon Operator",
+      "next_threshold": 75,
+      "next_tier": "Copper",
+      "progress": 30,
+      "progress_pct": 40,
+      "state": "discovered",
+      "threshold_metric": "session_count",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 75
+        },
+        {
+          "name": "Silver",
+          "threshold": 200
+        },
+        {
+          "name": "Gold",
+          "threshold": 500
+        },
+        {
+          "name": "Diamond",
+          "threshold": 1500
+        },
+        {
+          "name": "Olympian",
+          "threshold": 5000
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Lifestyle",
+      "criteria": "Requirement: sessions started on weekends. Tier ladder: Copper 25, Silver 75, Gold 200, Diamond 600, Olympian 1500.",
+      "description": "Run Hagent on weekends enough times to make it a lifestyle.",
+      "discovered": true,
+      "icon": "calendar",
+      "id": "weekend_warrior",
+      "kind": "lifetime",
+      "name": "Weekend Warrior",
+      "next_threshold": 25,
+      "next_tier": "Copper",
+      "progress": 0,
+      "progress_pct": 0,
+      "state": "discovered",
+      "threshold_metric": "weekend_sessions",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 25
+        },
+        {
+          "name": "Silver",
+          "threshold": 75
+        },
+        {
+          "name": "Gold",
+          "threshold": 200
+        },
+        {
+          "name": "Diamond",
+          "threshold": 600
+        },
+        {
+          "name": "Olympian",
+          "threshold": 1500
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Lifestyle",
+      "criteria": "Requirement: sessions started late night or before dawn. Tier ladder: Copper 25, Silver 75, Gold 200, Diamond 600, Olympian 1500.",
+      "description": "Run sessions during gremlin hours repeatedly.",
+      "discovered": true,
+      "icon": "moon",
+      "id": "night_shift_operator",
+      "kind": "lifetime",
+      "name": "Night Shift Operator",
+      "next_threshold": 25,
+      "next_tier": "Copper",
+      "progress": 12,
+      "progress_pct": 48,
+      "state": "discovered",
+      "threshold_metric": "night_sessions",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 25
+        },
+        {
+          "name": "Silver",
+          "threshold": 75
+        },
+        {
+          "name": "Gold",
+          "threshold": 200
+        },
+        {
+          "name": "Diamond",
+          "threshold": 600
+        },
+        {
+          "name": "Olympian",
+          "threshold": 1500
+        }
+      ],
+      "unlocked": false
+    },
+    {
+      "category": "Lifestyle",
+      "criteria": "Requirement: prompt-cache/cache-hit mentions. Tier ladder: Copper 100, Silver 300, Gold 1000, Diamond 3000, Olympian 8000.",
+      "description": "Notice or benefit from prompt/cache behavior.",
+      "discovered": true,
+      "icon": "cache",
+      "id": "cache_hit_appreciator",
+      "kind": "lifetime",
+      "name": "Cache Hit Appreciator",
+      "next_threshold": 100,
+      "next_tier": "Copper",
+      "progress": 36,
+      "progress_pct": 36,
+      "secret": true,
+      "state": "discovered",
+      "threshold_metric": "cache_events",
+      "tier": null,
+      "tiers": [
+        {
+          "name": "Copper",
+          "threshold": 100
+        },
+        {
+          "name": "Silver",
+          "threshold": 300
+        },
+        {
+          "name": "Gold",
+          "threshold": 1000
+        },
+        {
+          "name": "Diamond",
+          "threshold": 3000
+        },
+        {
+          "name": "Olympian",
+          "threshold": 8000
+        }
+      ],
+      "unlocked": false
+    }
+  ],
+  "aggregate": {
+    "browser_calls": 56,
+    "cache_events": 36,
+    "claude_events": 325,
+    "codex_events": 48,
+    "config_events": 332,
+    "context_events": 1524,
+    "css_activity_events": 993,
+    "distinct_model_count": 3,
+    "distinct_provider_count": 2,
+    "docker_conflict_events": 3,
+    "docs_activity_events": 406,
+    "env_var_error_events": 580,
+    "frontend_activity_events": 1645,
+    "gateway_events": 1270,
+    "gemini_events": 127,
+    "git_events": 0,
+    "git_history_events": 0,
+    "image_vision_calls": 11,
+    "install_error_events": 14,
+    "install_success_events": 14,
+    "local_model_chat_sessions": 0,
+    "local_model_events": 69,
+    "log_read_events": 113,
+    "max_distinct_tools_in_session": 11,
+    "max_file_tool_calls_in_session": 145,
+    "max_files_touched_in_session": 95,
+    "max_messages_in_session": 397,
+    "max_terminal_calls_in_session": 58,
+    "max_tool_calls_in_session": 206,
+    "max_web_browser_calls_in_session": 10,
+    "max_web_calls_in_session": 0,
+    "memory_events": 9,
+    "memory_write_events": 9,
+    "model_events": 3469,
+    "night_sessions": 12,
+    "openrouter_events": 164,
+    "permission_denied_events": 4,
+    "plugin_events": 643,
+    "port_conflict_events": 4,
+    "release_events": 39,
+    "restart_after_error_events": 21,
+    "rollback_events": 28,
+    "screenshot_events": 263,
+    "session_count": 30,
+    "skill_events": 507,
+    "skill_manage_events": 0,
+    "test_events": 606,
+    "tiny_patch_after_errors_events": 1,
+    "toolset_events": 116,
+    "total_cron_calls": 0,
+    "total_delegate_calls": 0,
+    "total_errors": 578,
+    "total_file_reads_searches": 342,
+    "total_patch_calls": 193,
+    "total_process_calls": 28,
+    "total_terminal_calls": 427,
+    "total_tool_calls": 1413,
+    "total_web_calls": 0,
+    "total_web_extract_calls": 0,
+    "traceback_events": 149,
+    "tts_calls": 0,
+    "weekend_sessions": 0,
+    "yaml_error_events": 197
+  },
+  "discovered_count": 49,
+  "error": null,
+  "generated_at": 1778730843,
+  "scan_meta": {
+    "mode": "incremental",
+    "sessions_expected_total": 30,
+    "sessions_rescanned": 0,
+    "sessions_reused": 30,
+    "sessions_scanned_so_far": 30,
+    "sessions_total": 30
+  },
+  "secret_count": 0,
+  "sessions": [
+    {
+      "browser_calls": 1,
+      "cache_events": 1,
+      "claude_events": 51,
+      "codex_events": 17,
+      "config_events": 35,
+      "context_events": 132,
+      "cron_calls": 0,
+      "css_activity_events": 13,
+      "delegate_calls": 0,
+      "distinct_tool_count": 9,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 32,
+      "env_var_error_events": 57,
+      "error_count": 58,
+      "file_reads_searches": 73,
+      "file_tool_calls": 145,
+      "files_touched_count": 5,
+      "frontend_activity_events": 230,
+      "gateway_events": 53,
+      "gemini_events": 48,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778730678.360954,
+      "local_model_events": 31,
+      "log_read_events": 0,
+      "memory_events": 5,
+      "memory_write_events": 5,
+      "message_count": 397,
+      "model_events": 796,
+      "model_names": [
+        "cx/gpt-5.4"
+      ],
+      "openrouter_events": 11,
+      "patch_calls": 39,
+      "permission_denied_events": 0,
+      "plugin_events": 14,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 8,
+      "release_events": 4,
+      "restart_after_error_events": 1,
+      "rollback_events": 5,
+      "screenshot_events": 5,
+      "session_id": "20260514_102828_036169",
+      "skill_events": 38,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778729308.6357892,
+      "terminal_calls": 38,
+      "test_events": 66,
+      "tiny_patch_after_errors_events": 1,
+      "title": "Vietnamese Greeting Exchange #4",
+      "tool_call_count": 206,
+      "tool_names": [
+        "browser_navigate",
+        "memory",
+        "patch",
+        "process",
+        "read_file",
+        "search_files",
+        "terminal",
+        "todo",
+        "write_file"
+      ],
+      "toolset_events": 28,
+      "traceback_events": 23,
+      "tts_calls": 0,
+      "web_browser_calls": 1,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 24
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 2,
+      "claude_events": 11,
+      "codex_events": 7,
+      "config_events": 18,
+      "context_events": 118,
+      "cron_calls": 0,
+      "css_activity_events": 91,
+      "delegate_calls": 0,
+      "distinct_tool_count": 8,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 152,
+      "env_var_error_events": 51,
+      "error_count": 37,
+      "file_reads_searches": 65,
+      "file_tool_calls": 133,
+      "files_touched_count": 43,
+      "frontend_activity_events": 283,
+      "gateway_events": 132,
+      "gemini_events": 2,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778728292.433271,
+      "local_model_events": 4,
+      "log_read_events": 12,
+      "memory_events": 3,
+      "memory_write_events": 3,
+      "message_count": 323,
+      "model_events": 210,
+      "model_names": [
+        "cx/gpt-5.4"
+      ],
+      "openrouter_events": 4,
+      "patch_calls": 42,
+      "permission_denied_events": 0,
+      "plugin_events": 21,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 2,
+      "release_events": 5,
+      "restart_after_error_events": 1,
+      "rollback_events": 2,
+      "screenshot_events": 22,
+      "session_id": "20260514_094232_065f7e",
+      "skill_events": 142,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778726552.0686378,
+      "terminal_calls": 16,
+      "test_events": 66,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Vietnamese Greeting Exchange #3",
+      "tool_call_count": 165,
+      "tool_names": [
+        "memory",
+        "patch",
+        "process",
+        "read_file",
+        "search_files",
+        "terminal",
+        "todo",
+        "write_file"
+      ],
+      "toolset_events": 26,
+      "traceback_events": 11,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 10
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 36,
+      "codex_events": 2,
+      "config_events": 13,
+      "context_events": 252,
+      "cron_calls": 0,
+      "css_activity_events": 258,
+      "delegate_calls": 0,
+      "distinct_tool_count": 6,
+      "docker_conflict_events": 1,
+      "docs_activity_events": 17,
+      "env_var_error_events": 41,
+      "error_count": 29,
+      "file_reads_searches": 28,
+      "file_tool_calls": 48,
+      "files_touched_count": 57,
+      "frontend_activity_events": 686,
+      "gateway_events": 157,
+      "gemini_events": 22,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778726382.974747,
+      "local_model_events": 9,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 105,
+      "model_events": 379,
+      "model_names": [
+        "cx/gpt-5.4"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 19,
+      "permission_denied_events": 0,
+      "plugin_events": 1,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 8,
+      "session_id": "20260514_093154_09f2d9",
+      "skill_events": 49,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778725914.4038458,
+      "terminal_calls": 1,
+      "test_events": 45,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Vietnamese Greeting Exchange #2",
+      "tool_call_count": 52,
+      "tool_names": [
+        "patch",
+        "read_file",
+        "search_files",
+        "terminal",
+        "todo",
+        "write_file"
+      ],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 1
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 35,
+      "codex_events": 2,
+      "config_events": 54,
+      "context_events": 125,
+      "cron_calls": 0,
+      "css_activity_events": 232,
+      "delegate_calls": 0,
+      "distinct_tool_count": 6,
+      "docker_conflict_events": 1,
+      "docs_activity_events": 18,
+      "env_var_error_events": 50,
+      "error_count": 20,
+      "file_reads_searches": 49,
+      "file_tool_calls": 66,
+      "files_touched_count": 95,
+      "frontend_activity_events": 168,
+      "gateway_events": 125,
+      "gemini_events": 6,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778725770.492772,
+      "local_model_events": 12,
+      "log_read_events": 1,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 128,
+      "model_events": 223,
+      "model_names": [
+        "cx/gpt-5.4"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 13,
+      "permission_denied_events": 0,
+      "plugin_events": 14,
+      "port_conflict": true,
+      "port_conflict_events": 1,
+      "process_calls": 0,
+      "release_events": 12,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 1,
+      "session_id": "20260514_091402_0d0ac207",
+      "skill_events": 68,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778724842.621881,
+      "terminal_calls": 2,
+      "test_events": 34,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Vietnamese Greeting Exchange",
+      "tool_call_count": 72,
+      "tool_names": [
+        "patch",
+        "read_file",
+        "search_files",
+        "terminal",
+        "todo",
+        "write_file"
+      ],
+      "toolset_events": 2,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 1
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 29,
+      "codex_events": 0,
+      "config_events": 19,
+      "context_events": 111,
+      "cron_calls": 0,
+      "css_activity_events": 189,
+      "delegate_calls": 0,
+      "distinct_tool_count": 6,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 58,
+      "env_var_error_events": 24,
+      "error_count": 22,
+      "file_reads_searches": 21,
+      "file_tool_calls": 22,
+      "files_touched_count": 73,
+      "frontend_activity_events": 68,
+      "gateway_events": 57,
+      "gemini_events": 4,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778662520.29916,
+      "local_model_events": 3,
+      "log_read_events": 11,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 84,
+      "model_events": 98,
+      "model_names": [
+        "cx/gpt-5.5"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 12,
+      "port_conflict": true,
+      "port_conflict_events": 1,
+      "process_calls": 4,
+      "release_events": 7,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 1,
+      "session_id": "20260513_100825_f1585f0e",
+      "skill_events": 14,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778641705.231586,
+      "terminal_calls": 11,
+      "test_events": 11,
+      "tiny_patch_after_errors_events": 0,
+      "title": "General Assistance Greeting",
+      "tool_call_count": 40,
+      "tool_names": [
+        "process",
+        "read_file",
+        "search_files",
+        "terminal",
+        "todo",
+        "write_file"
+      ],
+      "toolset_events": 2,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 3
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778609258.873077,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 0,
+      "model_events": 0,
+      "model_names": [],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260513_010738_82b2f2ff",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778609258.873077,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Untitled",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778521502.480066,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 0,
+      "model_events": 0,
+      "model_names": [],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260512_004502_df2ef3d2",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778521502.480066,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Untitled",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778521137.15402,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 0,
+      "model_events": 0,
+      "model_names": [],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260512_003857_b48705e6",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778521137.15402,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Untitled",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 2,
+      "claude_events": 15,
+      "codex_events": 8,
+      "config_events": 26,
+      "context_events": 24,
+      "cron_calls": 0,
+      "css_activity_events": 4,
+      "delegate_calls": 0,
+      "distinct_tool_count": 4,
+      "docker_conflict_events": 1,
+      "docs_activity_events": 39,
+      "env_var_error_events": 60,
+      "error_count": 3,
+      "file_reads_searches": 0,
+      "file_tool_calls": 1,
+      "files_touched_count": 6,
+      "frontend_activity_events": 7,
+      "gateway_events": 98,
+      "gemini_events": 3,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778521061.9335082,
+      "local_model_events": 4,
+      "log_read_events": 11,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 14,
+      "model_events": 242,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 19,
+      "patch_calls": 1,
+      "permission_denied_events": 0,
+      "plugin_events": 6,
+      "port_conflict": true,
+      "port_conflict_events": 1,
+      "process_calls": 2,
+      "release_events": 4,
+      "restart_after_error_events": 1,
+      "rollback_events": 8,
+      "screenshot_events": 0,
+      "session_id": "20260512_003501_7aa17b40",
+      "skill_events": 70,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778520901.832927,
+      "terminal_calls": 2,
+      "test_events": 22,
+      "tiny_patch_after_errors_events": 0,
+      "title": "d\u00f9ng m\u00f4 h\u00ecnh 72b l\u00e0m m\u1eb7c \u0111\u1ecbnh",
+      "tool_call_count": 5,
+      "tool_names": [
+        "execute_code",
+        "patch",
+        "skill_view",
+        "terminal"
+      ],
+      "toolset_events": 24,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 23
+    },
+    {
+      "browser_calls": 5,
+      "cache_events": 13,
+      "claude_events": 34,
+      "codex_events": 0,
+      "config_events": 34,
+      "context_events": 226,
+      "cron_calls": 0,
+      "css_activity_events": 3,
+      "delegate_calls": 0,
+      "distinct_tool_count": 7,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 2,
+      "env_var_error_events": 5,
+      "error_count": 20,
+      "file_reads_searches": 9,
+      "file_tool_calls": 33,
+      "files_touched_count": 0,
+      "frontend_activity_events": 8,
+      "gateway_events": 6,
+      "gemini_events": 18,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778520901.8671758,
+      "local_model_events": 1,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 157,
+      "model_events": 558,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 53,
+      "patch_calls": 10,
+      "permission_denied_events": 0,
+      "plugin_events": 3,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 3,
+      "release_events": 1,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 1,
+      "session_id": "20260512_002629_66c62a",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778520389.6198559,
+      "terminal_calls": 26,
+      "test_events": 9,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 67,
+      "tool_names": [
+        "browser_navigate",
+        "patch",
+        "process",
+        "read_file",
+        "search_files",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 2,
+      "traceback_events": 1,
+      "tts_calls": 0,
+      "web_browser_calls": 5,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 31
+    },
+    {
+      "browser_calls": 10,
+      "cache_events": 13,
+      "claude_events": 53,
+      "codex_events": 2,
+      "config_events": 30,
+      "context_events": 209,
+      "cron_calls": 0,
+      "css_activity_events": 7,
+      "delegate_calls": 0,
+      "distinct_tool_count": 9,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 4,
+      "env_var_error_events": 16,
+      "error_count": 44,
+      "file_reads_searches": 7,
+      "file_tool_calls": 40,
+      "files_touched_count": 1,
+      "frontend_activity_events": 25,
+      "gateway_events": 24,
+      "gemini_events": 20,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 1,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778520387.100254,
+      "local_model_events": 2,
+      "log_read_events": 4,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 220,
+      "model_events": 572,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 50,
+      "patch_calls": 11,
+      "permission_denied_events": 0,
+      "plugin_events": 27,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 4,
+      "release_events": 1,
+      "restart_after_error_events": 1,
+      "rollback_events": 3,
+      "screenshot_events": 7,
+      "session_id": "20260512_002132_7ef686",
+      "skill_events": 9,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778520092.163931,
+      "terminal_calls": 45,
+      "test_events": 21,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 98,
+      "tool_names": [
+        "browser_navigate",
+        "browser_snapshot",
+        "browser_vision",
+        "patch",
+        "process",
+        "read_file",
+        "search_files",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 4,
+      "traceback_events": 1,
+      "tts_calls": 0,
+      "web_browser_calls": 10,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 19
+    },
+    {
+      "browser_calls": 10,
+      "cache_events": 0,
+      "claude_events": 38,
+      "codex_events": 2,
+      "config_events": 26,
+      "context_events": 25,
+      "cron_calls": 0,
+      "css_activity_events": 6,
+      "delegate_calls": 0,
+      "distinct_tool_count": 9,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 6,
+      "env_var_error_events": 12,
+      "error_count": 59,
+      "file_reads_searches": 10,
+      "file_tool_calls": 50,
+      "files_touched_count": 11,
+      "frontend_activity_events": 31,
+      "gateway_events": 27,
+      "gemini_events": 2,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 2,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778520038.968948,
+      "local_model_events": 2,
+      "log_read_events": 4,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 261,
+      "model_events": 154,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 18,
+      "patch_calls": 14,
+      "permission_denied_events": 0,
+      "plugin_events": 44,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 3,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 1,
+      "screenshot_events": 22,
+      "session_id": "20260511_235904_30643d",
+      "skill_events": 5,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778518744.427043,
+      "terminal_calls": 58,
+      "test_events": 35,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 120,
+      "tool_names": [
+        "browser_navigate",
+        "browser_snapshot",
+        "browser_vision",
+        "patch",
+        "process",
+        "read_file",
+        "search_files",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 3,
+      "traceback_events": 4,
+      "tts_calls": 0,
+      "web_browser_calls": 10,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 10
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778518553.934352,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 0,
+      "model_events": 0,
+      "model_names": [],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260511_235553_e041f080",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778518553.934352,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Untitled",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 6,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 3,
+      "context_events": 7,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 8,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 3,
+      "error_count": 45,
+      "file_reads_searches": 6,
+      "file_tool_calls": 32,
+      "files_touched_count": 10,
+      "frontend_activity_events": 0,
+      "gateway_events": 4,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 2,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778518537.295073,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 182,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 9,
+      "permission_denied_events": 0,
+      "plugin_events": 36,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 21,
+      "session_id": "20260511_235259_d8badd",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778518379.606936,
+      "terminal_calls": 46,
+      "test_events": 29,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 84,
+      "tool_names": [
+        "browser_navigate",
+        "browser_snapshot",
+        "browser_vision",
+        "patch",
+        "read_file",
+        "search_files",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 0,
+      "traceback_events": 4,
+      "tts_calls": 0,
+      "web_browser_calls": 6,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 8,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 2,
+      "context_events": 8,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 8,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 4,
+      "error_count": 54,
+      "file_reads_searches": 8,
+      "file_tool_calls": 47,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 3,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 2,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778517474.1051662,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 228,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 12,
+      "permission_denied_events": 0,
+      "plugin_events": 69,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 25,
+      "session_id": "20260511_232842_8e0cc9",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778516922.7303302,
+      "terminal_calls": 52,
+      "test_events": 40,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 107,
+      "tool_names": [
+        "browser_navigate",
+        "browser_snapshot",
+        "browser_vision",
+        "patch",
+        "read_file",
+        "search_files",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 0,
+      "traceback_events": 5,
+      "tts_calls": 0,
+      "web_browser_calls": 8,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 3,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 2,
+      "context_events": 8,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 8,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 1,
+      "env_var_error_events": 4,
+      "error_count": 41,
+      "file_reads_searches": 7,
+      "file_tool_calls": 46,
+      "files_touched_count": 1,
+      "frontend_activity_events": 0,
+      "gateway_events": 24,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 1,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778516890.389338,
+      "local_model_events": 0,
+      "log_read_events": 1,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 200,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 11,
+      "permission_denied_events": 0,
+      "plugin_events": 66,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 6,
+      "session_id": "20260511_232124_3755cc",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778516484.3722188,
+      "terminal_calls": 42,
+      "test_events": 32,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 92,
+      "tool_names": [
+        "browser_navigate",
+        "browser_vision",
+        "execute_code",
+        "patch",
+        "read_file",
+        "search_files",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 0,
+      "traceback_events": 1,
+      "tts_calls": 0,
+      "web_browser_calls": 3,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778515442.2910771,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 0,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260511_230402_918c19",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778515442.2910771,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Untitled",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 4,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 1,
+      "context_events": 5,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 7,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 2,
+      "env_var_error_events": 3,
+      "error_count": 16,
+      "file_reads_searches": 2,
+      "file_tool_calls": 24,
+      "files_touched_count": 2,
+      "frontend_activity_events": 1,
+      "gateway_events": 39,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 1,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778515396.001653,
+      "local_model_events": 0,
+      "log_read_events": 1,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 122,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 3,
+      "permission_denied_events": 0,
+      "plugin_events": 39,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 1,
+      "session_id": "20260511_225529_1868f0",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778514929.042306,
+      "terminal_calls": 20,
+      "test_events": 18,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 51,
+      "tool_names": [
+        "browser_navigate",
+        "browser_vision",
+        "execute_code",
+        "patch",
+        "read_file",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 0,
+      "traceback_events": 1,
+      "tts_calls": 0,
+      "web_browser_calls": 4,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 2,
+      "cache_events": 1,
+      "claude_events": 1,
+      "codex_events": 1,
+      "config_events": 12,
+      "context_events": 8,
+      "cron_calls": 0,
+      "css_activity_events": 3,
+      "delegate_calls": 0,
+      "distinct_tool_count": 8,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 4,
+      "env_var_error_events": 7,
+      "error_count": 23,
+      "file_reads_searches": 4,
+      "file_tool_calls": 26,
+      "files_touched_count": 6,
+      "frontend_activity_events": 4,
+      "gateway_events": 72,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 1,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778514904.652899,
+      "local_model_events": 0,
+      "log_read_events": 11,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 130,
+      "model_events": 17,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 1,
+      "patch_calls": 3,
+      "permission_denied_events": 0,
+      "plugin_events": 62,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 1,
+      "restart_after_error_events": 1,
+      "rollback_events": 1,
+      "screenshot_events": 5,
+      "session_id": "20260511_223133_0ca442",
+      "skill_events": 9,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778513493.86725,
+      "terminal_calls": 20,
+      "test_events": 18,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 52,
+      "tool_names": [
+        "browser_navigate",
+        "browser_vision",
+        "execute_code",
+        "patch",
+        "read_file",
+        "skill_view",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 4,
+      "traceback_events": 7,
+      "tts_calls": 0,
+      "web_browser_calls": 2,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 4
+    },
+    {
+      "browser_calls": 1,
+      "cache_events": 1,
+      "claude_events": 1,
+      "codex_events": 1,
+      "config_events": 14,
+      "context_events": 17,
+      "cron_calls": 0,
+      "css_activity_events": 2,
+      "delegate_calls": 0,
+      "distinct_tool_count": 7,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 8,
+      "env_var_error_events": 49,
+      "error_count": 20,
+      "file_reads_searches": 3,
+      "file_tool_calls": 18,
+      "files_touched_count": 11,
+      "frontend_activity_events": 6,
+      "gateway_events": 76,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 1,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778513377.494244,
+      "local_model_events": 0,
+      "log_read_events": 10,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 84,
+      "model_events": 20,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 1,
+      "patch_calls": 3,
+      "permission_denied_events": 0,
+      "plugin_events": 67,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 1,
+      "restart_after_error_events": 1,
+      "rollback_events": 1,
+      "screenshot_events": 26,
+      "session_id": "20260511_183145_e9cbd1",
+      "skill_events": 11,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778499105.425487,
+      "terminal_calls": 11,
+      "test_events": 32,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 33,
+      "tool_names": [
+        "browser_vision",
+        "execute_code",
+        "patch",
+        "read_file",
+        "skill_view",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 4,
+      "traceback_events": 25,
+      "tts_calls": 0,
+      "web_browser_calls": 1,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 10
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778499089.4175591,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 0,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260511_183129_3513b2",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778499089.4175591,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Untitled",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778499060.3105621,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 0,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260511_183100_27c112",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778499060.3105621,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Untitled",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 8,
+      "context_events": 22,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 4,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 9,
+      "env_var_error_events": 12,
+      "error_count": 10,
+      "file_reads_searches": 18,
+      "file_tool_calls": 29,
+      "files_touched_count": 14,
+      "frontend_activity_events": 4,
+      "gateway_events": 15,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778498995.2040892,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 76,
+      "model_events": 20,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 35,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 19,
+      "session_id": "20260511_181618_70a5f3",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778498178.729522,
+      "terminal_calls": 4,
+      "test_events": 23,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 33,
+      "tool_names": [
+        "read_file",
+        "search_files",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 0,
+      "traceback_events": 31,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 4
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 110,
+      "cron_calls": 0,
+      "css_activity_events": 170,
+      "delegate_calls": 0,
+      "distinct_tool_count": 1,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 40,
+      "error_count": 3,
+      "file_reads_searches": 4,
+      "file_tool_calls": 4,
+      "files_touched_count": 0,
+      "frontend_activity_events": 12,
+      "gateway_events": 1,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778497983.195172,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 17,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 7,
+      "session_id": "20260511_181110_b1d8c4",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778497870.858639,
+      "terminal_calls": 0,
+      "test_events": 29,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 4,
+      "tool_names": [
+        "read_file"
+      ],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 1
+    },
+    {
+      "browser_calls": 3,
+      "cache_events": 1,
+      "claude_events": 4,
+      "codex_events": 1,
+      "config_events": 6,
+      "context_events": 8,
+      "cron_calls": 0,
+      "css_activity_events": 5,
+      "delegate_calls": 0,
+      "distinct_tool_count": 7,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 11,
+      "env_var_error_events": 9,
+      "error_count": 19,
+      "file_reads_searches": 9,
+      "file_tool_calls": 9,
+      "files_touched_count": 1,
+      "frontend_activity_events": 90,
+      "gateway_events": 88,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778497720.9531898,
+      "local_model_events": 0,
+      "log_read_events": 19,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 79,
+      "model_events": 27,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 1,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 25,
+      "port_conflict": true,
+      "port_conflict_events": 1,
+      "process_calls": 1,
+      "release_events": 1,
+      "restart_after_error_events": 1,
+      "rollback_events": 3,
+      "screenshot_events": 48,
+      "session_id": "20260511_175215_bd0ac4",
+      "skill_events": 11,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778496735.668267,
+      "terminal_calls": 9,
+      "test_events": 49,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 30,
+      "tool_names": [
+        "browser_navigate",
+        "browser_snapshot",
+        "execute_code",
+        "read_file",
+        "search_files",
+        "send_message",
+        "terminal"
+      ],
+      "toolset_events": 5,
+      "traceback_events": 15,
+      "tts_calls": 0,
+      "web_browser_calls": 3,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 8
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778495861.809352,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 0,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260511_173741_02e62a",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778495861.809352,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Untitled",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    },
+    {
+      "browser_calls": 3,
+      "cache_events": 1,
+      "claude_events": 3,
+      "codex_events": 3,
+      "config_events": 15,
+      "context_events": 23,
+      "cron_calls": 0,
+      "css_activity_events": 2,
+      "delegate_calls": 0,
+      "distinct_tool_count": 11,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 8,
+      "env_var_error_events": 18,
+      "error_count": 20,
+      "file_reads_searches": 5,
+      "file_tool_calls": 21,
+      "files_touched_count": 7,
+      "frontend_activity_events": 5,
+      "gateway_events": 123,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778496655.179142,
+      "local_model_events": 1,
+      "log_read_events": 15,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 117,
+      "model_events": 96,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 5,
+      "patch_calls": 2,
+      "permission_denied_events": 2,
+      "plugin_events": 55,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 1,
+      "release_events": 1,
+      "restart_after_error_events": 1,
+      "rollback_events": 2,
+      "screenshot_events": 11,
+      "session_id": "20260511_170739_ea54c5",
+      "skill_events": 19,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778494059.201385,
+      "terminal_calls": 11,
+      "test_events": 20,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 43,
+      "tool_names": [
+        "browser_console",
+        "browser_navigate",
+        "execute_code",
+        "patch",
+        "read_file",
+        "search_files",
+        "send_message",
+        "session_search",
+        "skill_view",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 7,
+      "traceback_events": 2,
+      "tts_calls": 0,
+      "web_browser_calls": 3,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 36
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 1,
+      "claude_events": 14,
+      "codex_events": 2,
+      "config_events": 13,
+      "context_events": 86,
+      "cron_calls": 0,
+      "css_activity_events": 8,
+      "delegate_calls": 0,
+      "distinct_tool_count": 8,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 35,
+      "env_var_error_events": 115,
+      "error_count": 34,
+      "file_reads_searches": 14,
+      "file_tool_calls": 19,
+      "files_touched_count": 7,
+      "frontend_activity_events": 17,
+      "gateway_events": 143,
+      "gemini_events": 2,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 1,
+      "install_success_events": 1,
+      "last_active": 1778493815.558033,
+      "local_model_events": 0,
+      "log_read_events": 13,
+      "memory_events": 1,
+      "memory_write_events": 1,
+      "message_count": 152,
+      "model_events": 52,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 1,
+      "patch_calls": 1,
+      "permission_denied_events": 2,
+      "plugin_events": 43,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 1,
+      "restart_after_error_events": 1,
+      "rollback_events": 2,
+      "screenshot_events": 27,
+      "session_id": "20260511_162518_b35c9237",
+      "skill_events": 61,
+      "skill_manage_events": 0,
+      "source": "telegram",
+      "started_at": 1778491518.235009,
+      "terminal_calls": 13,
+      "test_events": 7,
+      "tiny_patch_after_errors_events": 0,
+      "title": "ch\u00e0o",
+      "tool_call_count": 59,
+      "tool_names": [
+        "execute_code",
+        "memory",
+        "patch",
+        "read_file",
+        "search_files",
+        "skill_view",
+        "terminal",
+        "write_file"
+      ],
+      "toolset_events": 5,
+      "traceback_events": 18,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 11
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 1,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 1,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 1,
+      "frontend_activity_events": 0,
+      "gateway_events": 3,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778491131.38689,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 2,
+      "model_events": 5,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 4,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 1,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260511_161822_877eda",
+      "skill_events": 1,
+      "skill_manage_events": 0,
+      "source": "cli",
+      "started_at": 1778491102.106533,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "H\u00e3y gi\u1edbi thi\u1ec7u b\u1ea3n th\u00e2n v\u00e0 c\u00e1c t\u00ednh n\u0103ng ch\u00ednh c\u1ee7a Hagent Ag...",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 1
+    },
+    {
+      "browser_calls": 0,
+      "cache_events": 0,
+      "claude_events": 0,
+      "codex_events": 0,
+      "config_events": 0,
+      "context_events": 0,
+      "cron_calls": 0,
+      "css_activity_events": 0,
+      "delegate_calls": 0,
+      "distinct_tool_count": 0,
+      "docker_conflict_events": 0,
+      "docs_activity_events": 0,
+      "env_var_error_events": 0,
+      "error_count": 0,
+      "file_reads_searches": 0,
+      "file_tool_calls": 0,
+      "files_touched_count": 0,
+      "frontend_activity_events": 0,
+      "gateway_events": 0,
+      "gemini_events": 0,
+      "git_events": 0,
+      "git_history_events": 0,
+      "image_vision_calls": 0,
+      "install_error_events": 0,
+      "install_success_events": 0,
+      "last_active": 1778490978.873079,
+      "local_model_events": 0,
+      "log_read_events": 0,
+      "memory_events": 0,
+      "memory_write_events": 0,
+      "message_count": 2,
+      "model_events": 0,
+      "model_names": [
+        "qwen/qwen3.5-9b"
+      ],
+      "openrouter_events": 0,
+      "patch_calls": 0,
+      "permission_denied_events": 0,
+      "plugin_events": 0,
+      "port_conflict": false,
+      "port_conflict_events": 0,
+      "process_calls": 0,
+      "release_events": 0,
+      "restart_after_error_events": 0,
+      "rollback_events": 0,
+      "screenshot_events": 0,
+      "session_id": "20260511_161606_d71ae0",
+      "skill_events": 0,
+      "skill_manage_events": 0,
+      "source": "cli",
+      "started_at": 1778490966.235623,
+      "terminal_calls": 0,
+      "test_events": 0,
+      "tiny_patch_after_errors_events": 0,
+      "title": "Xin ch\u00e0o! B\u1ea1n l\u00e0 ai?",
+      "tool_call_count": 0,
+      "tool_names": [],
+      "toolset_events": 0,
+      "traceback_events": 0,
+      "tts_calls": 0,
+      "web_browser_calls": 0,
+      "web_calls": 0,
+      "web_extract_calls": 0,
+      "yaml_error_events": 0
+    }
+  ],
+  "total_count": 60,
+  "unlocked_count": 11
+}

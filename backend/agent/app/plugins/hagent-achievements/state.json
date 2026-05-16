@@ -1,0 +1,67 @@
+{
+  "unlocks": {
+    "autonomous_avalanche": {
+      "evidence": null,
+      "first_tier": "Copper",
+      "unlocked_at": 1778730696
+    },
+    "claude_confidant": {
+      "evidence": null,
+      "first_tier": "Silver",
+      "unlocked_at": 1778730696
+    },
+    "config_surgeon": {
+      "evidence": null,
+      "first_tier": "Silver",
+      "unlocked_at": 1778730696
+    },
+    "gemini_cartographer": {
+      "evidence": null,
+      "first_tier": "Copper",
+      "unlocked_at": 1778730696
+    },
+    "let_him_cook": {
+      "evidence": {
+        "session_id": "20260514_102828_036169",
+        "title": "Vietnamese Greeting Exchange #4",
+        "value": 206
+      },
+      "first_tier": "Copper",
+      "unlocked_at": 1778730696
+    },
+    "model_sommelier": {
+      "evidence": null,
+      "first_tier": "Gold",
+      "unlocked_at": 1778730696
+    },
+    "provider_polyglot": {
+      "evidence": null,
+      "first_tier": "Copper",
+      "unlocked_at": 1778730696
+    },
+    "screenshot_hunter": {
+      "evidence": null,
+      "first_tier": "Silver",
+      "unlocked_at": 1778730696
+    },
+    "supposed_to_be_quick": {
+      "evidence": {
+        "session_id": "20260514_102828_036169",
+        "title": "Vietnamese Greeting Exchange #4",
+        "value": 397
+      },
+      "first_tier": "Copper",
+      "unlocked_at": 1778730696
+    },
+    "test_suite_tamer": {
+      "evidence": null,
+      "first_tier": "Silver",
+      "unlocked_at": 1778730696
+    },
+    "toolset_cartographer": {
+      "evidence": null,
+      "first_tier": "Silver",
+      "unlocked_at": 1778730696
+    }
+  }
+}

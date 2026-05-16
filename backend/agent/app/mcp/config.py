@@ -15,7 +15,6 @@ import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from hagent_cli.config import (
     cfg_get,
     load_config,
     save_config,
@@ -23,7 +22,6 @@ from hagent_cli.config import (
     save_env_value,
     get_hagent_home,  # noqa: F401 — used by test mocks
 )
-from hagent_cli.colors import Colors, color
 from hagent_constants import display_hagent_home
 
 logger = logging.getLogger(__name__)

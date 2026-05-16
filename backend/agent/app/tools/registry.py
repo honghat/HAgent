@@ -27,7 +27,25 @@ logger = logging.getLogger(__name__)
 
 
 def _is_registry_register_call(node: ast.AST) -> bool:
-    """Return True when *node* is a ``registry.register(...)`` call expression."""
+    """Return True when *node* is a ``registry.register(...)`` call expression or decorator."""
+    # Check for decorator usage: @registry.register(...)
+    if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
+        for dec in node.decorator_list:
+            # Handle @registry.register(...)
+            if isinstance(dec, ast.Call):
+                func = dec.func
+                if (isinstance(func, ast.Attribute)
+                    and func.attr == "register"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id == "registry"):
+                    return True
+            # Handle @registry.register (unlikely but possible)
+            elif isinstance(dec, ast.Attribute):
+                if (dec.attr == "register"
+                    and isinstance(dec.value, ast.Name)
+                    and dec.value.id == "registry"):
+                    return True
+
     if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
         return False
     func = node.value.func
@@ -69,6 +87,7 @@ def discover_builtin_tools(tools_dir: Optional[Path] = None) -> List[str]:
         try:
             importlib.import_module(mod_name)
             imported.append(mod_name)
+            logger.info("Imported tool module %s", mod_name)
         except Exception as e:
             logger.warning("Could not import tool module %s: %s", mod_name, e)
     return imported
@@ -234,9 +253,9 @@ class ToolRegistry:
     def register(
         self,
         name: str,
-        toolset: str,
-        schema: dict,
-        handler: Callable,
+        toolset: str = None,
+        schema: dict = None,
+        handler: Callable = None,
         check_fn: Callable = None,
         requires_env: list = None,
         is_async: bool = False,
@@ -244,8 +263,72 @@ class ToolRegistry:
         emoji: str = "",
         max_result_size_chars: int | float | None = None,
         dynamic_schema_overrides: Callable = None,
+        **kwargs,
     ):
-        """Register a tool.  Called at module-import time by each tool file."""
+        """Register a tool.  Can be called directly or used as a decorator.
+
+        Direct call:
+            registry.register("my_tool", "my_toolset", {...}, my_handler)
+
+        Decorator usage:
+            @registry.register(name="my_tool", toolset="my_toolset", parameters={...})
+            def my_handler(args): ...
+        """
+        if handler is None:
+            # Decorator mode: return a function that takes the handler.
+            def decorator(fn: Callable) -> Callable:
+                import asyncio
+                # Use provided values or infer from kwargs/function
+                _toolset = toolset or kwargs.get("toolset") or "default"
+                _schema = schema or kwargs.get("schema")
+                if not _schema:
+                    # Build schema from components if missing
+                    _schema = {
+                        "name": name,
+                        "description": description or kwargs.get("description", fn.__doc__ or ""),
+                        "parameters": kwargs.get("parameters", {"type": "object", "properties": {}}),
+                    }
+                _is_async = is_async or asyncio.iscoroutinefunction(fn)
+
+                # Wrap function to expand 'args' dict into keyword arguments
+                # if it doesn't look like it takes a single 'args' dict.
+                import inspect
+                sig = inspect.signature(fn)
+                params = list(sig.parameters.values())
+                
+                # Heuristic: if it takes 'args' as first argument, it's a standard handler.
+                is_standard = len(params) >= 1 and params[0].name == "args"
+                
+                actual_handler = fn
+                if not is_standard:
+                    if _is_async:
+                        async def wrapper(args: dict, **inner_kwargs):
+                            filtered = {k: v for k, v in args.items() if k in sig.parameters}
+                            return await fn(**filtered)
+                    else:
+                        def wrapper(args: dict, **inner_kwargs):
+                            filtered = {k: v for k, v in args.items() if k in sig.parameters}
+                            return fn(**filtered)
+                    actual_handler = wrapper
+                
+                self.register(
+                    name=name,
+                    toolset=_toolset,
+                    schema=_schema,
+                    handler=actual_handler,
+                    check_fn=check_fn,
+                    requires_env=requires_env,
+                    is_async=_is_async,
+                    description=description or _schema.get("description", fn.__doc__ or ""),
+                    emoji=emoji,
+                    max_result_size_chars=max_result_size_chars,
+                    dynamic_schema_overrides=dynamic_schema_overrides,
+                    **kwargs
+                )
+                return fn
+            return decorator
+
+        # Direct registration mode
         with self._lock:
             existing = self._tools.get(name)
             if existing and existing.toolset != toolset:
@@ -343,7 +426,7 @@ class ToolRegistry:
                     check_results[entry.check_fn] = _check_fn_cached(entry.check_fn)
                 if not check_results[entry.check_fn]:
                     if not quiet:
-                        logger.debug("Tool %s unavailable (check failed)", name)
+                        logger.warning("Tool %s unavailable (check failed)", name)
                     continue
             # Ensure schema always has a "name" field — use entry.name as fallback
             schema_with_name = {**entry.schema, "name": entry.name}

@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 
 import httpx
 
-from hagent_cli.auth import (
     AuthError,
     resolve_spotify_runtime_credentials,
 )

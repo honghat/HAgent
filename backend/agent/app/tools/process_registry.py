@@ -45,7 +45,6 @@ from tools.environments.local import _find_shell, _resolve_safe_cwd, _sanitize_s
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from hagent_cli.config import get_hagent_home
 
 logger = logging.getLogger(__name__)
 
@@ -406,7 +405,6 @@ class ProcessRegistry:
             return False
         # ``os.kill(pid, 0)`` is NOT a no-op on Windows (bpo-14484) — use
         # the cross-platform existence check.
-        from gateway.status import _pid_exists
         return _pid_exists(pid)
 
     def _refresh_detached_session(self, session: Optional[ProcessSession]) -> Optional[ProcessSession]:

@@ -95,7 +95,6 @@ def _scan_cron_prompt(prompt: str) -> str:
 
 
 def _origin_from_env() -> Optional[Dict[str, str]]:
-    from gateway.session_context import get_session_env
     origin_platform = get_session_env("HAGENT_SESSION_PLATFORM")
     origin_chat_id = get_session_env("HAGENT_SESSION_CHAT_ID")
     if origin_platform and origin_chat_id:

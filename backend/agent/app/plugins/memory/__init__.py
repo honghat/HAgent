@@ -27,7 +27,6 @@ import logging
 import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
-from hagent_cli.config import cfg_get
 
 logger = logging.getLogger(__name__)
 

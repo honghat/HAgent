@@ -102,8 +102,6 @@ OpenAI = _OpenAIProxy()
 
 # Load .env from ~/.hagent/.env first, then project root as dev fallback.
 # User-managed env files should override stale shell exports on restart.
-from hagent_cli.env_loader import load_hagent_dotenv
-from hagent_cli.timeouts import (
     get_provider_request_timeout,
     get_provider_stale_timeout,
 )
@@ -186,7 +184,6 @@ from agent.trajectory import (
     save_trajectory as _save_trajectory_to_file,
 )
 from utils import atomic_json_write, base_url_host_matches, base_url_hostname, env_var_enabled, normalize_proxy_url
-from hagent_cli.config import cfg_get
 
 
 
@@ -5822,7 +5819,6 @@ class AIAgent:
         elif platform_key:
             # Check plugin registry for platform-specific LLM guidance
             try:
-                from gateway.platform_registry import platform_registry
                 _entry = platform_registry.get(platform_key)
                 if _entry and _entry.platform_hint:
                     prompt_parts.append(_entry.platform_hint)

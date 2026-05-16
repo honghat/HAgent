@@ -77,7 +77,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Set, Tuple
 
 from tools.registry import registry, tool_error
-from hagent_cli.config import cfg_get
 
 logger = logging.getLogger(__name__)
 
@@ -366,7 +365,6 @@ def _capture_required_environment_variables(
 def _is_gateway_surface() -> bool:
     if os.getenv("HAGENT_GATEWAY_SESSION"):
         return True
-    from gateway.session_context import get_session_env
     return bool(get_session_env("HAGENT_SESSION_PLATFORM"))
 
 
@@ -406,7 +404,6 @@ def _remaining_required_environment_names(
 
 def _gateway_setup_hint() -> str:
     try:
-        from gateway.platforms.base import GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE
 
         return GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE
     except Exception:
@@ -517,7 +514,6 @@ def _get_session_platform() -> str:
     ``_is_skill_disabled`` respects ``HAGENT_SESSION_PLATFORM``.
     """
     try:
-        from gateway.session_context import get_session_env
         return get_session_env("HAGENT_SESSION_PLATFORM") or ""
     except Exception:
         return ""

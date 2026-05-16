@@ -26,7 +26,6 @@ from agent.memory_provider import MemoryProvider
 from tools.registry import tool_error
 from .store import MemoryStore
 from .retrieval import FactRetriever
-from hagent_cli.config import cfg_get
 
 logger = logging.getLogger(__name__)
 

@@ -43,7 +43,6 @@ from typing import Any, Dict, List
 from agent.memory_provider import MemoryProvider
 from hagent_constants import get_hagent_home
 from tools.registry import tool_error
-from hagent_cli.config import cfg_get
 
 logger = logging.getLogger(__name__)
 

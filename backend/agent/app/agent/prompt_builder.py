@@ -1014,7 +1014,6 @@ def build_skills_system_prompt(
     # ── Layer 1: in-process LRU cache ─────────────────────────────────
     # Include the resolved platform so per-platform disabled-skill lists
     # produce distinct cache entries (gateway serves multiple platforms).
-    from gateway.session_context import get_session_env
     _platform_hint = (
         os.environ.get("HAGENT_PLATFORM")
         or get_session_env("HAGENT_SESSION_PLATFORM")

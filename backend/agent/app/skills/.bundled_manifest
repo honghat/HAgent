@@ -1,4 +1,5 @@
 academic-paper-review:bb155eaf2e5d1fdbeb02fbb0494789f3
+ai-model-management:6b069367fb6d4e08d3295304f3b47d11
 airtable:48fe37144609ab37b2050159e76d6473
 apple-notes:725ad0c85ca98242e9cf1dd4b1f60b17
 apple-reminders:491f42f55ddcc747e43bf9be07f84c1a
@@ -61,6 +62,7 @@ manim-video:52ca5cad023f06011f5bbb07148b3fbb
 maps:8c4cdd7517ebb4f12c337a8abbbcefd0
 minecraft-modpack-server:71e51465a1df193d7505ee47a91b6dbd
 nano-pdf:90a8286eca5464729f162dd6d9faa749
+native-mcp:674e4a4b59d2fa2b2b8bb631f5bcb309
 newsletter-generation:3a885acac9dd84e2dd0d8c084fbf4ddf
 node-inspect-debugger:970cb6be59568d0d216343b6ac4c3663
 notion:55533de71af90286fd56b82e35f043d2
@@ -72,6 +74,7 @@ openhue:a1d151835ef799745326bf763054eb3c
 p5js:707ee37359cee157b93c07c4b3fa7478
 pixel-art:c9f469f515e33ba78aca76ff0a9f2c3f
 plan:5110d55e24f19c3cd68df8e678945bcb
+platforms-integration:1850bfd54fec38ab213c728ed5f278cf
 podcast-generation:d20a140586d75539f719df1c0adf96ac
 pokemon-player:db79617ea4a61e0d6727d38402fb1f94
 polymarket:d989615b64ddaffb596a2a9ce20c76f1
@@ -86,6 +89,7 @@ segment-anything-model:37d0f97b0dc71125d8563733d76e9f7b
 serving-llms-vllm:9f434586d794ec7d37dc13d4615ef9b0
 sketch:237d126cc7a218ca8dbd652464c88afa
 skill-creator:38ace733ae4052524b19a089e8d93110
+social-messaging-automation:cdc259c4d8157f2768504522339078a6
 songsee:05d6c71551fa12da33b46473e1985bb6
 songwriting-and-ai-music:52be403c894c7bd7d6fe70f7eeaf9460
 spike:8dddc66a28898b12f88d8e311a240dc7
@@ -98,6 +102,7 @@ teams-meeting-pipeline:cecc5d2b851760e3ee0af52e0c2abef9
 telegram-message-receiver:6779aab50197836e8704867a1f98ad38
 test-driven-development:11430839082c0f40f67a48f2334fa968
 tin-tuc:f605f8ee50a6a8559971651f8ca72465
+touchdesigner-mcp:8e722760b42896c2d361d78a08547f8f
 vercel-deploy:7e66fad3db8cd8876efa3953ab999945
 video-dubbing:cd09188d88776446d486e68aa37c1e43
 video-generation:bd8343d6edb85b698dd158e9d6484769

@@ -43,7 +43,6 @@ from hagent_constants import get_hagent_home, display_hagent_home, get_skills_di
 from typing import Dict, Any, Optional, Tuple
 
 from utils import atomic_replace, is_truthy_value
-from hagent_cli.config import cfg_get
 
 logger = logging.getLogger(__name__)
 

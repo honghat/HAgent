@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 @registry.register(
     name="job_hunter_scrape",
+    toolset="job_hunter",
+    emoji="🔍",
     description="Scrape jobs from multiple Vietnamese tech job sites (ITViec, TopDev, VietnamWorks, CareerLink).",
     parameters={
         "type": "object",
@@ -70,6 +72,8 @@ async def job_hunter_scrape(keywords: List[str], sources: Optional[List[str]] = 
 
 @registry.register(
     name="job_hunter_search",
+    toolset="job_hunter",
+    emoji="🔎",
     description="Search through already scraped/cached jobs with filters.",
     parameters={
         "type": "object",

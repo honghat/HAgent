@@ -32,12 +32,16 @@ def atomic_write_text(path: str | os.PathLike, text: str) -> None:
 
 
 def atomic_json_write(path: str | os.PathLike, data, **kwargs) -> None:
-    text = json.dumps(data, ensure_ascii=False, indent=2, **kwargs)
+    kwargs.setdefault("ensure_ascii", False)
+    kwargs.setdefault("indent", 2)
+    text = json.dumps(data, **kwargs)
     atomic_write_text(path, text + "\n")
 
 
 def atomic_yaml_write(path: str | os.PathLike, data, **kwargs) -> None:
-    text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True, **kwargs)
+    kwargs.setdefault("sort_keys", False)
+    kwargs.setdefault("allow_unicode", True)
+    text = yaml.safe_dump(data, **kwargs)
     atomic_write_text(path, text)
 
 

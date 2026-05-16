@@ -24,8 +24,6 @@ dependencies = [
   "requests>=2.33.0,<3",  # CVE-2026-25645
   "jinja2>=3.1.5,<4",
   "pydantic>=2.12.5,<3",
-  # Interactive CLI (prompt_toolkit is used directly by cli.py)
-  "prompt_toolkit>=3.0.52,<4",
   # Tools
   "exa-py>=2.9.0,<3",
   "firecrawl-py>=4.16.0,<5",
@@ -61,7 +59,6 @@ messaging = ["python-telegram-bot[webhooks]>=22.6,<23", "discord.py[voice]>=2.7.
 cron = []  # croniter is now a core dependency; this extra kept for back-compat
 slack = ["slack-bolt>=1.18.0,<2", "slack-sdk>=3.27.0,<4"]
 matrix = ["mautrix[encryption]>=0.20,<1", "Markdown>=3.6,<4", "aiosqlite>=0.20", "asyncpg>=0.29", "aiohttp-socks>=0.10,<1"]
-cli = ["simple-term-menu>=1.0,<2"]
 tts-premium = ["elevenlabs>=1.0,<2"]
 voice = [
   # Local STT pulls in wheel-only transitive deps (ctranslate2, onnxruntime),
@@ -90,7 +87,6 @@ termux = [
   # Baseline Android / Termux path for reliable fresh installs.
   "python-telegram-bot[webhooks]>=22.6,<23",
   "hagent-agent[cron]",
-  "hagent-agent[cli]",
   "hagent-agent[pty]",
   "hagent-agent[mcp]",
   "hagent-agent[honcho]",
@@ -155,7 +151,6 @@ all = [
   # [matrix] extra's own marker pulls in the [e2e] variant automatically.
   "hagent-agent[matrix]; sys_platform == 'linux'",
   "hagent-agent[cron]",
-  "hagent-agent[cli]",
   "hagent-agent[dev]",
   "hagent-agent[tts-premium]",
   "hagent-agent[slack]",
@@ -176,19 +171,14 @@ all = [
 ]
 
 [project.scripts]
-hagent = "hagent_cli.main:main"
 hagent-agent = "run_agent:main"
 hagent-acp = "acp_adapter.entry:main"
 
 [tool.setuptools]
-py-modules = ["run_agent", "model_tools", "toolsets", "batch_runner", "trajectory_compressor", "toolset_distributions", "cli", "hagent_bootstrap", "hagent_constants", "hagent_state", "hagent_time", "hagent_logging", "rl_cli", "utils"]
-
-[tool.setuptools.package-data]
-hagent_cli = ["web_dist/**/*"]
-gateway = ["assets/**/*"]
+py-modules = ["run_agent", "model_tools", "toolsets", "batch_runner", "trajectory_compressor", "toolset_distributions", "hagent_bootstrap", "hagent_constants", "hagent_state", "hagent_time", "hagent_logging", "rl_cli", "utils"]
 
 [tool.setuptools.packages.find]
-include = ["agent", "agent.*", "tools", "tools.*", "hagent_cli", "gateway", "gateway.*", "tui_gateway", "tui_gateway.*", "cron", "acp_adapter", "plugins", "plugins.*", "providers", "providers.*"]
+include = ["agent", "agent.*", "tools", "tools.*", "cron", "acp_adapter", "plugins", "plugins.*", "providers", "providers.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

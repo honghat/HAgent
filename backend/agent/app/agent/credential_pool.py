@@ -14,9 +14,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from hagent_constants import OPENROUTER_BASE_URL
-from hagent_cli.config import get_env_value, load_env
-import hagent_cli.auth as auth_mod
-from hagent_cli.auth import (
     CODEX_ACCESS_TOKEN_REFRESH_SKEW_SECONDS,
     DEFAULT_AGENT_KEY_MIN_TTL_SECONDS,
     PROVIDER_REGISTRY,

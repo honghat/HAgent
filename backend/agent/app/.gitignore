@@ -64,6 +64,9 @@ web/public/ds-assets/
 .release_notes.md
 mini-swe-agent/
 
+# Root .gitignore already has data/ for project-level data/.
+# Runtime state is in backend/agent/data/ — ignored via root .gitignore.
+
 # Nix
 .direnv/
 .nix-stamps/

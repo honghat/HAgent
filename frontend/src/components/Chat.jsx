@@ -183,7 +183,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   useEffect(() => {
     const checkProviderStatus = async () => {
       try {
-        const r = await fetch(withBackendBase(`/api/providers/${provider}/health`), { headers: { Authorization: `Bearer ${token}` } })
+        const r = await fetch(withBackendBase(`/api/auth/providers/${provider}/health`), { headers: { Authorization: `Bearer ${token}` } })
         const data = await r.json()
         setProviderActive(data.status === 'ok')
       } catch {

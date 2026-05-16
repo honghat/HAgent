@@ -7,8 +7,6 @@ from typing import Any, Optional
 import httpx
 
 from agent.anthropic_adapter import _is_oauth_token, resolve_anthropic_token
-from hagent_cli.auth import _read_codex_tokens, resolve_codex_runtime_credentials
-from hagent_cli.runtime_provider import resolve_runtime_provider
 
 
 def _utc_now() -> datetime:

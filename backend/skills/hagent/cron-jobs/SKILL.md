@@ -62,6 +62,18 @@ cronjob("create", {
 | `"*/30 * * * *"` | cron | Chạy mỗi 30 phút |
 | `"0 9 * * 1-5"` | cron | Chạy 9h sáng thứ 2-6 |
 
+## Nguyên tắc khi viết prompt
+
+Khi agent chạy cron job, nó sẽ thực thi các lệnh bash. **Prompt phải hướng dẫn agent làm đúng trình tự:**
+
+1. **Chạy lệnh bash** để lấy dữ liệu / thực thi hành động
+2. **Đợi kết quả** từ lệnh (không đoán, không suy luận thay thế)
+3. **Đọc và phân tích** kết quả nhận được
+4. **Báo cáo cho người dùng** dựa trên kết quả thực tế
+5. Nếu cần bước tiếp theo: dùng kết quả vừa lấy để quyết định
+
+**Không được**: tự suy luận kết quả thay vì chạy lệnh, hoặc kết luận trước khi có kết quả thực tế.
+
 ## Giao thức [SILENT]
 
 Khi prompt của job kết thúc với `[SILENT]`, hệ thống sẽ **KHÔNG gửi thông báo** cho người dùng. Chỉ gửi thông báo khi có thay đổi thực sự quan trọng.

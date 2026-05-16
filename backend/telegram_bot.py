@@ -157,14 +157,19 @@ async def _call_api(method: str, path: str, body: dict = None) -> Optional[dict]
             return await r.json() if r.content_length else None
 
 
-async def _call_agent(session_id: str, text: str) -> str:
-    """Send a message to the agent and get the response (non-streaming).
+async def _stream_to_telegram(update: Update, session_id: str, text: str) -> None:
+    """Send a message to the agent and stream the response to Telegram in real-time.
 
-    The API returns SSE events with varying types: "think" (streaming thoughts
-    with "content" field), "tool" (tool results with "label" field),
-    and "done" (completion signal).  We collect text from all event types.
+    Sends an initial "⏳ Đang xử lý..." message, then continuously edits it
+    as SSE events arrive, showing each step: tool execution, thinking, content.
     """
     import aiohttp
+    sent_msg = await update.message.reply_text("⏳ Đang xử lý...", parse_mode="HTML")
+    collected = ""
+    tool_buffer = ""
+    last_update = 0
+    import time
+
     async with aiohttp.ClientSession() as s:
         async with s.post(
             f"{API_URL}/api/sessions/{session_id}/messages",
@@ -172,8 +177,9 @@ async def _call_agent(session_id: str, text: str) -> str:
             headers={"Authorization": "Bearer hat"},
         ) as r:
             if r.status != 200:
-                return f"Loi: {r.status}"
-            lines: list[str] = []
+                await sent_msg.edit_text(f"❌ Lỗi: {r.status}")
+                return
+
             buffer = b""
             async for chunk in r.content:
                 buffer += chunk
@@ -185,21 +191,52 @@ async def _call_agent(session_id: str, text: str) -> str:
                     try:
                         data = json.loads(decoded[6:])
                         ev_type = data.get("type")
-                        if ev_type == "done":
-                            return "".join(lines) if lines else "(no response)"
-                        # "content" events: streamed final reply from the LLM.
-                        # "tool" events: _thinking tool carries the reply in "label".
+
                         if ev_type == "content":
-                            text_val = data.get("content")
-                            if text_val and isinstance(text_val, str):
-                                lines.append(text_val)
+                            content = data.get("content", "")
+                            if content:
+                                collected += content
                         elif ev_type == "tool":
-                            text_val = data.get("label")
-                            if text_val and isinstance(text_val, str) and data.get("status") == "done":
-                                lines.append(text_val)
+                            label = data.get("label", "")
+                            status = data.get("status")
+                            name = data.get("name", "")
+                            if status == "start" and label:
+                                tool_buffer += f"\n⏳ {label}..."
+                            elif status == "done" and label:
+                                tool_buffer = tool_buffer.replace(f"\n⏳ {label}...", f"\n✅ {label}")
+                            elif status == "error":
+                                tool_buffer += f"\n❌ {name} failed"
+                        elif ev_type == "think":
+                            content = data.get("content", "")
+                            detail = data.get("detail", False)
+                            if content and not detail and not data.get("append"):
+                                if content not in tool_buffer:
+                                    tool_buffer += f"\n💭 {content}"
+
+                        # Update Telegram message periodically (throttled)
+                        now = time.time()
+                        display = f"<i>🤖 Đang xử lý...</i>\n\n{collected}{tool_buffer}"[:4000]
+                        if now - last_update > 1.0:
+                            try:
+                                await sent_msg.edit_text(display, parse_mode="HTML")
+                                last_update = now
+                            except Exception:
+                                pass
+
                     except json.JSONDecodeError:
                         continue
-            return "".join(lines) if lines else "(no response)"
+
+            # Final: strip loading indicator and show final result
+            if collected.strip():
+                formatted = format_for_telegram(collected)
+                try:
+                    await sent_msg.edit_text(formatted[:4000], parse_mode="HTML")
+                except Exception:
+                    import re
+                    plain = re.sub(r"<[^>]+>", "", formatted[:4000])
+                    await sent_msg.edit_text(plain)
+            else:
+                await sent_msg.edit_text("✅ Hoàn thành.", parse_mode="HTML")
 
 
 def _format_price_line(item: dict) -> str:
@@ -577,17 +614,11 @@ async def _forward_to_agent(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         return
     await update.message.reply_chat_action("typing")
     try:
-        response = await _call_agent(sid, text)
-        formatted = format_for_telegram(response)
-        for chunk in [formatted[i:i+4000] for i in range(0, len(formatted), 4000)]:
-            try:
-                await update.message.reply_text(chunk, parse_mode="HTML")
-            except Exception:
-                # Fallback: strip HTML and send as plain text
-                import re
-                plain = re.sub(r"<[^>]+>", "", chunk)
-                await update.message.reply_text(plain)
+        await _stream_to_telegram(update, sid, text)
     except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        await update.message.reply_text(f"❌ Lỗi: {_esc(str(e))[:500]}", parse_mode="HTML")
         await update.message.reply_text(f"❌ Lỗi: {_esc(str(e))}", parse_mode="HTML")
 
 

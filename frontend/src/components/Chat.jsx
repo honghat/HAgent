@@ -589,8 +589,13 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
             switch (data.type) {
               case 'tool':
                 if (data.status === 'start') {
+                  const stepLabel = data.label || data.name || ''
+                  collected += '\n' + stepLabel + '...\n'
+                  setStreamingText(collected)
                   setSteps((p) => p.some((s) => s.id === data.name) ? p : [...p, { id: data.name, label: data.label, status: 'running' }])
                 } else if (data.status === 'done') {
+                  collected += '✓ ' + (data.label || data.name || '') + '\n'
+                  setStreamingText(collected)
                   setSteps((p) => p.map((s) => s.id === data.name ? { ...s, status: 'done', count: data.count } : s))
                   await fetchWorkspace(currentId)
                 }
@@ -608,6 +613,15 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                       time: new Date().toLocaleTimeString('vi-VN', { hour12: false })
                     }]
                   })
+                } else if (data.content && !data.detail) {
+                  collected += '\n> ' + data.content + '\n'
+                  setStreamingText(collected)
+                  setJournal((p) => [...p, {
+                    type: 'think',
+                    content: data.content || '',
+                    name: data.name,
+                    time: new Date().toLocaleTimeString('vi-VN', { hour12: false })
+                  }])
                 } else {
                   setJournal((p) => [...p, {
                     type: 'think',

@@ -24,7 +24,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     # Static file serving for uploads
-    uploads_dir = Path(__file__).resolve().parents[5] / "data" / "uploads"
+    uploads_dir = Path(__file__).resolve().parents[4] / "data" / "uploads"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 

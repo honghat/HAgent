@@ -592,6 +592,17 @@ async def run_pipeline(task_id: int) -> None:
 
     checkpoint = _load_checkpoint(task_id)
 
+    # Clean orphaned intermediate files when starting fresh (not resuming)
+    if not checkpoint:
+        for f in UPLOAD_DIR.glob("vai-*.mp3"):
+            _rm(str(f))
+        for f in UPLOAD_DIR.glob("vai-*.webm"):
+            _rm(str(f))
+        for f in UPLOAD_DIR.glob("ckpt-*.json"):
+            _rm(str(f))
+        for f in UPLOAD_DIR.glob("*.ass"):
+            _rm(str(f))
+
     try:
         # ── Step 1: Download ──
         if checkpoint and checkpoint.get("step") != "download":

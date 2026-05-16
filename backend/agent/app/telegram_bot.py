@@ -555,8 +555,21 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _forward_to_agent(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     sid = context.user_data.get("session_id")
     if not sid:
+        # Try to get the latest session
+        sessions = await _call_api("get", "/api/sessions")
+        if sessions and len(sessions) > 0:
+            sid = sessions[0].get("id") if isinstance(sessions, list) else sessions.get("id")
+            if sid:
+                context.user_data["session_id"] = sid
+    if not sid:
+        # Still no session, create a new one
+        result = await _call_api("post", "/api/sessions", {"title": "[Te] Chat"})
+        if result:
+            sid = result.get("id")
+            context.user_data["session_id"] = sid
+    if not sid:
         await update.message.reply_text(
-            "❌ Chưa có phiên chat. Vui lòng tạo phiên trước bằng lệnh /new.",
+            "❌ Không thể tạo phiên chat. Vui lòng thử /new.",
             parse_mode="HTML",
         )
         return
@@ -565,7 +578,13 @@ async def _forward_to_agent(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         response = await _call_agent(sid, text)
         formatted = format_for_telegram(response)
         for chunk in [formatted[i:i+4000] for i in range(0, len(formatted), 4000)]:
-            await update.message.reply_text(chunk, parse_mode="HTML")
+            try:
+                await update.message.reply_text(chunk, parse_mode="HTML")
+            except Exception:
+                # Fallback: strip HTML and send as plain text
+                import re
+                plain = re.sub(r"<[^>]+>", "", chunk)
+                await update.message.reply_text(plain)
     except Exception as e:
         await update.message.reply_text(f"❌ Lỗi: {_esc(str(e))}", parse_mode="HTML")
 

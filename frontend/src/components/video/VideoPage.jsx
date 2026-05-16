@@ -264,6 +264,7 @@ function TaskDetail({ api, token, taskId, onBack }) {
       try {
         const d = JSON.parse(ev.data);
         if (d.message === 'connected') return;
+        if (d.done) { es.close(); return; }
         setLogs(prev => [...prev.slice(-300), { ts: Date.now(), text: d.message }]);
       } catch {}
     };

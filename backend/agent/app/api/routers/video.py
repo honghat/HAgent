@@ -1,6 +1,8 @@
 """Video task router — stub implementation for frontend compatibility."""
 import asyncio
 import json
+import sys
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +23,17 @@ TASKS_FILE = DATA_DIR / "tasks.json"
 
 
 def _load_tasks():
+    """Load tasks from SQLite database (shared with video pipeline)."""
+    try:
+        from api.services.db import get_connection
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT * FROM video_tasks ORDER BY id DESC LIMIT 50"
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception:
+        pass
     if TASKS_FILE.exists():
         try:
             return json.loads(TASKS_FILE.read_text())
@@ -36,7 +49,16 @@ def _save_tasks(tasks):
 def _get_task(task_id: str):
     tasks = _load_tasks()
     for t in tasks:
-        if t["id"] == task_id:
+        if str(t["id"]) == task_id:
+            # Parse progress JSON into logs
+            try:
+                raw = t.get("progress") or ""
+                import json as _json
+                parsed = _json.loads(raw) if isinstance(raw, str) and raw.strip() else []
+                if isinstance(parsed, list):
+                    t["logs"] = parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
             return t
     return None
 
@@ -54,34 +76,78 @@ def list_tasks(request: Request):
     return {"tasks": tasks}
 
 
+def _enqueue_task(task_id: int):
+    """Enqueue a video task for pipeline processing using the event loop."""
+    try:
+        from api.services.video_pipeline import VideoQueue
+        try:
+            loop = asyncio.get_running_loop()
+            loop.call_soon_threadsafe(VideoQueue.enqueue, task_id)
+        except RuntimeError:
+            VideoQueue.enqueue(task_id)
+    except Exception:
+        pass
+
+
+def _create_task_in_db(
+    title: str,
+    source_type: str,
+    source_ref: str,
+    voice: str = "namminh",
+    source_lang: str = "zh",
+) -> int:
+    """Create a task in SQLite and enqueue for pipeline processing. Returns task ID."""
+    try:
+        from api.services.db import get_connection
+        conn = get_connection()
+        now = int(time.time() * 1000)
+        cur = conn.execute(
+            """INSERT INTO video_tasks
+               (user_id, title, source_type, source_ref, source_lang, status, voice, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?)""",
+            ("user", title, source_type, source_ref, source_lang, voice, now, now),
+        )
+        task_id = cur.lastrowid
+        conn.commit()
+        conn.close()
+        _enqueue_task(task_id)
+        return task_id
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/tasks/url")
-def create_url_task(body: UrlTaskBody, request: Request):
+async def create_url_task(body: UrlTaskBody, request: Request):
     _get_user_id(request)
-    task = {
-        "id": uuid.uuid4().hex[:12],
-        "title": body.title or body.url,
-        "url": body.url,
-        "source_type": "youtube" if "youtube.com" in body.url or "youtu.be" in body.url else "url",
-        "voice": body.voice,
-        "status": "queued",
-        "progress": 0,
-        "segments_count": 0,
-        "duration": 0,
-        "error": None,
-        "output_url": None,
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-    }
-    tasks = _load_tasks()
-    tasks.insert(0, task)
-    _save_tasks(tasks)
-    return task
+    source_type = "youtube" if "youtube.com" in body.url or "youtu.be" in body.url \
+        else "bilibili" if "bilibili.com" in body.url else "url"
+    task_id = _create_task_in_db(
+        title=body.title or body.url,
+        source_type=source_type,
+        source_ref=body.url,
+        voice=body.voice,
+    )
+    return {"id": task_id}
 
 
 @router.get("/tasks/yt/info")
 async def yt_info(url: str = Query(...), request: Request = None):
     if request:
         _get_user_id(request)
+    # Try yt-dlp first (supports YouTube, Bilibili, and many others)
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "yt_dlp", "--skip-download", "--print", "title", url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        title = stdout.decode("utf-8", errors="replace").strip()
+        if title:
+            return {"title": title}
+    except Exception:
+        pass
+    # Fallback: YouTube oembed
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get(f"https://www.youtube.com/oembed?url={url}&format=json")
@@ -105,23 +171,33 @@ def get_task(task_id: str, request: Request):
 @router.delete("/tasks/{task_id}")
 def delete_task(task_id: str, request: Request):
     _get_user_id(request)
-    tasks = _load_tasks()
-    tasks = [t for t in tasks if t["id"] != task_id]
-    _save_tasks(tasks)
+    try:
+        from api.services.db import get_connection
+        conn = get_connection()
+        conn.execute("DELETE FROM video_tasks WHERE id=?", (int(task_id),))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
     return {"ok": True}
 
 
 @router.post("/tasks/{task_id}/retry")
-def retry_task(task_id: str, request: Request):
+async def retry_task(task_id: str, request: Request):
     _get_user_id(request)
-    tasks = _load_tasks()
-    for t in tasks:
-        if t["id"] == task_id:
-            t["status"] = "queued"
-            t["error"] = None
-            t["updated_at"] = datetime.now().isoformat()
-            _save_tasks(tasks)
-            return {"ok": True}
+    try:
+        from api.services.db import get_connection
+        conn = get_connection()
+        conn.execute(
+            "UPDATE video_tasks SET status='queued', error=NULL, progress=NULL, updated_at=? WHERE id=?",
+            (int(time.time() * 1000), int(task_id)),
+        )
+        conn.commit()
+        conn.close()
+        _enqueue_task(int(task_id))
+        return {"ok": True}
+    except Exception:
+        pass
     raise HTTPException(status_code=404, detail="Task not found")
 
 

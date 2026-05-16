@@ -14,6 +14,8 @@ data/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
 backend/agent/data/
 .9router/
 9router/
@@ -45,6 +47,12 @@ backend_fastapi/.venv/
 backend_fastapi/app/source_core/venv/
 backend_fastapi/app/source_core/hagent_cli/web_dist/
 backend_fastapi/app/source_core/hagent_agent.egg-info/
+**/hagent_agent.egg-info/
+node_modules/
+*/node_modules/
+*/logs/
+*/.deps_installed
+pi/app/source_core/hagent_agent.egg-info/
 node_modules/
 */node_modules/
 */logs/

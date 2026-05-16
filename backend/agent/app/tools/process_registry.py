@@ -41,6 +41,7 @@ import time
 import uuid
 
 _IS_WINDOWS = platform.system() == "Windows"
+from hagent_constants import get_hagent_home
 from tools.environments.local import _find_shell, _resolve_safe_cwd, _sanitize_subprocess_env
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional

@@ -1161,16 +1161,6 @@ async def _send_signal(extra, chat_id, message, media_files=None):
     except ImportError:
         return {"error": "httpx not installed"}
 
-        SIGNAL_BATCH_PACING_NOTICE_THRESHOLD,
-        SIGNAL_MAX_ATTACHMENTS_PER_MSG,
-        SIGNAL_RATE_LIMIT_MAX_ATTEMPTS,
-        _extract_retry_after_seconds,
-        _format_wait,
-        _is_signal_rate_limit_error,
-        _signal_send_timeout,
-        get_scheduler,
-    )
-
     try:
         http_url = extra.get("http_url", "http://127.0.0.1:8080").rstrip("/")
         account = extra.get("account", "")
@@ -1487,6 +1477,7 @@ async def _send_matrix(token, extra, chat_id, message):
 async def _send_matrix_via_adapter(pconfig, chat_id, message, media_files=None, thread_id=None):
     """Send via the Matrix adapter so native Matrix media uploads are preserved."""
     try:
+        from plugins.platforms.matrix.adapter import MatrixAdapter
     except ImportError:
         return {"error": "Matrix dependencies not installed. Run: pip install 'mautrix[encryption]'"}
 
@@ -1817,6 +1808,7 @@ async def _send_yuanbao(chat_id, message, media_files=None):
       - DM:    "direct:<account_id>" or just "<account_id>"
     """
     try:
+        from gateway.platforms.yuanbao import get_active_adapter
     except ImportError:
         return _error("Yuanbao adapter module not available.")
 

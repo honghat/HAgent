@@ -219,11 +219,6 @@ async def send_sticker(
 
     Returns: ``{"success": bool, ...}``
     """
-        get_sticker_by_id,
-        get_sticker_by_name,
-        get_random_sticker,
-    )
-
     target = (chat_id or "").strip() or get_session_env("HAGENT_SESSION_CHAT_ID", "")
     if not target:
         return {

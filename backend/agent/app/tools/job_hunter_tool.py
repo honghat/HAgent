@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
     name="job_hunter_scrape",
     toolset="job_hunter",
     emoji="🔍",
-    description="Scrape jobs from multiple Vietnamese tech job sites (ITViec, TopDev, VietnamWorks, CareerLink).",
+    description="Scrape jobs from multiple Vietnamese tech job sites (ITViec, TopDev, VietnamWorks, CareerLink, CareerViet).",
     parameters={
         "type": "object",
         "properties": {
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
             "sources": {
                 "type": "array",
                 "items": {"type": "string"},
-                "enum": ["itviec", "topdev", "vietnamworks", "careerlink"],
+                "enum": ["itviec", "topdev", "vietnamworks", "careerlink", "careerviet"],
                 "description": "Job sources to scrape. Defaults to all if not specified."
             },
             "max_pages": {
@@ -79,7 +79,7 @@ async def job_hunter_scrape(keywords: List[str], sources: Optional[List[str]] = 
         "type": "object",
         "properties": {
             "keyword": {"type": "string", "description": "Search keyword in title, company, or description."},
-            "source": {"type": "string", "enum": ["itviec", "topdev", "vietnamworks", "careerlink"]},
+            "source": {"type": "string", "enum": ["itviec", "topdev", "vietnamworks", "careerlink", "careerviet"]},
             "location": {"type": "string", "description": "Filter by city (e.g. 'Hồ Chí Minh', 'Hà Nội')."},
             "salary_min": {"type": "integer", "description": "Minimum salary in VND."},
             "limit": {"type": "integer", "default": 10}

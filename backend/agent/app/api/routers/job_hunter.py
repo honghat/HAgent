@@ -112,7 +112,7 @@ SALARY_RULES = [
     (r"(\d[\d,.]*)\s*k\b",
      lambda a: (_clean_num(a) * 1_000_000, _clean_num(a) * 1_000_000)),
     # Negotiable
-    (r"(thỏa thuận|negotiable|negotiate|thương lượng)", lambda: (0, 0)),
+    (r"(thỏa thuận|negotiable|negotiate|thương lượng|cạnh tranh|competitive)", lambda: (0, 0)),
 ]
 
 def parse_salary(text: str) -> tuple:
@@ -174,6 +174,9 @@ _DATE_PATTERNS = [
     (r"^(yesterday|hôm qua)$",
      lambda: (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")),
     (r"(\d{4}-\d{2}-\d{2})", lambda d: d),
+    # Vietnamese format: "Hạn nộp: 30-06-2026" or "Cập nhật: 16-05-2026"
+    (r"(?:hạn nộp|cập nhật|updated|posted)\s*[:]*\s*(\d{2})-(\d{2})-(\d{4})",
+     lambda d, m, y: f"{y}-{m}-{d}"),
 ]
 
 def parse_posted_date(text: str) -> Optional[str]:
@@ -226,56 +229,222 @@ def extract_skills(title: str, company: str, card_text: str, html_tags: List[str
 
 # ── Source Configs ────────────────────────────────────────────────────
 
+# ── Source Configs ────────────────────────────────────────────────────
+
 SOURCE_CONF = {
     "itviec": {
         "base": "https://itviec.com",
         "url": lambda kw, pg: f"https://itviec.com/it-jobs/{kw.replace(' ', '-')}" + (f"?page={pg}" if pg > 1 else ""),
-        "card": ".job-card, article.job, .job-item",
-        "title": "h3 a, .title a, a[data-job-title]",
-        "company": ".company-name, .company a, [itemprop='name']",
-        "location": ".city, .address, .location-text, .job-location",
-        "salary": ".salary, .salary-level, .job-salary, [class*=salary]",
-        "date": ".posted-date, .job-date, time, [class*=date], [class*=time]",
-        "desc": ".description, .job-description, .desc-text, p.description",
-        "skill_tags": ".skill-tag, .tag, [class*=skill], [class*=tech], .badge",
+        "card": ".job-card",
+        "company": ".text-rich-grey",
+        "salary": ".salary, [class*=salary]",
+        "date": ".small-text",
+        "skill_tags": ".text-reset",
+        "title": "h3",
     },
     "topdev": {
+        # Uses REST API — no browser scraping
+        "api_url": "https://api.topdev.vn/td/v2/jobs",
         "base": "https://topdev.vn",
-        "url": lambda kw, pg: f"https://topdev.vn/tim-kiem/{kw.replace(' ', '-')}" + (f"?page={pg}" if pg > 1 else ""),
-        "card": ".job-card, .job-item, .list-group-item",
-        "title": "h3 a, .job-title a, a[class*=title]",
-        "company": ".company-name, .company-info a, [class*=company]",
-        "location": ".location, .address, .job-location",
-        "salary": ".salary, .job-salary, [class*=salary]",
-        "date": ".posted-date, .job-date, time, [class*=date]",
-        "desc": ".description, .job-description, .desc-text",
-        "skill_tags": ".skill-tag, .tag, [class*=skill], .badge",
     },
     "vietnamworks": {
         "base": "https://www.vietnamworks.com",
         "url": lambda kw, pg: f"https://www.vietnamworks.com/{kw.replace(' ', '-')}-kw" + (f"?page={pg}" if pg > 1 else ""),
-        "card": ".job-card, .card-job, .job-item-card",
-        "title": "h3 a, .title a, .job-title a",
-        "company": ".company-name, .company, [class*=company]",
-        "location": ".location, .address, .job-location",
-        "salary": ".salary, .job-salary, .salary-info",
-        "date": ".posted-date, .job-date, time, [class*=date]",
-        "desc": ".description, .job-description, .desc-text",
-        "skill_tags": ".skill-tag, .tag, [class*=skill], .badge",
+        "card": ".job-item",
+        # Inner fields use dynamic classes (styled-components), extracted via text heuristic
+        "text_based": True,
     },
     "careerlink": {
         "base": "https://www.careerlink.vn",
         "url": lambda kw, pg: f"https://www.careerlink.vn/viec-lam/{kw.replace(' ', '-')}" + (f"?page={pg}" if pg > 1 else ""),
-        "card": ".job-card, .card-job, .job-item",
-        "title": "h3 a, .job-title a, a[class*=title]",
-        "company": ".company-name, .company, [class*=company]",
-        "location": ".location, .address, .job-location",
-        "salary": ".salary, .job-salary, [class*=salary]",
-        "date": ".posted-date, .job-date, time, [class*=date]",
-        "desc": ".description, .job-description, .desc-text",
-        "skill_tags": ".skill-tag, .tag, [class*=skill], .badge",
+        "card": ".list-group-item.job-item",
+        "title": "h5.job-name",
+        "company": "a.job-company",
+        "salary": ".job-salary",
+        "date": ".cl-datetime",
+        "skill_tags": "[class*=skill], [class*=tag]",
+    },
+    "careerviet": {
+        "base": "https://careerviet.vn",
+        "url": lambda kw, pg: f"https://careerviet.vn/viec-lam/{kw.replace(' ', '-')}-k-vi.html" + (f"?page={pg}" if pg > 1 else ""),
+        "card": ".figure",
+        "title": "h2 a.job_link",
+        "company": "a.company-name",
+        "salary": "div.salary",
+        "location": "div.location",
+        "wait_seconds": 8,
     },
 }
+
+# ── TopDev API fetcher ───────────────────────────────────────────────
+
+async def _fetch_topdev_api(keyword: str, page_num: int) -> List[dict]:
+    """Fetch jobs from TopDev public REST API directly."""
+    import httpx
+    url = f"https://api.topdev.vn/td/v2/jobs"
+    params = {
+        "locale": "vi_VN",
+        "q": keyword,
+        "page": page_num,
+        "page_size": 15,
+        "fields[job]": "id,title,salary,company,locations,skills_arr,slug,detail_url"
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(url, params=params, headers=headers)
+            if r.status_code != 200:
+                logger.warning("TopDev API returned %d", r.status_code)
+                return []
+            data = r.json()
+    except Exception as e:
+        logger.warning("TopDev API error: %s", e)
+        return []
+
+    jobs = []
+    for item in data.get("data", []):
+        try:
+            title = item.get("title", "")
+            if not title:
+                continue
+
+            # Company
+            company_data = item.get("company") or {}
+            company = company_data.get("name") or company_data.get("display_name") or "Unknown"
+
+            # Location
+            locations = item.get("locations", [])
+            location = ", ".join(
+                l.get("city", {}).get("value", "") or l.get("text", "")
+                for l in (locations if isinstance(locations, list) else [locations])
+                if l
+            ) if locations else None
+
+            # Salary
+            salary_raw = item.get("salary", {}) or {}
+            salary_text = salary_raw.get("value", "") or salary_raw.get("text", "")
+
+            # min_estimate/max_estimate are integers (0 = hidden/unknown)
+            s_min_raw = salary_raw.get("min_estimate")
+            s_max_raw = salary_raw.get("max_estimate")
+            try:
+                s_min = int(s_min_raw) if s_min_raw and int(s_min_raw) > 0 else None
+            except (ValueError, TypeError):
+                s_min = None
+            try:
+                s_max = int(s_max_raw) if s_max_raw and int(s_max_raw) > 0 else None
+            except (ValueError, TypeError):
+                s_max = None
+
+            # Skills
+            skills = []
+            for s in (item.get("skills_arr") or []):
+                if isinstance(s, dict):
+                    skills.append(s.get("value") or s.get("name", ""))
+                elif isinstance(s, str):
+                    skills.append(s)
+
+            # Posted date — API doesn't provide it, use today as fallback
+            posted_date = item.get("created_at") or item.get("posted_date") or datetime.now().strftime("%Y-%m-%d")
+
+            # URL
+            job_url = item.get("detail_url") or ""
+            if not job_url:
+                slug = item.get("slug") or ""
+                job_id = item.get("id") or ""
+                if slug:
+                    job_url = f"https://topdev.vn/viec-lam/{slug}"
+                elif job_id:
+                    job_url = f"https://topdev.vn/viec-lam/{job_id}"
+
+            salary_display = _format_vnd_display(s_min, s_max, salary_text) if salary_text else None
+
+            jobs.append(JobResult(
+                url=job_url,
+                title=title.strip(),
+                company=company.strip(),
+                location=location.strip() if location else None,
+                salary=salary_display or salary_text or None,
+                salary_min=s_min,
+                salary_max=s_max,
+                source="topdev",
+                posted_date=posted_date,
+                skills=skills,
+                description_snippet=None,
+            ).model_dump())
+        except Exception:
+            continue
+
+    return jobs
+
+
+# ── Text-based card parser (for sources with dynamic CSS classes) ─────
+
+def _parse_card_text_vietnamworks(card_text: str) -> dict:
+    """Parse VNW card text into fields. Card text has consistent line order:
+    [badge] Title / Company / Location / Salary / Date / [skills...]
+    """
+    lines = [l.strip() for l in card_text.split("\n") if l.strip()]
+    # Filter out common noise
+    lines = [l for l in lines if l not in ("New", "HOT", "Urgent", "Top")]
+
+    result = {
+        "title": "",
+        "company": "",
+        "location": "",
+        "salary": "",
+        "date": "",
+    }
+
+    if not lines:
+        return result
+
+    # First meaningful line is the title
+    result["title"] = lines[0]
+
+    # Second line is company
+    if len(lines) > 1:
+        result["company"] = lines[1]
+
+    # Third line is salary (or location if salary missing)
+    idx = 2
+    if len(lines) > idx:
+        line = lines[idx]
+        # Detect if it's a location or salary
+        if any(city in line for city in ["Hà Nội", "Ha Noi", "Hồ Chí Minh", "Ho Chi Minh", "Đà Nẵng", "Da Nang"]):
+            result["location"] = line
+            idx += 1
+            if len(lines) > idx:
+                result["salary"] = lines[idx]
+        else:
+            result["salary"] = line
+            idx += 1
+            if len(lines) > idx:
+                # Check if next line is a location
+                loc_line = lines[idx]
+                if any(city in loc_line for city in ["Hà Nội", "Ha Noi", "Hồ Chí Minh", "Ho Chi Minh", "Đà Nẵng", "Da Nang"]):
+                    result["location"] = loc_line
+                    idx += 1
+
+    # Remaining lines: date (last meaningful line), skills (everything else)
+    remaining = lines[idx:]
+    # Date is usually the last line or contains "Today"/"Yesterday"/"ago"
+    if remaining:
+        seen_date = False
+        for i, line in enumerate(remaining):
+            low = line.lower()
+            if any(w in low for w in ["today", "yesterday", "hour", "day", "week", "month", "cập nhật", "updated", "ago"]):
+                result["date"] = line
+                seen_date = True
+                break
+        if not seen_date:
+            result["date"] = remaining[-1]
+
+    return result
+
 
 # ── Scraper (shared browser) ─────────────────────────────────────────
 
@@ -291,6 +460,10 @@ async def _scrape_source(
     if not conf:
         return []
 
+    # Handle TopDev API-based source
+    if "api_url" in conf:
+        return await _fetch_topdev_api(keyword, page_num)
+
     url = conf["url"](keyword, page_num)
 
     for attempt in range(max_retries + 1):
@@ -302,7 +475,7 @@ async def _scrape_source(
             )
             page = await ctx.new_page()
             await page.goto(url, timeout=30000, wait_until="domcontentloaded")
-            await asyncio.sleep(2 + attempt)
+            await asyncio.sleep(conf.get("wait_seconds", 2 + attempt))
 
             cards = await page.query_selector_all(conf["card"])
             if not cards:
@@ -312,18 +485,71 @@ async def _scrape_source(
             jobs = []
             for card in cards:
                 try:
+                    # ── VietnamWorks text-based extraction ──
+                    if conf.get("text_based"):
+                        card_text = await card.inner_text()
+                        parsed = _parse_card_text_vietnamworks(card_text)
+                        title = parsed["title"]
+                        company = parsed["company"] or "Unknown"
+                        location = parsed["location"] or None
+                        salary_text = parsed["salary"] or None
+                        date_text = parsed["date"] or None
+
+                        # Get URL from the first link in the card
+                        links = await card.query_selector_all("a")
+                        full_url = ""
+                        for link in links:
+                            href = await link.get_attribute("href") or ""
+                            if href and href != "#" and not href.startswith("javascript"):
+                                full_url = href if href.startswith("http") else conf["base"] + href
+                                break
+
+                        s_min, s_max = parse_salary(salary_text)
+                        salary_display = _format_vnd_display(s_min, s_max, salary_text) if salary_text else None
+                        posted_date = parse_posted_date(date_text) if date_text else None
+                        if not posted_date:
+                            posted_date = parse_posted_date(card_text)
+                        if not posted_date:
+                            posted_date = datetime.now().strftime("%Y-%m-%d")
+
+                        card_full_text = await card.inner_text()
+                        skills = extract_skills(title, company, card_full_text, [])
+
+                        jobs.append(JobResult(
+                            url=full_url,
+                            title=title.strip(),
+                            company=company.strip(),
+                            location=location.strip() if location else None,
+                            salary=salary_display or salary_text,
+                            salary_min=s_min,
+                            salary_max=s_max,
+                            source=source,
+                            posted_date=posted_date,
+                            skills=skills,
+                            description_snippet=None,
+                        ).model_dump())
+                        continue
+
+                    # ── Standard CSS-selector-based extraction ──
                     title_elem = await card.query_selector(conf["title"])
                     if not title_elem:
                         continue
                     title = await title_elem.inner_text()
+                    # Try href, then data-url, then first real link in card
                     href = await title_elem.get_attribute("href") or ""
+                    if not href or href in ("null", "#", ""):
+                        href = await title_elem.get_attribute("data-url") or ""
+                    if not href or href in ("null", "#", ""):
+                        links_in_card = await card.query_selector_all("a[href]")
+                        for link in links_in_card:
+                            lh = await link.get_attribute("href") or ""
+                            if lh and lh not in ("null", "#", "") and not lh.startswith("javascript"):
+                                href = lh
+                                break
                     full_url = href if href.startswith("http") else conf["base"] + href
 
                     company_elem = await card.query_selector(conf["company"])
                     company = await company_elem.inner_text() if company_elem else "Unknown"
-
-                    location_elem = await card.query_selector(conf["location"])
-                    location = await location_elem.inner_text() if location_elem else None
 
                     # Salary
                     salary_text = None
@@ -331,34 +557,40 @@ async def _scrape_source(
                     if salary_elem:
                         salary_text = await salary_elem.inner_text()
                     s_min, s_max = parse_salary(salary_text)
-                    # Always display salary in VND — convert USD display to VND
                     salary_display = _format_vnd_display(s_min, s_max, salary_text)
 
-                    # Posted date — try element first, then full card text
+                    # Posted date
                     posted_date = None
-                    date_elem = await card.query_selector(conf["date"])
-                    if date_elem:
-                        date_text = await date_elem.inner_text()
-                        posted_date = parse_posted_date(date_text)
+                    if "date" in conf:
+                        date_elem = await card.query_selector(conf["date"])
+                        if date_elem:
+                            date_text = await date_elem.inner_text()
+                            posted_date = parse_posted_date(date_text)
                     if not posted_date:
                         all_text = await card.inner_text()
                         posted_date = parse_posted_date(all_text)
                     if not posted_date:
                         posted_date = datetime.now().strftime("%Y-%m-%d")
 
-                    # Description snippet
-                    description_snippet = None
-                    desc_elem = await card.query_selector(conf["desc"])
-                    if desc_elem:
-                        desc_text = await desc_elem.inner_text()
-                        description_snippet = desc_text.strip()[:300]
+                    # Location & description & skills
+                    location = None
+                    if "location" in conf:
+                        loc_elem = await card.query_selector(conf["location"])
+                        location = await loc_elem.inner_text() if loc_elem else None
 
-                    # Skills: CSS tags + text fallback
+                    description_snippet = None
+                    if "desc" in conf:
+                        desc_elem = await card.query_selector(conf["desc"])
+                        if desc_elem:
+                            desc_text = await desc_elem.inner_text()
+                            description_snippet = desc_text.strip()[:300]
+
                     skill_tags = []
-                    skill_elems = await card.query_selector_all(conf["skill_tags"])
-                    for se in skill_elems[:8]:
-                        st = await se.inner_text()
-                        skill_tags.append(st.strip())
+                    if "skill_tags" in conf:
+                        skill_elems = await card.query_selector_all(conf["skill_tags"])
+                        for se in skill_elems[:8]:
+                            st = await se.inner_text()
+                            skill_tags.append(st.strip())
 
                     card_text = await card.inner_text()
                     skills = extract_skills(title, company, card_text, skill_tags)
@@ -377,7 +609,7 @@ async def _scrape_source(
                         description_snippet=description_snippet,
                     ).model_dump())
                 except Exception:
-                    continue  # skip dodgy card
+                    continue
 
             await ctx.close()
             return jobs

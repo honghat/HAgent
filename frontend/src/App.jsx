@@ -21,6 +21,7 @@ export default function App() {
   const [provider, setProvider] = useState(localStorage.getItem('hagent_provider') || 'cx')
   const [cxModel, setCxModel] = useState(localStorage.getItem('hagent_cx_model') || 'cx/gpt-5.5')
   const [agents, setAgents] = useState([])
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('hagent_sidebar_collapsed') === '1')
 
   const fetchAgents = () => {
     if (token) {
@@ -110,17 +111,37 @@ export default function App() {
     localStorage.removeItem('token')
   }
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed((value) => {
+      const next = !value
+      localStorage.setItem('hagent_sidebar_collapsed', next ? '1' : '0')
+      return next
+    })
+  }
+
   if (!user) return <Login onLogin={(t, u) => { setToken(t); setUser(u) }} />
 
   return (
-    <div className="flex flex-col-reverse overflow-hidden bg-[#f7f7f4] text-gray-950 sm:flex-row" style={{ height: '100dvh' }}>
+    <div className="relative flex flex-col-reverse overflow-hidden bg-[#f7f7f4] text-gray-950 sm:flex-row" style={{ height: '100dvh' }}>
       <Header
         user={user}
         view={view}
+        collapsed={sidebarCollapsed}
         onViewChange={setView}
         onControlService={handleControlService}
         onLogout={logout}
       />
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        className={`hidden sm:flex fixed top-1/2 z-[120] h-10 w-6 -translate-y-1/2 items-center justify-center rounded-r-xl border border-l-0 border-black/[0.08] bg-white/90 text-gray-400 shadow-[0_8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl transition-all hover:w-7 hover:bg-white hover:text-gray-950 ${sidebarCollapsed ? 'left-0' : 'left-44'}`}
+        title={sidebarCollapsed ? 'Hiện sidebar' : 'Ẩn sidebar'}
+        aria-label={sidebarCollapsed ? 'Hiện sidebar' : 'Ẩn sidebar'}
+      >
+        <svg className={`h-3.5 w-3.5 transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden" style={{ height: '100%' }}>
         {view === 'chat' && <Chat key="chat" token={token} provider={provider} cxModel={cxModel} agents={agents} user={user} onProviderChange={saveProvider} onShowAgentManager={() => setView('agents')} onLogout={logout} />}
         {view === 'wiki' && <Wiki token={token} provider={provider} />}

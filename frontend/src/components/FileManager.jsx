@@ -729,7 +729,11 @@ export default function FileManager({ token }) {
       })
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.detail || 'Upload Google Drive thất bại')
-      showToast(`Đã upload Drive: ${data.file?.name || folderLabel(path)}`, 'ok')
+      if (data.type === 'folder') {
+        showToast(`Đã upload Drive: ${data.folder?.name || folderLabel(path)} (${data.file_count || 0} file, ${data.folder_count || 0} thư mục)`, 'ok')
+      } else {
+        showToast(`Đã upload Drive: ${data.file?.name || folderLabel(path)}`, 'ok')
+      }
     } catch (err) {
       showToast(err.message, 'error')
     } finally {

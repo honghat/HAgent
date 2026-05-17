@@ -339,22 +339,7 @@ def _create_backup_zip(scope: str) -> Path:
     return out_path
 
 
-def _zip_path(source: Path) -> Path:
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    out_path = Path(tempfile.gettempdir()) / f"{source.name}-{stamp}.zip"
-    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        if source.is_file():
-            zf.write(source, source.name)
-        else:
-            for path in source.rglob("*"):
-                if not path.is_file() or _should_skip(path, source):
-                    continue
-                zf.write(path, source.name / path.relative_to(source))
-    return out_path
-
-
-async def _upload_local_file(path: Path, folder_id: str) -> dict[str, Any]:
-    parent = await _resolve_folder_id(folder_id or _load_config().get("root_folder_id") or "root")
+async def _upload_local_file_to_parent(path: Path, parent: str) -> dict[str, Any]:
     metadata = {"name": path.name, "parents": [parent]}
     mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
     files = {
@@ -372,6 +357,56 @@ async def _upload_local_file(path: Path, folder_id: str) -> dict[str, Any]:
         files=files,
     )
     return res.json()
+
+
+async def _upload_local_file(path: Path, folder_id: str) -> dict[str, Any]:
+    parent = await _resolve_folder_id(folder_id or _load_config().get("root_folder_id") or "root")
+    return await _upload_local_file_to_parent(path, parent)
+
+
+async def _create_drive_folder(name: str, parent: str) -> dict[str, Any]:
+    res = await _drive_request(
+        "POST",
+        f"{DRIVE_API}/files",
+        json={
+            "name": name,
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [parent],
+        },
+        headers={"Content-Type": "application/json"},
+        params={"supportsAllDrives": "true", "fields": "id,name,mimeType,parents,webViewLink"},
+    )
+    return res.json()
+
+
+async def _upload_directory_tree(source: Path, folder_id: str) -> dict[str, Any]:
+    parent = await _resolve_folder_id(folder_id or _load_config().get("root_folder_id") or "root")
+    root_folder = await _create_drive_folder(source.name, parent)
+    folder_ids: dict[Path, str] = {source: root_folder["id"]}
+    created_folders = [root_folder]
+    uploaded_files = []
+
+    for path in sorted(source.rglob("*"), key=lambda item: (len(item.relative_to(source).parts), item.relative_to(source).as_posix())):
+        if path.is_symlink():
+            continue
+        if path.is_dir():
+            drive_parent = folder_ids.get(path.parent, root_folder["id"])
+            folder = await _create_drive_folder(path.name, drive_parent)
+            folder_ids[path] = folder["id"]
+            created_folders.append(folder)
+            continue
+        if not path.is_file():
+            continue
+        drive_parent = folder_ids.get(path.parent, root_folder["id"])
+        uploaded_files.append(await _upload_local_file_to_parent(path, drive_parent))
+
+    return {
+        "root_folder": root_folder,
+        "created_folders": created_folders,
+        "uploaded_files": uploaded_files,
+        "folder_count": len(created_folders),
+        "file_count": len(uploaded_files),
+    }
 
 
 @router.get("/config")
@@ -589,18 +624,24 @@ async def upload_path_to_drive(payload: UploadPathRequest):
     source = Path(payload.path).expanduser().resolve()
     if not source.exists():
         raise HTTPException(status_code=404, detail="Không tìm thấy file/thư mục")
-    archive: Path | None = None
-    try:
-        upload_source = source
-        if source.is_dir():
-            archive = _zip_path(source)
-            upload_source = archive
-        file_info = await _upload_local_file(upload_source, payload.folder_id.strip())
+    if source.is_dir():
+        result = await _upload_directory_tree(source, payload.folder_id.strip())
         return {
-            "file": file_info,
+            "folder": result["root_folder"],
             "source": str(source),
-            "archived": source.is_dir(),
+            "archived": False,
+            "type": "folder",
+            "folder_count": result["folder_count"],
+            "file_count": result["file_count"],
+            "created_folders": result["created_folders"],
+            "uploaded_files": result["uploaded_files"],
         }
-    finally:
-        if archive:
-            archive.unlink(missing_ok=True)
+    file_info = await _upload_local_file(source, payload.folder_id.strip())
+    return {
+        "file": file_info,
+        "source": str(source),
+        "archived": False,
+        "type": "file",
+        "file_count": 1,
+        "folder_count": 0,
+    }

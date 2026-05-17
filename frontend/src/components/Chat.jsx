@@ -736,17 +736,17 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
             </h1>
           </div>
 
-          <div className="order-3 flex w-full min-w-0 items-center gap-1.5 pl-10 sm:order-2 sm:w-auto sm:flex-1 sm:gap-2 sm:pl-0">
-            <span className="flex h-7 max-w-[132px] shrink-0 items-center justify-center truncate rounded-full bg-gray-100 px-2.5 text-[10px] font-medium text-gray-600 sm:h-8 sm:max-w-none sm:px-3 sm:text-[11px]">
+          <div className="order-3 flex w-full min-w-0 items-center gap-1.5 pl-10 sm:order-2 sm:w-auto sm:flex-none sm:gap-2 sm:pl-0">
+            <span className="flex h-7 max-w-[132px] shrink-0 items-center justify-center truncate rounded-full bg-gray-100 px-2.5 text-[10px] font-medium text-gray-600 sm:h-8 sm:max-w-[160px] sm:px-3 sm:text-[11px] xl:max-w-none">
               {providerLabels[provider] || provider}
             </span>
-            <div className="min-w-0">
+            <div className="min-w-0 shrink">
               {Array.isArray(agents) && agents.length > 0 ? (
                 <select
                   value={selectedAgentId || agents[0]?.id || ''}
                   onChange={(e) => setSelectedAgentId(e.target.value)}
                   disabled={loading}
-                  className="flex h-7 max-w-[150px] items-center truncate rounded-full border border-black/[0.06] bg-white/50 px-2.5 text-[10px] font-medium text-gray-600 outline-none transition-all hover:border-black/10 hover:bg-white disabled:opacity-50 sm:h-8 sm:max-w-[180px] sm:px-3 sm:text-[11px]"
+                  className="flex h-7 w-full max-w-[132px] items-center truncate rounded-full border border-black/[0.06] bg-white/50 px-2.5 pr-7 text-[10px] font-medium text-gray-600 outline-none transition-all hover:border-black/10 hover:bg-white disabled:opacity-50 sm:h-8 sm:max-w-[160px] sm:px-3 sm:pr-8 sm:text-[11px] xl:max-w-[190px]"
                   title="Chọn Agent"
                 >
                   {agents.map((agent) => (
@@ -783,7 +783,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                     <MarkdownContent content={m.content} role={m.role} />
                   </div>
                 </div>
-                <div className={`flex items-center gap-3 mt-1.5 px-3 w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`flex max-w-full flex-wrap items-center gap-2.5 mt-1.5 px-3 ${m.role === 'user' ? 'justify-end sm:max-w-[80%]' : 'justify-start sm:max-w-[96%]'}`}>
                   {m.usage && m.role === 'assistant' && <span className="text-[12px] leading-4 text-gray-400 font-normal mr-2">Token: {fmtToken(m.usage.total_tokens)}</span>}
                   <button onClick={() => handleCopy(m.content, m.id)} className="flex h-5 w-5 items-center justify-center rounded-md text-gray-300 transition-all hover:bg-gray-100 hover:text-gray-500">{copiedId === m.id ? '✓' : '⧉'}</button>
                   {m.role === 'assistant' && (

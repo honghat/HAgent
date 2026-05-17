@@ -1,6 +1,6 @@
 import logo from '../assets/logo.png'
 
-export default function Header({ user, view, onViewChange, onLogout }) {
+export default function Header({ user, view, collapsed = false, onViewChange, onLogout }) {
   const tabs = [
     { id: 'chat', label: 'Chat', icon: <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
     { id: 'files', label: 'Files', icon: <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg> },
@@ -17,7 +17,7 @@ export default function Header({ user, view, onViewChange, onLogout }) {
   ]
 
   return (
-    <aside className="h-14 w-full sm:h-screen sm:w-44 shrink-0 border-t sm:border-t-0 sm:border-r border-black/[0.06] bg-[#fbfbf9]/95 backdrop-blur-xl flex flex-row sm:flex-col z-[100] pb-safe sm:pb-0">
+    <aside className={`h-14 w-full sm:h-screen sm:w-44 shrink-0 border-t sm:border-t-0 sm:border-r border-black/[0.06] bg-[#fbfbf9]/95 backdrop-blur-xl flex flex-row sm:flex-col z-[100] pb-safe sm:pb-0 ${collapsed ? 'sm:hidden' : ''}`}>
       <button onClick={() => onViewChange('chat')} className="hidden h-16 items-center justify-center border-b border-black/[0.04] active:scale-[0.99] transition-transform sm:flex sm:justify-start sm:px-4 gap-2 group">
         <img src={logo} alt="Logo" className="w-10 h-10 rounded-full shadow-sm group-hover:scale-110 transition-transform duration-200" />
         <span className="hidden sm:block text-xl leading-6 font-semibold text-gray-950 tracking-tight">H-Agent</span>

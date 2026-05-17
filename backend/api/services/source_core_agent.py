@@ -22,6 +22,92 @@ SHORT_CONFIRMATION_RE = re.compile(
     re.IGNORECASE,
 )
 
+MEMORY_WIKI_REVIEW_INSTRUCTIONS = """Bắt buộc trước khi trả lời:
+- Rà soát khối MEMORY/USER PROFILE và WIKI REVIEW bên dưới.
+- Dùng thông tin trong đó khi liên quan đến câu hỏi hoặc hành động hiện tại.
+- Nếu wiki không có mục khớp trực tiếp, vẫn xem danh sách mục gần đây để nhận diện kiến thức có sẵn.
+- Không bịa rằng đã có dữ liệu trong memory/wiki nếu khối review không cung cấp.
+- Nếu dữ liệu memory/wiki mâu thuẫn với kết quả tool hoặc nguồn mới hơn, ưu tiên kết quả đã kiểm chứng mới hơn và nói ngắn gọn lý do."""
+
+
+def _clip_context_text(text: str, limit: int = 1800) -> str:
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "\n...[đã rút gọn]"
+
+
+def _format_wiki_review(user_id: str, query: str) -> str:
+    try:
+        from api.services.wiki_memory import list_wiki_entries, search_wiki
+
+        results = search_wiki(user_id, query, limit=5)
+        recent_entries = list_wiki_entries(user_id, limit=20)
+    except Exception as exc:  # noqa: BLE001
+        return f"[WIKI REVIEW]\nKhông đọc được wiki trước lượt này: {exc}"
+
+    lines = ["[WIKI REVIEW]", f"Truy vấn: {query or '(trống)'}"]
+    if results:
+        lines.append("Kết quả liên quan:")
+        for idx, item in enumerate(results, start=1):
+            title = item.get("title") or "(không tiêu đề)"
+            summary = item.get("summary") or ""
+            content = _clip_context_text(item.get("content") or "", 1400)
+            updated_at = item.get("updated_at") or ""
+            lines.append(
+                f"{idx}. {title}\n"
+                f"   Cập nhật: {updated_at}\n"
+                f"   Tóm tắt: {summary}\n"
+                f"   Nội dung: {content}"
+            )
+    else:
+        lines.append("Không có kết quả wiki khớp trực tiếp.")
+
+    if recent_entries:
+        recent_titles = []
+        result_ids = {item.get("id") for item in results}
+        for item in recent_entries:
+            marker = "khớp" if item.get("id") in result_ids else "gần đây"
+            recent_titles.append(f"- {item.get('title') or '(không tiêu đề)'} ({marker}, {item.get('updated_at') or 'không rõ ngày'})")
+        lines.append("Mục wiki đã rà soát:")
+        lines.extend(recent_titles)
+    else:
+        lines.append("Wiki hiện chưa có mục nào.")
+
+    return "\n".join(lines)
+
+
+def _format_memory_review() -> str:
+    try:
+        from tools.memory_tool import MemoryStore
+
+        store = MemoryStore()
+        store.load_from_disk()
+        blocks = []
+        memory_block = store.format_for_system_prompt("memory")
+        user_block = store.format_for_system_prompt("user")
+        if memory_block:
+            blocks.append(memory_block)
+        else:
+            blocks.append("[MEMORY]\nChưa có mục MEMORY.md.")
+        if user_block:
+            blocks.append(user_block)
+        else:
+            blocks.append("[USER PROFILE]\nChưa có mục USER.md.")
+        return "\n\n".join(blocks)
+    except Exception as exc:  # noqa: BLE001
+        return f"[MEMORY REVIEW]\nKhông đọc được memory trước lượt này: {exc}"
+
+
+def _build_memory_wiki_review_prompt(user_id: str, user_message: str) -> str:
+    return "\n\n".join(
+        [
+            MEMORY_WIKI_REVIEW_INSTRUCTIONS,
+            _format_memory_review(),
+            _format_wiki_review(user_id, user_message),
+        ]
+    )
+
 
 def _sanitize_identity_text(content: str) -> str:
     return (
@@ -119,19 +205,11 @@ def run_source_agent(
     sanitized_history = [{**item, "content": _sanitize_identity_text(item.get("content") or "")} for item in history]
     effective_message = _build_continuation_turn(user_message, sanitized_history)
     agent_prompt = _build_agent_prompt(agent_profile)
-
-    # Inject Wiki knowledge if available
-    try:
-        from api.services.wiki_memory import search_wiki
-        user_id = session.user_id if session else "398f6a8a-8954-4315-8240-df769e664b54"
-        wiki_results = search_wiki(user_id, user_message, limit=3)
-        if wiki_results:
-            wiki_text = "\n\n[KIẾN THỨC WIKI CỦA BẠN]\n" + "\n---\n".join(
-                [f"Tiêu đề: {r['title']}\nNội dung: {r['content']}" for r in wiki_results]
-            )
-            agent_prompt = (agent_prompt or "") + wiki_text
-    except Exception:
-        pass
+    user_id = session.user_id if session else "398f6a8a-8954-4315-8240-df769e664b54"
+    if thinking_callback:
+        thinking_callback("Rà soát bộ nhớ và wiki trước khi trả lời.")
+    review_prompt = _build_memory_wiki_review_prompt(user_id, user_message)
+    agent_prompt = "\n\n".join(part for part in [agent_prompt, review_prompt] if part)
 
     enabled_toolsets = _clean_list((agent_profile or {}).get("tool_groups"))
 

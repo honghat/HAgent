@@ -320,9 +320,9 @@ function DriveFilesPanel({ token }) {
 
       <div className="flex h-7 shrink-0 items-center border-b border-slate-800 bg-[#121728] px-3 text-[9px] font-medium uppercase tracking-wider text-slate-500">
         <span className="min-w-0 flex-1">Tên</span>
-        {!preview && <span className="w-20 shrink-0 text-right">Cỡ</span>}
-        {!preview && <span className="w-28 shrink-0 text-right">Sửa lúc</span>}
-        {!preview && <span className="w-24 shrink-0 text-right">Thao tác</span>}
+        <span className="w-20 shrink-0 text-right">Cỡ</span>
+        <span className="w-28 shrink-0 text-right">Sửa lúc</span>
+        <span className="w-24 shrink-0 text-right">Thao tác</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
@@ -337,13 +337,13 @@ function DriveFilesPanel({ token }) {
               <span className="truncate font-medium text-slate-200">{item.name}</span>
               {isShortcut(item) && <span className="shrink-0 rounded bg-slate-800 px-1 text-[9px] font-semibold text-cyan-200">link</span>}
             </button>
-            {!preview && <span className="w-20 shrink-0 text-right text-[10px] text-slate-500">{item.size ? formatSize(Number(item.size)) : '-'}</span>}
-            {!preview && <span className="w-28 shrink-0 text-right text-[10px] text-slate-500">{item.modifiedTime ? new Date(item.modifiedTime).toLocaleDateString('vi-VN') : ''}</span>}
-            {!preview && (<div className="flex w-24 shrink-0 justify-end gap-1 opacity-100 md:opacity-0 md:group-hover/drive:opacity-100">
+            <span className="w-20 shrink-0 text-right text-[10px] text-slate-500">{item.size ? formatSize(Number(item.size)) : '-'}</span>
+            <span className="w-28 shrink-0 text-right text-[10px] text-slate-500">{item.modifiedTime ? new Date(item.modifiedTime).toLocaleDateString('vi-VN') : ''}</span>
+            <div className="flex w-24 shrink-0 justify-end gap-1 opacity-100 md:opacity-0 md:group-hover/drive:opacity-100">
               {!isFolderLike(item) && item.webViewLink && <a href={item.webViewLink} target="_blank" rel="noreferrer" className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-100">Mở</a>}
               <button onClick={() => renameItem(item)} className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-100">Sửa</button>
               <button onClick={() => deleteItem(item)} className="rounded px-1.5 py-1 text-[10px] text-red-300 hover:bg-red-500/10">{driveMode === 'shared' ? 'Ẩn' : 'Xóa'}</button>
-            </div>)}
+            </div>
           </div>
         ))}
       </div>

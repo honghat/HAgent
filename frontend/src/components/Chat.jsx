@@ -137,6 +137,13 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     }
   }
 
+  // Request notification permission for bot responses
+  useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false;
     fetchSessions()
@@ -671,6 +678,10 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                 setLoading(false)
                 await fetchSessions()
                 await fetchWorkspace(currentId)
+                // Notify when bot finishes
+                if (document.hidden && Notification.permission === 'granted') {
+                  new Notification('HAgent', { body: 'Bot đã trả lời xong' })
+                }
                 break
               case 'error':
                 setMessages((p) => [...p, { role: 'assistant', content: 'Lỗi: ' + (data.error || 'Yêu cầu thất bại'), id: data.messageId || 'err-' + Date.now() }])

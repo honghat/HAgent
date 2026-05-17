@@ -9,6 +9,7 @@ references:
   - references/zalo-send-api.md
   - references/message-webhook-patterns.md
   - references/vietnamese-name-normalization.md
+  - references/omnichannel-backend-integration.md  # OmniChat unified API server
 templates:
   - templates/omnichannel_env.example
 scripts: []

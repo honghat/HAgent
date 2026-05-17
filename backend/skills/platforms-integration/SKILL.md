@@ -361,6 +361,159 @@ Wizard auto-creates config files, validates credentials, and provides platform h
 2. **Bot UID Auto-detection**: If not set in env var, adapter will auto-detect from session token after successful login.
 3. **Omnichannel Hub API Port**: Default is `8080`. Override with `--port 9000` flag if needed.
 
+#### External API Backend Integration Pattern (NEW - v2.0) ⭐
+
+**Overview:** Standalone FastAPI backend server for unified inbox operations across Zalo, Facebook Messenger. Provides RESTful API with QR code login support. **Distinct from Gateway Plugin path** - uses external HTTP calls instead of Hagent core integration.
+
+**File Structure:**
+```
+/Users/nguyenhat/.hagent/plugins/platforms/omnichannel/
+├── backend/                  # FastAPI server directory
+│   ├── api_server.py         # Main API routes
+│   ├── start.sh              # Auto-start script with env loading ✅
+│   └── config.env            # Environment variables (REQUIRED)
+├── frontend/                 # React component integration
+│   ├── OmniChat.jsx          # Unified inbox component
+│   ├── scripts/start-omnichannel-backend.js  # Migration script ✅
+│   └── config/omnichannel/   # Synced .env + API docs ✅
+├── env/                      # Environment variables directory
+└── references/               # Documentation and workflows
+    ├── zalo-qr-workflow.md   # QR code login & cookie auth guide ✅
+    └── zalo-message-viewing.md  # API limitations & browser-only guide ✅
+```
+
+**External Backend vs Gateway Plugin - Critical Distinction:**
+
+| Aspect | Gateway Plugin Path | External API Backend |
+|--------|---------------------|---------------------|
+| Integration | Hagent core (requires PR) | Standalone HTTP service ✅ |
+| Deployment | `~/.hagent/plugins/` | Any port, independent server ✅ |
+| Auth | Built-in gateway session | Custom auth (QR code tokens, cookies) ✅ |
+| Frontend Integration | Direct function calls | REST API endpoints `/api/v1/*` ✅ |
+| Best For | Persistent bot integration | Quick deployment, testing, standalone apps ✅ |
+
+**Backend API Endpoints:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/omni/conversations` | List all conversations |
+| POST | `/api/v1/omni/conversations/{chat_id}/messages` | Send message |
+| GET | `/api/v1/omni/conversations/{chat_id}/messages?limit=50` | Get chat history |
+| POST | `/api/v1/omni/conversations/read-all` | Mark all as read |
+| POST | `/api/v1/auth/zalo/qrcode/init?chat_id={id}` | Init Zalo QR login |
+| GET | `/api/v1/auth/zalo/qrcode/poll/{chat_id}` | Poll QR scan status |
+| GET | `/api/v1/status` | Platform connection health check ✅ |
+
+**Startup Commands:**
+
+```bash
+# Option 1: Direct backend start (recommended for testing)
+cd ~/.hagent/plugins/platforms/omnichannel/backend
+uvicorn api_server:app --host 0.0.0.0 --port 8080 &
+
+# Option 2: Auto-start script with env validation  
+cd ~/.hagent/plugins/platforms/omnichannel/backend
+./start.sh
+
+# Option 3: Frontend integration auto-start (sync + start)
+cd ~/HAgent/frontend
+node scripts/start-omnichannel-backend.js
+```
+
+**Frontend Component Integration Pattern:**
+
+When integrating external backend APIs into React components:
+
+1. **Create Component** - Update existing component with correct API endpoints:
+   ```javascript
+   const omniApi = {
+     baseUrl: '/api/v1',  // External backend base path
+   
+     async getConversations() {
+       const response = await fetch(`${this.baseUrl}/omni/conversations`, {});
+       return await response.json();
+     },
+     
+     async sendMessage(chatId, message) {
+       const response = await fetch(
+         `${this.baseUrl}/omni/conversations/${chatId}/messages`,
+         { method: 'POST', body: JSON.stringify({ message }) }
+       );
+       return await response.json();
+     }
+   };
+   ```
+
+2. **Create Migration Script** - Auto-start backend server:
+   ```javascript
+   import { execSync } from 'child_process';
+   
+   console.log('🚀 Starting OmniChat Backend Setup...');
+   
+   // Check if backend exists
+   if (!fs.existsSync(backendPath)) {
+     execSync(`cd ${pluginDir} && bash init.sh`, { stdio: 'inherit' });
+   }
+   
+   // Sync configuration files  
+   const configDir = path.join(frontendRoot, 'config', 'omnichannel');
+   fs.mkdirSync(configDir, { recursive: true });
+   
+   // Copy .env from plugin backend to frontend
+   const envPath = path.join(pluginDir, '.env');
+   if (fs.existsSync(envPath)) {
+     fs.writeFileSync(path.join(configDir, '.env'), fs.readFileSync(envPath));
+   }
+   
+   // Start server
+   execSync(`cd ${backendPath} && uvicorn api_server:app --port 8080`, { stdio: 'inherit' });
+   ```
+
+3. **Create API Documentation** - JSON endpoints reference:
+   ```json
+   {
+     "name": "omnichannel-backend",
+     "version": "1.0.0",
+     "endpoints": { /* ... */ }
+   }
+   ```
+
+4. **Create README** - Complete integration guide with troubleshooting table ✅
+
+**Environment Setup:**
+
+```bash
+# Core omnichannel config (~/.hagent/omnichannel.env)
+export OMNICHANNEL_ENABLED=true
+export OMNICHANNEL_API_PORT=8080
+export ZALO_QR_ENABLED=true
+
+# Save to file for persistence
+cat > ~/.hagent/plugins/platforms/omnichannel/env/config.env << 'EOF'
+OMNICHANNEL_ENABLED=true
+ZALO_QR_ENABLED=true
+OMNICHANNEL_API_PORT=8080
+EOF
+```
+
+**Important: Terminal Background Process Handling** ⚠️
+
+When starting backend servers, be aware of tool limitations:
+
+- **Terminal tool cannot run background processes** with `&` or `nohup` - fails with "_gse not defined" error
+- **Use execute_code Python subprocess instead** for server management
+- **Or use manual CLI commands** via terminal: `uvicorn ... &` then verify with `curl http://localhost:8080/api/v1/status`
+- **Document manual start procedure in README** to avoid confusion
+
+**Reference Files:**
+- **`references/omnichannel-hub-pattern.md`** - Omnichannel unified inbox architecture
+- **`references/zalo-qr-workflow.md`** - QR code login & cookie auth guide (Zalo/Facebook patterns) ✅
+- **`references/zalo-message-viewing-workflow.md`** - Zalo API limitations & browser-only reading ⭐
+- **`references/messaging-cookie-extraction-patterns.md`** - Unified browser cookie extraction
+
+**Support Files:**
+- `scripts/omnichannel_setup.sh` - Quick setup & verify script
+- **`scripts/start-omnichannel-backend.js`** - Frontend migration script for auto-start ✅
+
 ### Platform Testing Patterns
 
 #### Test Message Delivery (Unified Approach)
@@ -462,27 +615,26 @@ import playwright  # Should not raise ModuleNotFoundError
 
 References:
 - [Hagent Gateway Adding Platform](https://github.com/HatNguyen/hagent-agent/blob/main/gateway/platforms/ADDING_A_PLATFORM.md)
-- [Telegram Adapter Reference](/Users/nguyenhat/hagent-agent/gateway/platforms/telegram.py)
+- [Telegram Adapter Reference](/Users/nguyenhat/HAgent/backend/gateway/platforms/telegram.py)
 - [Platforms Cookie Extraction Patterns](references/messaging-cookie-extraction-patterns.md)
-- **Zalo QR Workflow**: `~/.hagent/plugins/platforms/omnichannel/references/zalo-qr-workflow.md` (QR code & cookie auth guide)
-- **Zalo Message Viewing**: `~/.hagent/skills/platforms-integration/references/zalo-message-viewing-workflow.md` (API limitations & browser-only reading guide) ⭐
-- **Zalo Send-by-Name Pattern**: `~/.hagent/plugins/platforms/omnichannel/send_zalo_by_name.py` - Auto-search contacts, no phone number needed! 🎯
-- **Zalo Telegram Notification**: `~/.hagent/plugins/platforms/omnichannel/zalo_telegram_bot.py` - Zalo → Telegram auto-forward ⭐⭐
-- **Omnichannel Hub Pattern**: `~/.hagent/plugins/platforms/omnichannel/README.md` (Vietnamese guide)
-- **Quick Start Guide**: `~/.hagent/OMNICHANNEL_QUICK_START.md`
+- **Zalo QR Workflow**: `~/.hagent/plugins/platforms/omnichannel/backend/references/zalo-qr-auth-guide.md` (QR code & cookie auth guide, includes DingTalk pattern from dingtalk_auth.py)
+- **Zalo Message Viewing**: `~/.hagent/plugins/platforms/omnichannel/backend/references/zalo-message-viewing-workflow.md` (API limitations & browser-only reading guide) ⭐
+- **Omnichannel Hub Backend API**: `~/.hagent/plugins/platforms/omnichannel/OMNICHANNEL_BACKEND_SETUP.md` - Complete setup & integration guide
+- [OmniChat Frontend Pattern](/Users/nguyenhat/HAgent/frontend/src/components/OmniChat.jsx) - Unified inbox React component
 
 Support Files:
 - `references/zalo-setup.md` - Zalo cookie extraction, bot registration
 - `references/facebook-playwright-pattern.md` - E2EE PIN handling, message scraping  
 - `references/messaging-cookie-extraction-patterns.md` - Unified browser cookie extraction (Zalo/Facebook/Telegram)
 - `references/simpleai-ecosystem-pattern.md` - SimpleAI project structure and migration approach
-- `references/omnichannel-hub-pattern.md` - Omnichannel unified inbox architecture (NEW)
-- **`references/zalo-message-viewing-workflow.md`** - Zalo API limitations, browser-only reading guide ⭐
+- **`references/zalo-qr-workflow.md`** - Complete QR code login pattern for Zalo authentication, including DingTalk device flow example
+- **`references/zalo-message-viewing-workflow.md`** - Zalo API limitations & browser-only reading guide ⭐
 - `templates/testing-framework.md` - Multi-platform test patterns and verification checklist
-- `scripts/omnichannel_setup.sh` - Quick setup & verify script (automates config creation)
+- **`scripts/omnichannel_setup.sh`** - Quick setup & verify script (automates config creation, env loading)
 
-### Omnichannel Hub Specific:
-- `references/omnichannel-hub-pattern.md` - Comprehensive omnichannel architecture guide
+### Omnichannel Hub Backend Specific:
+- `references/zalo-qr-workflow.md` - Complete QR code login guide (Zalo/Facebook OAuth patterns)
+- `scripts/omnichannel_setup.sh` - Setup wizard for omnichannel backend initialization ✅
 - `scripts/omnichannel_setup.sh` - Setup wizard for omnichannel hub initialization
 
 ---

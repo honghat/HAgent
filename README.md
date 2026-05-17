@@ -39,77 +39,31 @@ HAgent là một **autonomous AI agent** hiệu suất cao, được thiết k�
 ```text
 HAgent/
 ├── backend/
-│   └── agent/                       # Python Agent — TRUNG TÂM hệ thống
-│       ├── app/                     # Mã nguồn chính
-│       │   ├── api/                 # FastAPI routes & services
-│       │   │   ├── routers/         # auth, sessions, messages, wiki, skills, web, workspace, video, config, agents, job_hunter...
-│       │   │   └── services/        # user_store, wiki_store, session_store, wiki_memory, agent_reply, db...
-│       │   ├── agent/               # LLM orchestration, prompt, memory, context, transports (Anthropic, Bedrock, Gemini...)
-│       │   ├── gateway/             # Messaging gateway đa nền tảng (20+ platforms)
-│       │   │   └── platforms/       # telegram, discord, slack, whatsapp, zalo, messenger, signal, matrix, wechat, dingtalk...
-│       │   ├── tools/               # 50+ công cụ tự hành
-│       │   │   └── environments/    # local, ssh, modal, daytona, vercel sandbox, singularity...
-│       │   ├── skills/              # 21+ kỹ năng chuyên biệt (research, creative, productivity, development...)
-│       │   ├── plugins/             # model-providers, memory (mem0, supermemory, honcho...), google_meet, spotify...
-│       │   ├── environments/        # agent_loop, web_research, hagent_swe, terminal_test...
-│       │   ├── providers/           # AI provider adapters
-│       │   ├── hagent_cli/          # CLI commands, config, auth, profiles, cron, web_server, models...
-│       │   ├── cron/                # Công việc định kỳ
-│       │   └── mcp/                 # Model Context Protocol (oauth, tool, config)
-│       ├── data/                    # Dữ liệu runtime (profiles, skills đang dùng)
-│       ├── runtime/                 # Dữ liệu vận hành
-│       ├── .venv/                   # Python virtual environment
-│       ├── requirements.txt         # Python dependencies
-│       └── manage.py                # Django-style management (nếu có)
-│   ├── .env                         # Biến môi trường backend
-│   └── .mcp.json                    # Cấu hình MCP server
-├── frontend/                        # React + Vite — Lớp hiển thị thuần
+│   ├── api/                       # FastAPI — TRUNG TÂM hệ thống
+│   │   ├── routers/               # auth, sessions, messages, files, wiki, skills, web, workspace, video, config, agents, job_hunter, services, drive, evolution, goals...
+│   │   └── services/              # user_store, wiki_store, session_store, wiki_memory, agent_reply, db, context_compaction...
+│   ├── agent/                     # LLM orchestration, prompt, memory, context, tools (50+), skills (21+)
+│   ├── plugins/                   # model-providers (9router...), memory, google_meet...
+│   ├── .env
+│   └── requirements.txt
+├── frontend/                      # React + Vite — Lớp hiển thị
 │   ├── src/
-│   │   ├── api/                     # API client
-│   │   ├── assets/                  # Tĩnh (ảnh, font...)
-│   │   ├── components/              # UI components
-│   │   ├── lib/                     # Thư viện tiện ích
+│   │   ├── components/            # Chat, FileManager, PortManager, Wiki, VideoPage, JobHunter...
 │   │   ├── App.jsx
 │   │   └── main.jsx
-│   ├── index.html
 │   ├── vite.config.js
 │   └── package.json
-├── data/                            # Dữ liệu tập trung
-│   ├── hagent.db                    # SQLite database chính
-│   ├── wiki/                        # Kho tri thức Markdown
-│   └── video/                       # Video files
-├── logs/                            # Nhật ký tất cả services (PM2)
-│   ├── backend-*.log
-│   ├── fastapi-*.log
-│   ├── frontend-*.log
-│   ├── gateway-*.log
-│   ├── telegram-*.log
-│   ├── learn-*.log
-│   ├── tts-*.log
-│   └── stt-*.log
-├── scripts/                         # Script tiện ích & bảo trì
-│   ├── telegram/                    # Telegram bot scripts
-│   ├── start-all.sh                 # Khởi động toàn bộ
-│   ├── hagent-start.sh              # Khởi động HAgent
-│   ├── tts-start.sh                 # Khởi động TTS services
-│   ├── stt-start.sh                 # Khởi động STT service
-│   ├── learn-start.sh               # Khởi động Learn module
-│   ├── rustdesk-on.sh / rustdesk-off.sh
-│   └── ...                          # Các script khác
-├── tts/                             # Dịch vụ Text-to-Speech
-│   ├── edge_tts_server.py           # Edge TTS (online)
-│   ├── piper_server.py              # Piper TTS (offline)
-│   ├── server.py                    # LuxTTS server
-│   └── LuxTTS/                      # ZipVoice model
-├── stt/                             # Dịch vụ Speech-to-Text
-│   └── whisper_server.py            # Whisper STT (offline)
-├── learn/                           # Module học tiếng Anh (Next.js)
-├── rustdesk/                        # RustDesk remote desktop
-├── node_modules/                    # Node.js dependencies
-├── ecosystem.config.cjs             # Cấu hình PM2
-├── start.sh                         # Script khởi chạy nhanh
-├── hagent                           # CLI entry point
-├── package.json                     # Node.js root config
+├── data/                          # Dữ liệu tập trung
+│   └── hagent.db                  # SQLite database
+├── logs/                          # Nhật ký tất cả services (PM2)
+├── scripts/                       # Script tiện ích (start, rustdesk, mount, telegram...)
+├── tts/                           # Text-to-Speech (Edge TTS, Piper)
+├── stt/                           # Speech-to-Text (Whisper)
+├── learn/                         # Module học (Next.js)
+├── rustdesk/                      # RustDesk remote desktop server
+├── config/                        # Cấu hình
+├── ecosystem.config.cjs           # PM2 config
+├── README.md
 └── .gitignore
 ```
 
@@ -227,14 +181,12 @@ pm2 save
 |---|---|---|
 | `hagent-backend` | Node.js gateway + spawn Python agent | 8004 |
 | `hagent-fastapi` | Python FastAPI agent core | 8010 |
-| `hagent-frontend` | Giao diện React | 5173 |
-| `hagent-gateway` | Messaging gateway đa nền tảng | — |
+| `hagent-frontend` | Giao diện React | 3004 |
 | `hagent-telegram` | Telegram bot service | — |
-| `hagent-learn` | Module học tiếng Anh | 3000 |
+| `hagent-learn` | Module học tiếng Anh | 8006 |
 | `hagent-tts-edge` | TTS Edge (online) | — |
-| `hagent-tts-piper` | TTS Piper (offline) | — |
-| `hagent-tts-lux` | TTS LuxTTS (offline) | — |
-| `hagent-stt` | STT Whisper (offline) | — |
+| `hagent-cron` | Cron scheduler | — |
+| `9router` | AI provider proxy/load balancer | 20128 |
 
 ---
 

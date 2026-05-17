@@ -255,7 +255,7 @@ def _remove_nous_device_code(provider: str, removed) -> RemovalResult:
 def _remove_minimax_oauth(provider: str, removed) -> RemovalResult:
     """MiniMax OAuth lives in auth.json providers.minimax-oauth — clear it.
 
-    Same pattern as Nous: single-source OAuth state with refresh tokens.
+    Same pattern asNous: single-source OAuth state with refresh tokens.
     Suppression of the `oauth` source ensures the pool reseed path
     (_seed_from_singletons) doesn't instantly undo the removal.
     """

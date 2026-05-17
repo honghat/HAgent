@@ -1011,7 +1011,7 @@ def resolve_runtime_provider(
                 getattr(entry, "runtime_api_key", None)
                 or getattr(entry, "access_token", "")
             )
-        # For Nous, the pool entry's runtime_api_key is the agent_key — a
+        # ForNous, the pool entry's runtime_api_key is the agent_key — a
         # short-lived inference credential (~30 min TTL).  The pool doesn't
         # refresh it during selection (that would trigger network calls in
         # non-runtime contexts like `hagent auth list`).  If the key is
@@ -1054,9 +1054,9 @@ def resolve_runtime_provider(
         except AuthError:
             if requested_provider != "auto":
                 raise
-            # Auto-detected Nous but credentials are stale/revoked —
+            # Auto-detectedNous but credentials are stale/revoked —
             # fall through to env-var providers (e.g. OpenRouter).
-            logger.info("Auto-detected Nous provider but credentials failed; "
+            logger.info("Auto-detectedNous provider but credentials failed; "
                         "falling through to next provider.")
 
     if provider == "openai-codex":

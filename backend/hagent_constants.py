@@ -20,11 +20,11 @@ _profile_fallback_warned: bool = False
 
 
 def get_hagent_home() -> Path:
-    """Return HAgent's home directory.
+    """Return Hạt Nguyễn's home directory.
 
     Reads HAGENT_HOME when explicitly set, otherwise falls back to
     ``backend/agent`` for project-deployed state (config, sessions,
-    logs, memories, etc.). HAgent does not use ``~/.hagent`` as its
+    logs, memories, etc.). Hạt Nguyễn does not use ``~/.hagent`` as its
     default state directory.
 
     When ``HAGENT_HOME`` is unset but an ``active_profile`` file indicates
@@ -35,7 +35,7 @@ def get_hagent_home() -> Path:
     callers that import this at load time.  Subprocess spawners are
     expected to propagate ``HAGENT_HOME`` explicitly (see the systemd
     template in ``hagent_cli/gateway.py`` and the kanban dispatcher in
-    ``hagent_cli/kanban_db.py``).  See https://github.com/NousResearch/hagent-agent/issues/18594.
+    ``hagent_cli/kanban_db.py``).  See https://github.com/HatNguyen/hagent-agent/issues/18594.
     """
     val = os.environ.get("HAGENT_HOME", "").strip()
     if val:
@@ -259,7 +259,7 @@ def get_config_path() -> Path:
 
 
 def get_skills_dir() -> Path:
-    """Return HAgent's in-project skills directory."""
+    """Return Hạt Nguyễn's in-project skills directory."""
     return _PROJECT_SKILLS_DIR
 
 
@@ -336,7 +336,7 @@ def _guard_hermes_path(path: Union[str, Path]) -> None:
         Path(path).resolve().relative_to(_BANNED_PATH.resolve())
         raise RuntimeError(
             f"BANNED: attempted to create '{path}' inside ~/.hermes. "
-            "HAgent uses ~/.hagent (or the in-project runtime). "
+            "Hạt Nguyễn uses ~/.hagent (or the in-project runtime). "
             "Update the caller to use get_hagent_home()."
         )
     except ValueError:

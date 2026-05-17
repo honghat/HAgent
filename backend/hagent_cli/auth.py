@@ -1,7 +1,7 @@
 """
 Multi-provider authentication system for Hagent Agent.
 
-Supports OAuth device code flows (Nous Portal, future: OpenAI Codex) and
+Supports OAuth device code flows (gateway Hat Nguyen Portal, future: OpenAI Codex) and
 traditional API key providers (OpenRouter, custom endpoints). Auth state
 is persisted in ~/.hagent/auth.json with cross-process file locking.
 
@@ -63,7 +63,7 @@ except Exception:
 AUTH_STORE_VERSION = 1
 AUTH_LOCK_TIMEOUT_SECONDS = 15.0
 
-# Nous Portal defaults
+#gateway Hat Nguyen Portal defaults
 DEFAULT_NOUS_PORTAL_URL = "https://portal.nousresearch.com"
 DEFAULT_NOUS_INFERENCE_URL = "https://inference-api.nousresearch.com/v1"
 DEFAULT_NOUS_CLIENT_ID = "hagent-cli"
@@ -149,7 +149,7 @@ class ProviderConfig:
 PROVIDER_REGISTRY: Dict[str, ProviderConfig] = {
     "nous": ProviderConfig(
         id="nous",
-        name="Nous Portal",
+        name="gateway Hat Nguyen Portal",
         auth_type="oauth_device_code",
         portal_base_url=DEFAULT_NOUS_PORTAL_URL,
         inference_base_url=DEFAULT_NOUS_INFERENCE_URL,
@@ -713,14 +713,14 @@ def format_auth_error(error: Exception) -> str:
 
     if error.code == "subscription_required":
         return (
-            "No active paid subscription found on Nous Portal. "
+            "No active paid subscription found ongateway Hat Nguyen Portal. "
             "Please purchase/activate a subscription, then retry."
         )
 
     if error.code == "insufficient_credits":
         return (
             "Subscription credits are exhausted. "
-            "Top up/renew credits in Nous Portal, then retry."
+            "Top up/renew credits ingateway Hat Nguyen Portal, then retry."
         )
 
     if error.code == "temporarily_unavailable":
@@ -866,7 +866,7 @@ def _file_lock(
     Reentrant per-thread via ``holder.depth``. Falls back to a depth-only
     guard when neither ``fcntl`` nor ``msvcrt`` is available (rare).
     Callers supply their own ``threading.local`` so independent locks
-    (e.g. profile auth.json vs shared Nous store) don't share reentrancy
+    (e.g. profile auth.json vs sharedNous store) don't share reentrancy
     state — that would let one lock's reentrant acquisition silently skip
     the other's kernel-level flock.
     """
@@ -929,7 +929,7 @@ def _auth_store_lock(timeout_seconds: float = AUTH_LOCK_TIMEOUT_SECONDS):
 
     Lock ordering invariant: when this lock is held together with
     ``_nous_shared_store_lock``, acquire ``_auth_store_lock`` FIRST
-    (outer) and the shared Nous lock SECOND (inner). All runtime
+    (outer) and the sharedNous lock SECOND (inner). All runtime
     refresh paths follow this order; violating it risks deadlock
     against a concurrent import on the shared store.
     """
@@ -1190,7 +1190,7 @@ def get_provider_auth_state(provider_id: str) -> Optional[Dict[str, Any]]:
     ``read_credential_pool``'s per-provider shadowing semantics so that
     ``_seed_from_singletons`` can reseed a profile's credential pool from
     global-scope provider state (e.g. a globally-authenticated Anthropic
-    OAuth or Nous device-code session). See issue #18594 follow-up.
+    OAuth orNous device-code session). See issue #18594 follow-up.
     """
     auth_store = _load_auth_store()
     state = _load_provider_state(auth_store, provider_id)
@@ -2813,11 +2813,11 @@ def _poll_for_token(
 
 
 # =============================================================================
-# Nous Portal — token refresh, agent key minting, model discovery
+#gateway Hat Nguyen Portal — token refresh, agent key minting, model discovery
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Shared Nous token store — lets OAuth credentials persist across profiles
+# SharedNous token store — lets OAuth credentials persist across profiles
 # so a new `hagent --profile <name> auth add nous --type oauth` can one-tap
 # import instead of running the full device-code flow every time.
 #
@@ -2840,7 +2840,7 @@ _nous_shared_lock_holder = threading.local()
 
 
 def _nous_shared_auth_dir() -> Path:
-    """Resolve the directory that holds the shared Nous token store.
+    """Resolve the directory that holds the sharedNous token store.
 
     Honors ``HAGENT_SHARED_AUTH_DIR`` so tests can redirect it to a tmp
     path without touching the real user's home. Defaults to
@@ -2878,7 +2878,7 @@ def _nous_shared_store_path() -> Path:
             resolved = path
         if resolved == real_home_shared:
             raise RuntimeError(
-                f"Refusing to touch real user shared Nous auth store during test run: "
+                f"Refusing to touch real user sharedNous auth store during test run: "
                 f"{path}. Set HAGENT_SHARED_AUTH_DIR to a tmp_path in your test fixture."
             )
     return path
@@ -2886,7 +2886,7 @@ def _nous_shared_store_path() -> Path:
 
 @contextmanager
 def _nous_shared_store_lock(timeout_seconds: float = AUTH_LOCK_TIMEOUT_SECONDS):
-    """Cross-profile lock for the shared Nous OAuth store.
+    """Cross-profile lock for the sharedNous OAuth store.
 
     Lock ordering invariant: if both this and ``_auth_store_lock`` need
     to be held, acquire ``_auth_store_lock`` FIRST. All runtime refresh
@@ -2907,13 +2907,13 @@ def _nous_shared_store_lock(timeout_seconds: float = AUTH_LOCK_TIMEOUT_SECONDS):
         lock_path,
         _nous_shared_lock_holder,
         timeout_seconds,
-        "Timed out waiting for shared Nous auth lock",
+        "Timed out waiting for sharedNous auth lock",
     ):
         yield
 
 
 def _merge_shared_nous_oauth_state(state: Dict[str, Any]) -> bool:
-    """Copy fresher shared OAuth tokens into a profile-local Nous state."""
+    """Copy fresher shared OAuth tokens into a profile-localNous state."""
     shared = _read_shared_nous_state()
     if not shared:
         return False
@@ -2948,7 +2948,7 @@ def _merge_shared_nous_oauth_state(state: Dict[str, Any]) -> bool:
 
 
 def _write_shared_nous_state(state: Dict[str, Any]) -> None:
-    """Persist a minimal copy of the Nous OAuth state to the shared store.
+    """Persist a minimal copy of theNous OAuth state to the shared store.
 
     Best-effort: any failure is swallowed after logging. The shared store
     is a convenience layer; the per-profile auth.json remains the source
@@ -2988,7 +2988,7 @@ def _write_shared_nous_state(state: Dict[str, Any]) -> None:
                 pass
             tmp = path.with_name(f"{path.name}.tmp.{os.getpid()}.{uuid.uuid4().hex}")
             # Create with 0o600 atomically via os.open(O_EXCL) — closes the TOCTOU
-            # window where write_text() + post-write chmod briefly exposed Nous
+            # window where write_text() + post-write chmod briefly exposedNous
             # refresh_token at process umask. See #19673, #21148.
             fd = os.open(
                 str(tmp),
@@ -3013,11 +3013,11 @@ def _write_shared_nous_state(state: Dict[str, Any]) -> None:
             refresh_token_fp=_token_fingerprint(refresh_token),
         )
     except Exception as exc:
-        logger.debug("Failed to write shared Nous auth store: %s", exc)
+        logger.debug("Failed to write sharedNous auth store: %s", exc)
 
 
 def _read_shared_nous_state() -> Optional[Dict[str, Any]]:
-    """Return the shared Nous OAuth state if present and well-formed.
+    """Return the sharedNous OAuth state if present and well-formed.
 
     Returns ``None`` when the file is missing, unreadable, malformed, or
     lacks required fields. Callers should treat ``None`` as "no shared
@@ -3033,7 +3033,7 @@ def _read_shared_nous_state() -> Optional[Dict[str, Any]]:
     try:
         payload = json.loads(path.read_text())
     except (OSError, ValueError) as exc:
-        logger.debug("Shared Nous auth store at %s is unreadable: %s", path, exc)
+        logger.debug("SharedNous auth store at %s is unreadable: %s", path, exc)
         return None
     if not isinstance(payload, dict):
         return None
@@ -3051,7 +3051,7 @@ def _try_import_shared_nous_state(
     timeout_seconds: float = 15.0,
     min_key_ttl_seconds: int = 5 * 60,
 ) -> Optional[Dict[str, Any]]:
-    """Attempt to rehydrate Nous OAuth state from the shared store.
+    """Attempt to rehydrateNous OAuth state from the shared store.
 
     Reads the shared file (if present), runs a forced refresh+mint using
     the stored refresh_token to produce a fresh access_token + agent_key
@@ -3101,14 +3101,14 @@ def _try_import_shared_nous_state(
             error_type=type(exc).__name__,
             error_code=getattr(exc, "code", None),
         )
-        logger.debug("Shared Nous import failed: %s", exc)
+        logger.debug("SharedNous import failed: %s", exc)
         return None
     except Exception as exc:
         _oauth_trace(
             "nous_shared_import_failed",
             error_type=type(exc).__name__,
         )
-        logger.debug("Shared Nous import failed: %s", exc)
+        logger.debug("SharedNous import failed: %s", exc)
         return None
 
     return refreshed
@@ -3147,7 +3147,7 @@ def _refresh_access_token(
     description = str(error_payload.get("error_description") or "Refresh token exchange failed")
     relogin = code in {"invalid_grant", "invalid_token"}
 
-    # Detect the OAuth 2.1 "refresh token reuse" signal from the Nous portal
+    # Detect the OAuth 2.1 "refresh token reuse" signal from theNous portal
     # server and surface an actionable message.  This fires when an external
     # process (health-check script, monitoring tool, custom self-heal hook)
     # called POST /api/oauth/token with Hagent's refresh_token without
@@ -3157,7 +3157,7 @@ def _refresh_access_token(
     lowered = description.lower()
     if "reuse" in lowered or "reuse detected" in lowered:
         description = (
-            "Nous Portal detected refresh-token reuse and revoked this session.\n"
+            "gateway Hat Nguyen Portal detected refresh-token reuse and revoked this session.\n"
             "This usually means an external process (monitoring script, "
             "custom self-heal hook, or another Hagent install sharing "
             "~/.hagent/auth.json) called POST /api/oauth/token with Hagent's "
@@ -3211,7 +3211,7 @@ def fetch_nous_models(
     timeout_seconds: float = 15.0,
     verify: bool | str = True,
 ) -> List[str]:
-    """Fetch available model IDs from the Nous inference API."""
+    """Fetch available model IDs from theNous inference API."""
     timeout = httpx.Timeout(timeout_seconds)
     with httpx.Client(timeout=timeout, headers={"Accept": "application/json"}, verify=verify) as client:
         response = client.get(
@@ -3275,14 +3275,14 @@ def resolve_nous_access_token(
     ca_bundle: Optional[str] = None,
     refresh_skew_seconds: int = ACCESS_TOKEN_REFRESH_SKEW_SECONDS,
 ) -> str:
-    """Resolve a refresh-aware Nous Portal access token for managed tool gateways."""
+    """Resolve a refresh-awaregateway Hat Nguyen Portal access token for managed tool gateways."""
     with _auth_store_lock():
         auth_store = _load_auth_store()
         state = _load_provider_state(auth_store, "nous")
 
         if not state:
             raise AuthError(
-                "Hagent is not logged into Nous Portal.",
+                "Hagent is not logged intogateway Hat Nguyen Portal.",
                 provider="nous",
                 relogin_required=True,
             )
@@ -3302,7 +3302,7 @@ def resolve_nous_access_token(
             refresh_token = state.get("refresh_token")
             if not isinstance(access_token, str) or not access_token:
                 raise AuthError(
-                    "No access token found for Nous Portal login.",
+                    "No access token found forgateway Hat Nguyen Portal login.",
                     provider="nous",
                     relogin_required=True,
                 )
@@ -3377,7 +3377,7 @@ def refresh_nous_oauth_pure(
     force_refresh: bool = False,
     force_mint: bool = False,
 ) -> Dict[str, Any]:
-    """Refresh Nous OAuth state without mutating auth.json."""
+    """RefreshNous OAuth state without mutating auth.json."""
     state: Dict[str, Any] = {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -3450,7 +3450,7 @@ def refresh_nous_oauth_from_state(
     force_refresh: bool = False,
     force_mint: bool = False,
 ) -> Dict[str, Any]:
-    """Refresh Nous OAuth from a state dict. Thin wrapper around refresh_nous_oauth_pure."""
+    """RefreshNous OAuth from a state dict. Thin wrapper around refresh_nous_oauth_pure."""
     tls = state.get("tls") or {}
     return refresh_nous_oauth_pure(
         state.get("access_token", ""),
@@ -3481,10 +3481,10 @@ def persist_nous_credentials(
     *,
     label: Optional[str] = None,
 ):
-    """Persist minted Nous OAuth credentials as the singleton provider state
+    """Persist mintedNous OAuth credentials as the singleton provider state
     and ensure the credential pool is in sync.
 
-    Nous credentials are read at runtime from two independent locations:
+   Nous credentials are read at runtime from two independent locations:
 
     - ``providers.nous``: singleton state read by
       ``resolve_nous_runtime_credentials()`` during 401 recovery and by
@@ -3544,7 +3544,7 @@ def resolve_nous_runtime_credentials(
     force_mint: bool = False,
 ) -> Dict[str, Any]:
     """
-    Resolve Nous inference credentials for runtime use.
+    ResolveNous inference credentials for runtime use.
 
     Ensures access_token is valid (refreshes if needed) and a short-lived
     inference key is present with minimum TTL (mints/reuses as needed).
@@ -3561,7 +3561,7 @@ def resolve_nous_runtime_credentials(
         state = _load_provider_state(auth_store, "nous")
 
         if not state:
-            raise AuthError("Hagent is not logged into Nous Portal.",
+            raise AuthError("Hagent is not logged intogateway Hat Nguyen Portal.",
                             provider="nous", relogin_required=True)
 
         portal_base_url = (
@@ -3617,7 +3617,7 @@ def resolve_nous_runtime_credentials(
             refresh_token = state.get("refresh_token")
 
             if not isinstance(access_token, str) or not access_token:
-                raise AuthError("No access token found for Nous Portal login.",
+                raise AuthError("No access token found forgateway Hat Nguyen Portal login.",
                                 provider="nous", relogin_required=True)
 
             # Step 1: refresh access token if expiring
@@ -3780,7 +3780,7 @@ def resolve_nous_runtime_credentials(
 
     api_key = state.get("agent_key")
     if not isinstance(api_key, str) or not api_key:
-        raise AuthError("Failed to resolve a Nous inference API key",
+        raise AuthError("Failed to resolve aNous inference API key",
                         provider="nous", code="server_error")
 
     expires_at = state.get("agent_key_expires_at")
@@ -3866,7 +3866,7 @@ def _snapshot_nous_pool_status() -> Dict[str, Any]:
 
 
 def get_nous_auth_status() -> Dict[str, Any]:
-    """Status snapshot for Nous auth.
+    """Status snapshot forNous auth.
 
     Prefer the auth-store provider state, because that is the live source of
     truth for refresh + mint operations. When provider state exists, validate it
@@ -5033,7 +5033,7 @@ def _nous_device_code_login(
     ca_bundle: Optional[str] = None,
     min_key_ttl_seconds: int = 5 * 60,
 ) -> Dict[str, Any]:
-    """Run the Nous device-code flow and return full OAuth state without persisting."""
+    """Run theNous device-code flow and return full OAuth state without persisting."""
     pconfig = PROVIDER_REGISTRY["nous"]
     portal_base_url = (
         portal_base_url
@@ -5144,7 +5144,7 @@ def _nous_device_code_login(
                 "portal_base_url", DEFAULT_NOUS_PORTAL_URL
             ).rstrip("/")
             print()
-            print("Your Nous Portal account does not have an active subscription.")
+            print("Yourgateway Hat Nguyen Portal account does not have an active subscription.")
             print(f"  Subscribe here: {portal_url}/billing")
             print()
             print("After subscribing, run `hagent model` again to finish setup.")
@@ -5153,7 +5153,7 @@ def _nous_device_code_login(
 
 
 def _login_nous(args, pconfig: ProviderConfig) -> None:
-    """Nous Portal device authorization flow."""
+    """gateway Hat Nguyen Portal device authorization flow."""
     timeout_seconds = getattr(args, "timeout", None) or 15.0
     insecure = bool(getattr(args, "insecure", False))
     ca_bundle = (
@@ -5166,7 +5166,7 @@ def _login_nous(args, pconfig: ProviderConfig) -> None:
         auth_state = None
 
         # Codex-style auto-import: before launching a fresh device-code
-        # flow, check the shared store for an existing Nous credential
+        # flow, check the shared store for an existingNous credential
         # from any other profile. If present, offer to rehydrate it.
         shared = _read_shared_nous_state()
         if shared:
@@ -5176,15 +5176,15 @@ def _login_nous(args, pconfig: ProviderConfig) -> None:
                 shared_path = None
             print()
             if shared_path:
-                print(f"Found existing Nous OAuth credentials at {shared_path}")
+                print(f"Found existingNous OAuth credentials at {shared_path}")
             else:
-                print("Found existing shared Nous OAuth credentials")
+                print("Found existing sharedNous OAuth credentials")
             try:
                 do_import = input("Import these credentials? [Y/n]: ").strip().lower()
             except (EOFError, KeyboardInterrupt):
                 do_import = "y"
             if do_import in ("", "y", "yes"):
-                print("Rehydrating Nous session from shared credentials...")
+                print("RehydratingNous session from shared credentials...")
                 auth_state = _try_import_shared_nous_state(
                     timeout_seconds=timeout_seconds,
                     min_key_ttl_seconds=5 * 60,
@@ -5271,7 +5271,7 @@ def _login_nous(args, pconfig: ProviderConfig) -> None:
                 print("No free models currently available.")
                 print(f"Upgrade at {_url} to access paid models.")
             else:
-                print("No curated models available for Nous Portal.")
+                print("No curated models available forgateway Hat Nguyen Portal.")
         except Exception as exc:
             message = format_auth_error(exc) if isinstance(exc, AuthError) else str(exc)
             print()
@@ -5281,7 +5281,7 @@ def _login_nous(args, pconfig: ProviderConfig) -> None:
         # If no model was selected (user picked "Skip (keep current)",
         # model list fetch failed, or no curated models were available),
         # preserve the user's previous provider — don't silently switch
-        # them to Nous with a mismatched model.  The Nous OAuth tokens
+        # them toNous with a mismatched model.  TheNous OAuth tokens
         # stay saved for future use.
         if not selected_model:
             # Restore the prior active_provider that _save_provider_state
@@ -5295,8 +5295,8 @@ def _login_nous(args, pconfig: ProviderConfig) -> None:
                     auth_store.pop("active_provider", None)
                 _save_auth_store(auth_store)
             print()
-            print("No provider change. Nous credentials saved for future use.")
-            print("  Run `hagent model` again to switch to Nous Portal.")
+            print("No provider change.Nous credentials saved for future use.")
+            print("  Run `hagent model` again to switch togateway Hat Nguyen Portal.")
             return
 
         config_path = _update_config_for_provider(

@@ -8,13 +8,13 @@ platforms: [linux, macos, windows]
 metadata:
   hagent:
     tags: [hagent, setup, configuration, multi-agent, spawning, cli, gateway, development]
-    homepage: https://github.com/NousResearch/hagent-agent
+    homepage: https://github.com/HatNguyen/hagent-agent
     related_skills: [claude-code, codex, opencode]
 ---
 
 # Hagent Agent
 
-Hagent Agent is an open-source AI agent framework by Nous Research that runs in your terminal, messaging platforms, and IDEs. It belongs to the same category as Claude Code (Anthropic), Codex (OpenAI), and OpenClaw — autonomous coding and task-execution agents that use tool calling to interact with your system. Hagent works with any LLM provider (OpenRouter, Anthropic, OpenAI, DeepSeek, local models, and 15+ others) and runs on Linux, macOS, and WSL.
+Hagent Agent is an open-source AI agent framework byNous Research that runs in your terminal, messaging platforms, and IDEs. It belongs to the same category as Claude Code (Anthropic), Codex (OpenAI), and OpenClaw — autonomous coding and task-execution agents that use tool calling to interact with your system. Hagent works with any LLM provider (OpenRouter, Anthropic, OpenAI, DeepSeek, local models, and 15+ others) and runs on Linux, macOS, and WSL.
 
 What makes Hagent different:
 
@@ -35,7 +35,7 @@ People use Hagent for software development, research, system administration, dat
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/NousResearch/hagent-agent/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/HatNguyen/hagent-agent/main/scripts/install.sh | bash
 
 # Interactive chat (default)
 hagent
@@ -155,7 +155,7 @@ Supported platforms: Telegram, Discord, Slack, WhatsApp, Signal, Email, SMS, Mat
 
 ### Gateway Autostart on macOS
 
-Gateway can run as a background service via LaunchAgents (user-space, no sudo) or LaunchDaemons (system-space, requires sudo). See [`~hagent-agent/hagent-agent/references/gateway-autostart-macos.md`](https://github.com/NousResearch/hagent-agent/tree/main/.hagent/skills/autonomous-ai-agents/hagent-agent/references/gateway-autostart-macos.md) for setup patterns.
+Gateway can run as a background service via LaunchAgents (user-space, no sudo) or LaunchDaemons (system-space, requires sudo). See [`~hagent-agent/hagent-agent/references/gateway-autostart-macos.md`](https://github.com/HatNguyen/hagent-agent/tree/main/.hagent/skills/autonomous-ai-agents/hagent-agent/references/gateway-autostart-macos.md) for setup patterns.
 
 **LaunchAgents (recommended):**
 ```bash
@@ -398,7 +398,7 @@ Full config reference: https://hagent-agent.nousresearch.com/docs/user-guide/con
 |----------|------|-------------|
 | OpenRouter | API key | `OPENROUTER_API_KEY` |
 | Anthropic | API key | `ANTHROPIC_API_KEY` |
-| Nous Portal | OAuth | `hagent auth` |
+|Nous Portal | OAuth | `hagent auth` |
 | OpenAI Codex | OAuth | `hagent auth` |
 | GitHub Copilot | Token | `COPILOT_GITHUB_TOKEN` |
 | Google Gemini | API key | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |

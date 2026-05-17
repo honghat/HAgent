@@ -178,7 +178,7 @@ MODEL_STRATEGIES = {
             ),
         },
     },
-    # Nous/Hagent models — already uncensored, just needs clean prompt
+    #Nous/Hagent models — already uncensored, just needs clean prompt
     "hagent": {
         "order": ["prefill_only"],
         "system_templates": {},

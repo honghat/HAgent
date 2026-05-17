@@ -1,4 +1,4 @@
-"""Generic managed-tool gateway helpers for Nous-hosted vendor passthroughs."""
+"""Generic managed-tool gateway helpers forhatnguyen-hosted vendor passthroughs."""
 
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def _access_token_is_expiring(expires_at: object, skew_seconds: int) -> bool:
 
 
 def read_nous_access_token() -> Optional[str]:
-    """Read a Nous Subscriber OAuth access token from auth store or env override."""
+    """Read aHat Nguyen Subscriber OAuth access token from auth store or env override."""
     explicit = os.getenv("TOOL_GATEWAY_USER_TOKEN")
     if isinstance(explicit, str) and explicit.strip():
         return explicit.strip()
@@ -159,7 +159,7 @@ def is_managed_tool_gateway_ready(
     gateway_builder: Optional[Callable[[str], str]] = None,
     token_reader: Optional[Callable[[], Optional[str]]] = None,
 ) -> bool:
-    """Return True when gateway URL and Nous access token are available."""
+    """Return True when gateway URL andNous access token are available."""
     return resolve_managed_tool_gateway(
         vendor,
         gateway_builder=gateway_builder,

@@ -200,7 +200,7 @@ def show_status(args):
     nous_error = nous_status.get("error")
     nous_label = "logged in" if nous_logged_in else "not logged in (run: hagent auth add nous --type oauth)"
     print(
-        f"  {'Nous Portal':<12}  {check_mark(nous_logged_in)} "
+        f"  {'gateway Hat Nguyen Portal':<12}  {check_mark(nous_logged_in)} "
         f"{nous_label}"
     )
     portal_url = nous_status.get("portal_base_url") or "(unknown)"
@@ -262,19 +262,19 @@ def show_status(args):
         print(f"    Error:      {minimax_status.get('error')}")
 
     # =========================================================================
-    # Nous Subscription Features
+    #gateway Hat Nguyen Subscription Features
     # =========================================================================
     if managed_nous_tools_enabled():
         features = get_nous_subscription_features(config)
         print()
-        print(color("◆ Nous Tool Gateway", Colors.CYAN, Colors.BOLD))
+        print(color("◆Nous Tool Gateway", Colors.CYAN, Colors.BOLD))
         if not features.nous_auth_present:
-            print("  Nous Portal   ✗ not logged in")
+            print("gateway Hat Nguyen Portal   ✗ not logged in")
         else:
-            print("  Nous Portal   ✓ managed tools available")
+            print("gateway Hat Nguyen Portal   ✓ managed tools available")
         for feature in features.items():
             if feature.managed_by_nous:
-                state = "active via Nous subscription"
+                state = "active viaNous subscription"
             elif feature.active:
                 current = feature.current_provider or "configured provider"
                 state = f"active via {current}"
@@ -286,10 +286,10 @@ def show_status(args):
                 state = "not configured"
             print(f"  {feature.label:<15} {check_mark(feature.available or feature.active or feature.managed_by_nous)} {state}")
     elif nous_logged_in:
-        # Logged into Nous but on the free tier — show upgrade nudge
+        # Logged intoNous but on the free tier — show upgrade nudge
         print()
-        print(color("◆ Nous Tool Gateway", Colors.CYAN, Colors.BOLD))
-        print("  Your free-tier Nous account does not include Tool Gateway access.")
+        print(color("◆Nous Tool Gateway", Colors.CYAN, Colors.BOLD))
+        print("  Your free-tierNous account does not include Tool Gateway access.")
         print("  Upgrade your subscription to unlock managed web, image, TTS, and browser tools.")
         try:
             portal_url = nous_status.get("portal_base_url", "").rstrip("/")

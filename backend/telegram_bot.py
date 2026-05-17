@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 import html as _html
 
 # Load .env from project root if available
-_env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+_env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
 if os.path.exists(_env_path):
     try:
         import dotenv
@@ -309,7 +309,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "<b>ℹ️ GIỚI THIỆU HAGENT BOT</b>\n\n"
-        "<b>HAgent</b> là trợ lý AI cá nhân, giúp bạn:\n"
+        "<b>Hạt Nguyễn</b> là trợ lý AI cá nhân, giúp bạn:\n"
         "• Trò chuyện & trả lời câu hỏi với AI\n"
         "• Tra cứu giá vàng, thời tiết, tin tức\n"
         "• Điều khiển máy tính từ xa (bật/tắt)\n"
@@ -584,7 +584,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ram = psutil.virtual_memory()
     cpu = psutil.cpu_percent(interval=1)
     await update.message.reply_text(
-        f"🟢 <b>HAgent Bot</b> đang chạy\n"
+        f"🟢 <b>Hạt Nguyễn Bot</b> đang chạy\n"
         f"⚡ CPU: {cpu}%\n"
         f"💾 RAM: {ram.percent}%\n"
         f"🔗 API: {_esc(API_URL)}",
@@ -673,16 +673,16 @@ async def handle_goal(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"✅ Đã đặt mục tiêu: <b>{_esc(args_text)}</b>\n🔄 Đang tạo lịch chạy tự động...", parse_mode="HTML")
             # Create a cron job to continuously work on the goal
             try:
-                from cron.jobs import create_job, list_jobs, remove_job
+                from cron.jobs import create_job, list_jobs, remove_job, trigger_job
                 # Remove any existing goal job first
                 existing = list_jobs(include_disabled=True)
                 for j in existing:
                     if j.get("name") == "goal-auto":
                         remove_job(j["id"])
-                # Create a job that runs every 30 minutes to work on the goal
+                # Create a job that runs every 10 minutes to work on the goal
                 job = create_job(
                     name="goal-auto",
-                    schedule="every 30m",
+                    schedule="every 1m",
                     prompt=f"""Bạn là trợ lý AI. Mục tiêu hiện tại: {args_text}
 
 Hãy làm việc để hoàn thành mục tiêu này. Các bước:
@@ -696,7 +696,12 @@ Khi chạy lệnh bash hoặc tool: chạy → đợi kết quả → đọc →
                     deliver="origin",
                 )
                 if job:
-                    await update.message.reply_text(f"✅ Mục tiêu sẽ được chạy tự động mỗi 30 phút. Theo dõi kết quả qua tin nhắn.", parse_mode="HTML")
+                    # Trigger immediately so it runs right now, not after 10 min
+                    try:
+                        trigger_job(job["id"])
+                        await update.message.reply_text(f"✅ Mục tiêu đã được kích hoạt! Chạy ngay lập tức và lặp lại mỗi 1 phút.", parse_mode="HTML")
+                    except Exception:
+                        await update.message.reply_text(f"✅ Mục tiêu sẽ chạy mỗi 1 phút.", parse_mode="HTML")
                 else:
                     await update.message.reply_text("⚠️ Đã lưu mục tiêu nhưng không tạo được lịch tự động.", parse_mode="HTML")
             except Exception as e:
@@ -757,11 +762,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if action == "on":
                 os.system("killall hbbs hbbr 2>/dev/null; kill -9 $(lsof -ti :8006 :8007) 2>/dev/null &")
                 await asyncio.sleep(0.5)
-                os.system("bash /Users/nguyenhat/HAgent/scripts/rustdesk-on.sh &")
+                os.system("bash /Users/nguyenhat/Hạt Nguyễn/scripts/rustdesk-on.sh &")
                 await query.edit_message_text("🖥 <b>RustDesk</b>\n🟢 Đã bật.", parse_mode="HTML")
             else:
                 os.system("killall hbbs hbbr RustDesk 2>/dev/null")
-                os.system("bash /Users/nguyenhat/HAgent/scripts/rustdesk-off.sh &")
+                os.system("bash /Users/nguyenhat/Hạt Nguyễn/scripts/rustdesk-off.sh &")
                 await query.edit_message_text("🖥 <b>RustDesk</b>\n🔴 Đã tắt.", parse_mode="HTML")
         except Exception as e:
             await query.edit_message_text(f"❌ Lỗi: {_esc(str(e))}", parse_mode="HTML")
@@ -831,7 +836,7 @@ def main():
             ]
 
             await app.bot.set_my_commands(custom_commands)
-            await app.bot.set_my_name("HAgent [Telegram]")
+            await app.bot.set_my_name("Hạt Nguyễn [Telegram]")
             await app.bot.set_my_description("Trợ lý AI đa năng qua Telegram")
             logger.info("Telegram menu: %d commands registered", len(custom_commands))
         except Exception as e:

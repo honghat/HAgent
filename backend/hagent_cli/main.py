@@ -352,7 +352,7 @@ def _has_any_provider_configured() -> bool:
     except Exception:
         pass
 
-    # Check for Nous Portal OAuth credentials
+    # Check forgateway Hat Nguyen Portal OAuth credentials
     auth_file = get_hagent_home() / "auth.json"
     if auth_file.exists():
         try:
@@ -2212,7 +2212,7 @@ def _aux_config_menu() -> None:
         print("  Side tasks (vision, compression, web extraction, etc.) default")
         print('  to your main chat model.  "auto" means "use my main model" —')
         print("  Hagent only falls back to a lightweight backend (OpenRouter,")
-        print("  Nous Portal) if the main model is unavailable.  Override a")
+        print("gateway Hat Nguyen Portal) if the main model is unavailable.  Override a")
         print("  task below if you want it pinned to a specific provider/model.")
         print()
 
@@ -2596,7 +2596,7 @@ def _model_flow_ai_gateway(config, current_model=""):
 
 
 def _model_flow_nous(config, current_model="", args=None):
-    """Nous Portal provider: ensure logged in, then pick model."""
+    """gateway Hat Nguyen Portal provider: ensure logged in, then pick model."""
     from hagent_cli.auth import (
         get_provider_auth_state,
         _prompt_model_selection,
@@ -2618,7 +2618,7 @@ def _model_flow_nous(config, current_model="", args=None):
 
     state = get_provider_auth_state("nous")
     if not state or not state.get("access_token"):
-        print("Not logged into Nous Portal. Starting login...")
+        print("Not logged intogateway Hat Nguyen Portal. Starting login...")
         print()
         try:
             mock_args = argparse.Namespace(
@@ -2659,7 +2659,7 @@ def _model_flow_nous(config, current_model="", args=None):
 
     model_ids = get_curated_nous_model_ids()
     if not model_ids:
-        print("No curated models available for Nous Portal.")
+        print("No curated models available forgateway Hat Nguyen Portal.")
         return
 
     # Verify credentials are still valid (catches expired sessions early)
@@ -2670,7 +2670,7 @@ def _model_flow_nous(config, current_model="", args=None):
         msg = format_auth_error(exc) if isinstance(exc, AuthError) else str(exc)
         if relogin:
             print(f"Session expired: {msg}")
-            print("Re-authenticating with Nous Portal...\n")
+            print("Re-authenticating withgateway Hat Nguyen Portal...\n")
             try:
                 mock_args = argparse.Namespace(
                     portal_url=None,
@@ -2704,7 +2704,7 @@ def _model_flow_nous(config, current_model="", args=None):
         )
 
     if not model_ids and not unavailable_models:
-        print("No models available for Nous Portal after filtering.")
+        print("No models available forgateway Hat Nguyen Portal after filtering.")
         return
 
     # Resolve portal URL for upgrade links (may differ on staging)
@@ -2738,7 +2738,7 @@ def _model_flow_nous(config, current_model="", args=None):
     )
     if selected:
         _save_model_choice(selected)
-        # Reactivate Nous as the provider and update config
+        # ReactivateNous as the provider and update config
         inference_url = creds.get("base_url", "")
         _update_config_for_provider("nous", inference_url)
         current_model_cfg = config.get("model")
@@ -2760,7 +2760,7 @@ def _model_flow_nous(config, current_model="", args=None):
             save_env_value("OPENAI_BASE_URL", "")
             save_env_value("OPENAI_API_KEY", "")
         save_config(config)
-        print(f"Default model set to: {selected} (via Nous Portal)")
+        print(f"Default model set to: {selected} (viagateway Hat Nguyen Portal)")
         # Offer Tool Gateway enablement for paid subscribers
         prompt_enable_tool_gateway(config)
     else:
@@ -4836,7 +4836,7 @@ def _model_flow_api_key_provider(config, provider_id, current_model=""):
                 print()
                 print(
                     "   Alternatives with workable free usage: DeepSeek, "
-                    "OpenRouter (free models), Groq, Nous."
+                    "OpenRouter (free models), Groq,Nous."
                 )
                 print()
                 print("Not saving Gemini as the default provider.")
@@ -5955,7 +5955,7 @@ def _update_via_zip(args):
 
     branch = "main"
     zip_url = (
-        f"https://github.com/NousResearch/hagent-agent/archive/refs/heads/{branch}.zip"
+        f"https://github.com/HatNguyen/hagent-agent/archive/refs/heads/{branch}.zip"
     )
 
     print("→ Downloading latest version...")
@@ -6282,12 +6282,12 @@ def _restore_stashed_changes(
 # =========================================================================
 
 OFFICIAL_REPO_URLS = {
-    "https://github.com/NousResearch/hagent-agent.git",
-    "git@github.com:NousResearch/hagent-agent.git",
-    "https://github.com/NousResearch/hagent-agent",
-    "git@github.com:NousResearch/hagent-agent",
+    "https://github.com/HatNguyen/hagent-agent.git",
+    "git@github.com:HatNguyen/hagent-agent.git",
+    "https://github.com/HatNguyen/hagent-agent",
+    "git@github.com:HatNguyen/hagent-agent",
 }
-OFFICIAL_REPO_URL = "https://github.com/NousResearch/hagent-agent.git"
+OFFICIAL_REPO_URL = "https://github.com/HatNguyen/hagent-agent.git"
 SKIP_UPSTREAM_PROMPT_FILE = ".skip_upstream_prompt"
 
 
@@ -6421,7 +6421,7 @@ def _sync_with_upstream_if_needed(git_cmd: list[str], cwd: Path) -> None:
         # Ask user if they want to add upstream
         print()
         print("ℹ Your fork is not tracking the official Hagent repository.")
-        print("  This means you may miss updates from NousResearch/hagent-agent.")
+        print("  This means you may miss updates from HatNguyen/hagent-agent.")
         print()
         try:
             response = (
@@ -6435,7 +6435,7 @@ def _sync_with_upstream_if_needed(git_cmd: list[str], cwd: Path) -> None:
             print("→ Adding upstream remote...")
             if _add_upstream_remote(git_cmd, cwd):
                 print(
-                    "  ✓ Added upstream: https://github.com/NousResearch/hagent-agent.git"
+                    "  ✓ Added upstream: https://github.com/HatNguyen/hagent-agent.git"
                 )
                 has_upstream = True
             else:
@@ -6443,7 +6443,7 @@ def _sync_with_upstream_if_needed(git_cmd: list[str], cwd: Path) -> None:
                 return
         else:
             print(
-                "  Skipped. Run 'git remote add upstream https://github.com/NousResearch/hagent-agent.git' to add later."
+                "  Skipped. Run 'git remote add upstream https://github.com/HatNguyen/hagent-agent.git' to add later."
             )
             _mark_skip_upstream_prompt()
             return
@@ -7363,7 +7363,7 @@ def _cmd_update_impl(args, gateway_mode: bool):
         else:
             print("✗ Not a git repository. Please reinstall:")
             print(
-                "  curl -fsSL https://raw.githubusercontent.com/NousResearch/hagent-agent/main/scripts/install.sh | bash"
+                "  curl -fsSL https://raw.githubusercontent.com/HatNguyen/hagent-agent/main/scripts/install.sh | bash"
             )
             sys.exit(1)
 
@@ -9290,38 +9290,38 @@ def main():
     )
     model_parser.add_argument(
         "--portal-url",
-        help="Portal base URL for Nous login (default: production portal)",
+        help="Portal base URL forNous login (default: production portal)",
     )
     model_parser.add_argument(
         "--inference-url",
-        help="Inference API base URL for Nous login (default: production inference API)",
+        help="Inference API base URL forNous login (default: production inference API)",
     )
     model_parser.add_argument(
         "--client-id",
         default=None,
-        help="OAuth client id to use for Nous login (default: hagent-cli)",
+        help="OAuth client id to use forNous login (default: hagent-cli)",
     )
     model_parser.add_argument(
-        "--scope", default=None, help="OAuth scope to request for Nous login"
+        "--scope", default=None, help="OAuth scope to request forNous login"
     )
     model_parser.add_argument(
         "--no-browser",
         action="store_true",
-        help="Do not attempt to open the browser automatically during Nous login",
+        help="Do not attempt to open the browser automatically duringNous login",
     )
     model_parser.add_argument(
         "--timeout",
         type=float,
         default=15.0,
-        help="HTTP request timeout in seconds for Nous login (default: 15)",
+        help="HTTP request timeout in seconds forNous login (default: 15)",
     )
     model_parser.add_argument(
-        "--ca-bundle", help="Path to CA bundle PEM file for Nous TLS verification"
+        "--ca-bundle", help="Path to CA bundle PEM file forNous TLS verification"
     )
     model_parser.add_argument(
         "--insecure",
         action="store_true",
-        help="Disable TLS verification for Nous login (testing only)",
+        help="Disable TLS verification forNous login (testing only)",
     )
     model_parser.set_defaults(func=cmd_model)
 

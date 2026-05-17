@@ -260,7 +260,7 @@ TIPS = [
     "Custom providers: save named endpoints in config.yaml under custom_providers.",
     "HAGENT_EPHEMERAL_SYSTEM_PROMPT injects a system prompt that's never persisted to history.",
     "credential_pool_strategies supports fill_first, round_robin, least_used, and random rotation.",
-    "hagent login supports OAuth-based auth for Nous and OpenAI Codex providers.",
+    "hagent login supports OAuth-based auth forNous and OpenAI Codex providers.",
     "The API server supports both Chat Completions and Responses API with server-side state.",
     "tool_preview_length: 0 in config shows full file paths in the spinner's activity feed.",
     "hagent status --deep runs deeper diagnostic checks across all components.",
@@ -332,7 +332,7 @@ TIPS = [
     "HAGENT_DEV=1 bypasses container mode detection for local development.",
     "Each MCP server gets its own toolset (mcp-servername) that can be toggled independently via hagent tools.",
     "MCP ${ENV_VAR} placeholders in config are resolved at server spawn — including vars from ~/.hagent/.env.",
-    "Skills from trusted repos (NousResearch) get a 'trusted' security level; community skills get extra scanning.",
+    "Skills from trusted repos (HatNguyen) get a 'trusted' security level; community skills get extra scanning.",
     "The skills quarantine at ~/.hagent/skills/.hub/quarantine/ holds skills pending security review.",
 
     # --- Advanced Slash Commands ---
@@ -368,7 +368,7 @@ TIPS = [
     # --- Credential Pools & Routing ---
     'hagent auth reset <provider> clears all cooldowns and exhaustion flags on a credential pool.',
     'credential_pool_strategies.<provider>: round_robin cycles keys evenly instead of the fill_first default.',
-    'use_gateway: true per-tool routes web, image, tts, or browser through your Nous subscription — no extra keys.',
+    'use_gateway: true per-tool routes web, image, tts, or browser through yourNous subscription — no extra keys.',
     'provider_routing.data_collection: deny excludes data-storing providers on OpenRouter.',
     'provider_routing.require_parameters: true only routes to providers that support every param in your request.',
 

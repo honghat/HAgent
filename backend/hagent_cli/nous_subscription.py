@@ -1,4 +1,4 @@
-"""Helpers for Nous subscription managed-tool capabilities."""
+"""Helpers forNous subscription managed-tool capabilities."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def _uses_gateway(section: object) -> bool:
 
 
 @dataclass(frozen=True)
-class NousFeatureState:
+classNousFeatureState:
     key: str
     label: str
     included_by_default: bool
@@ -48,30 +48,30 @@ class NousFeatureState:
 
 
 @dataclass(frozen=True)
-class NousSubscriptionFeatures:
+classNousSubscriptionFeatures:
     subscribed: bool
     nous_auth_present: bool
     provider_is_nous: bool
-    features: Dict[str, NousFeatureState]
+    features: Dict[str,NousFeatureState]
 
     @property
-    def web(self) -> NousFeatureState:
+    def web(self) ->NousFeatureState:
         return self.features["web"]
 
     @property
-    def image_gen(self) -> NousFeatureState:
+    def image_gen(self) ->NousFeatureState:
         return self.features["image_gen"]
 
     @property
-    def tts(self) -> NousFeatureState:
+    def tts(self) ->NousFeatureState:
         return self.features["tts"]
 
     @property
-    def browser(self) -> NousFeatureState:
+    def browser(self) ->NousFeatureState:
         return self.features["browser"]
 
     @property
-    def modal(self) -> NousFeatureState:
+    def modal(self) ->NousFeatureState:
         return self.features["modal"]
 
     def items(self) -> Iterable[NousFeatureState]:
@@ -227,7 +227,7 @@ def _resolve_browser_feature_state(
 
 def get_nous_subscription_features(
     config: Optional[Dict[str, object]] = None,
-) -> NousSubscriptionFeatures:
+) ->NousSubscriptionFeatures:
     if config is None:
         config = load_config() or {}
     config = dict(config)
@@ -416,7 +416,7 @@ def get_nous_subscription_features(
         tts_explicit_configured = tts_provider not in {"", "edge"}
 
     features = {
-        "web": NousFeatureState(
+        "web":NousFeatureState(
             key="web",
             label="Web tools",
             included_by_default=True,
@@ -428,7 +428,7 @@ def get_nous_subscription_features(
             current_provider=web_backend or web_search_backend or "",
             explicit_configured=bool(web_backend or web_search_backend),
         ),
-        "image_gen": NousFeatureState(
+        "image_gen":NousFeatureState(
             key="image_gen",
             label="Image generation",
             included_by_default=True,
@@ -437,10 +437,10 @@ def get_nous_subscription_features(
             managed_by_nous=image_managed,
             direct_override=image_active and not image_managed,
             toolset_enabled=image_tool_enabled,
-            current_provider="FAL" if direct_fal else ("Nous Subscription" if image_managed else ""),
+            current_provider="FAL" if direct_fal else ("gateway Hat Nguyen Subscription" if image_managed else ""),
             explicit_configured=direct_fal,
         ),
-        "tts": NousFeatureState(
+        "tts":NousFeatureState(
             key="tts",
             label="OpenAI TTS",
             included_by_default=True,
@@ -452,7 +452,7 @@ def get_nous_subscription_features(
             current_provider=_tts_label(tts_current_provider),
             explicit_configured=tts_explicit_configured,
         ),
-        "browser": NousFeatureState(
+        "browser":NousFeatureState(
             key="browser",
             label="Browser automation",
             included_by_default=True,
@@ -464,7 +464,7 @@ def get_nous_subscription_features(
             current_provider=_browser_label(browser_current_provider),
             explicit_configured=browser_provider_explicit,
         ),
-        "modal": NousFeatureState(
+        "modal":NousFeatureState(
             key="modal",
             label="Modal execution",
             included_by_default=False,
@@ -478,7 +478,7 @@ def get_nous_subscription_features(
         ),
     }
 
-    return NousSubscriptionFeatures(
+    returnNousSubscriptionFeatures(
         subscribed=subscribed,
         nous_auth_present=nous_auth_present,
         provider_is_nous=provider_is_nous,
@@ -601,8 +601,8 @@ def get_gateway_eligible_tools(
     - has_direct: tools where the user has their own API keys
     - already_managed: tools already routed through the gateway
 
-    All lists are empty when the user is not a paid Nous subscriber or
-    is not using Nous as their provider.
+    All lists are empty when the user is not a paidNous subscriber or
+    is not usingNous as their provider.
     """
     if not managed_nous_tools_enabled():
         return [], [], []
@@ -717,7 +717,7 @@ def prompt_enable_tool_gateway(config: Dict[str, object]) -> set[str]:
     desc_parts: list[str] = [
         "",
         "  The Tool Gateway gives you access to web search, image generation,",
-        "  text-to-speech, and browser automation through your Nous subscription.",
+        "  text-to-speech, and browser automation through yourNous subscription.",
         "  No need to sign up for separate API keys — just pick the tools you want.",
         "",
     ]
@@ -766,7 +766,7 @@ def prompt_enable_tool_gateway(config: Dict[str, object]) -> set[str]:
 
     try:
         idx = prompt_choice(
-            "Your Nous subscription includes the Tool Gateway.",
+            "YourNous subscription includes the Tool Gateway.",
             choices,
             default_idx,
             description=description,
@@ -793,7 +793,7 @@ def prompt_enable_tool_gateway(config: Dict[str, object]) -> set[str]:
         newly_switched = changed - set(already_managed)
         for key in sorted(newly_switched):
             label = _GATEWAY_TOOL_LABELS.get(key, key)
-            print(f"  ✓ {label}: enabled via Nous subscription")
+            print(f"  ✓ {label}: enabled viaNous subscription")
         if already_managed and not newly_switched:
             print("  (all tools already using Tool Gateway)")
     return changed

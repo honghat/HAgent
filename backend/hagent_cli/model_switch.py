@@ -57,13 +57,13 @@ _HAGENT_MODEL_WARNING = (
     "(Claude, GPT, Gemini, DeepSeek, etc.)."
 )
 
-# Match only the real Nous Research Hagent 3 / Hagent 4 chat families.
+# Match only the realNous Research Hagent 3 / Hagent 4 chat families.
 # The previous substring check (`"hagent" in name.lower()`) false-positived on
 # unrelated local Modelfiles like ``hagent-brain:qwen3-14b-ctx16k`` that just
 # happen to carry "hagent" in their tag but are fully tool-capable.
 #
 # Positive examples the regex must match:
-#   NousResearch/Hagent-3-Llama-3.1-70B, hagent-4-405b, openrouter/hagent3:70b
+#   HatNguyen/Hagent-3-Llama-3.1-70B, hagent-4-405b, openrouter/hagent3:70b
 # Negative examples it must NOT match:
 #   hagent-brain:qwen3-14b-ctx16k, qwen3:14b, claude-opus-4-6
 _NOUS_HAGENT_NON_AGENTIC_RE = re.compile(
@@ -73,7 +73,7 @@ _NOUS_HAGENT_NON_AGENTIC_RE = re.compile(
 
 
 def is_nous_hagent_non_agentic(model_name: str) -> bool:
-    """Return True if *model_name* is a real Nous Hagent 3/4 chat model.
+    """Return True if *model_name* is a realNous Hagent 3/4 chat model.
 
     Used to decide whether to surface the non-agentic warning at startup.
     Callers in :mod:`cli.py` and here should go through this single helper
@@ -85,7 +85,7 @@ def is_nous_hagent_non_agentic(model_name: str) -> bool:
 
 
 def _check_hagent_model_warning(model_name: str) -> str:
-    """Return a warning string if *model_name* is a Nous Hagent 3/4 chat model."""
+    """Return a warning string if *model_name* is aNous Hagent 3/4 chat model."""
     if is_nous_hagent_non_agentic(model_name):
         return _HAGENT_MODEL_WARNING
     return ""
@@ -578,7 +578,7 @@ def resolve_display_context_length(
     but provider-enforced limits can be lower (e.g. Codex OAuth caps the
     same slug at 272k). The authoritative source is
     ``agent.model_metadata.get_model_context_length`` which already knows
-    about Codex OAuth, Copilot, Nous, and falls back to models.dev for the
+    about Codex OAuth, Copilot,Nous, and falls back to models.dev for the
     rest.
 
     When ``custom_providers`` is provided, per-model ``context_length``

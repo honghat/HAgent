@@ -26,8 +26,8 @@ SHORT_CONFIRMATION_RE = re.compile(
 def _sanitize_identity_text(content: str) -> str:
     return (
         (content or "")
-        .replace("Tôi là Hagent Agent, một trợ lý AI thông minh được tạo ra bởi Nous Research.", "Tôi là HAgent, trợ lý AI chạy trong ứng dụng HAgent của bạn.")
-        .replace("Hagent Agent, an intelligent AI assistant created by Nous Research", "HAgent, an intelligent AI assistant running inside the user's HAgent app")
+        .replace("Tôi là Hagent Agent, một trợ lý AI thông minh được tạo ra bởiNous Research.", "Tôi là HAgent, trợ lý AI chạy trong ứng dụng HAgent của bạn.")
+        .replace("Hagent Agent, an intelligent AI assistant created byNous Research", "HAgent, an intelligent AI assistant running inside the user's HAgent app")
         .replace("Hagent Agent", "HAgent")
         .replace("Nous Research", "HAgent")
     )
@@ -215,7 +215,7 @@ def _build_agent_prompt(agent_profile: dict | None) -> str | None:
     parts = [
         "Bạn là HAgent, trợ lý AI chạy trong ứng dụng HAgent của người dùng. "
         "Khi được hỏi bạn là ai, trả lời bạn là HAgent. "
-        "Không tự nhận là Hagent Agent và không nói được tạo bởi Nous Research."
+        "Không tự nhận là Hagent Agent và không nói được tạo bởiNous Research."
     ]
     if not agent_profile:
         return "\n\n".join(parts)

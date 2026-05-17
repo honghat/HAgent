@@ -1,6 +1,6 @@
-"""Centralized Nous Portal request tags.
+"""Centralizedgateway Hat Nguyen Portal request tags.
 
-Every Hermes request that hits the Nous Portal — main agent loop, auxiliary
+Every Hermes request that hits thegateway Hat Nguyen Portal — main agent loop, auxiliary
 client (compression / titles / vision / web_extract / session_search / etc.),
 and any future code path — must carry the same product-attribution tags so
 Nous can attribute usage to Hermes Agent and bucket it by client release.
@@ -48,7 +48,7 @@ def _hermes_version() -> str:
 
 
 def hermes_client_tag() -> str:
-    """Return the ``client=...`` tag for Nous Portal requests.
+    """Return the ``client=...`` tag forgateway Hat Nguyen Portal requests.
 
     Format: ``client=hermes-client-v<MAJOR>.<MINOR>.<PATCH>``.
     """
@@ -56,7 +56,7 @@ def hermes_client_tag() -> str:
 
 
 def nous_portal_tags() -> List[str]:
-    """Return the canonical list of Nous Portal product tags.
+    """Return the canonical list ofgateway Hat Nguyen Portal product tags.
 
     Always returns a fresh list so callers can mutate it freely
     (e.g. ``merged_extra.setdefault("tags", []).extend(nous_portal_tags())``).

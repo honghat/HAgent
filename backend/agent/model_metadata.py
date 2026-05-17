@@ -1103,7 +1103,7 @@ def _query_local_context_length(model: str, base_url: str, api_key: str = "") ->
 def _normalize_model_version(model: str) -> str:
     """Normalize version separators for matching.
 
-    Nous uses dashes: claude-opus-4-6, claude-sonnet-4-5
+   Nous uses dashes: claude-opus-4-6, claude-sonnet-4-5
     OpenRouter uses dots: claude-opus-4.6, claude-sonnet-4.5
     Normalize both to dashes for comparison.
     """
@@ -1258,9 +1258,9 @@ def _resolve_codex_oauth_context_length(
 
 
 def _resolve_nous_context_length(model: str) -> Optional[int]:
-    """Resolve Nous Portal model context length via OpenRouter metadata.
+    """Resolvegateway Hat Nguyen Portal model context length via OpenRouter metadata.
 
-    Nous model IDs are bare (e.g. 'claude-opus-4-6') while OpenRouter uses
+   Nous model IDs are bare (e.g. 'claude-opus-4-6') while OpenRouter uses
     prefixed IDs (e.g. 'anthropic/claude-opus-4.6'). Try suffix matching
     with version normalization (dot↔dash).
     """
@@ -1308,7 +1308,7 @@ def get_model_context_length(
     3. Local server query (for local endpoints)
     4. Anthropic /v1/models API (API-key users only, not OAuth)
     5. OpenRouter live API metadata
-    6. Nous suffix-match via OpenRouter cache
+    6.Nous suffix-match via OpenRouter cache
     7. models.dev registry lookup (provider-aware)
     8. Thin hardcoded defaults (broad family patterns)
     9. Default fallback (256K)

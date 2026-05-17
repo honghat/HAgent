@@ -2,7 +2,7 @@
 name: platforms-integration
 description: "Unified integration for social/messaging platforms (Zalo, Facebook, Telegram, etc.) via Hagent gateway. Includes omnichannel hub pattern for multi-platform unified inbox."
 version: 1.1.0
-author: NousResearch/Hat Nguyen
+author: HatNguyen/Hat Nguyen
 license: MIT
 platforms: [linux, macos, windows]
 ---
@@ -461,7 +461,7 @@ import playwright  # Should not raise ModuleNotFoundError
 ---
 
 References:
-- [Hagent Gateway Adding Platform](https://github.com/NousResearch/hagent-agent/blob/main/gateway/platforms/ADDING_A_PLATFORM.md)
+- [Hagent Gateway Adding Platform](https://github.com/HatNguyen/hagent-agent/blob/main/gateway/platforms/ADDING_A_PLATFORM.md)
 - [Telegram Adapter Reference](/Users/nguyenhat/hagent-agent/gateway/platforms/telegram.py)
 - [Platforms Cookie Extraction Patterns](references/messaging-cookie-extraction-patterns.md)
 - **Zalo QR Workflow**: `~/.hagent/plugins/platforms/omnichannel/references/zalo-qr-workflow.md` (QR code & cookie auth guide)

@@ -1214,7 +1214,7 @@ class AIAgent:
         self.provider = provider_name or ""
         self.api_key = api_key
 
-        # HAgent: Load API key and Base URL from DB if not provided
+        # Hạt Nguyễn: Load API key and Base URL from DB if not provided
         if not self.api_key or not self.base_url:
             try:
                 import sqlite3
@@ -1235,7 +1235,7 @@ class AIAgent:
                         if db_api_key:
                             self.api_key = db_api_key
                         if db_model:
-                            # HAgent: Always override model if specified in DB for this provider
+                            # Hạt Nguyễn: Always override model if specified in DB for this provider
                             self.model = db_model
                     conn.close()
             except Exception:
@@ -2015,7 +2015,7 @@ class AIAgent:
         # same tools via ctx.register_tool(), which lands in self.tools
         # through get_tool_definitions()).  Duplicate function names cause
         # 400 errors on providers that enforce unique names (e.g. Xiaomi
-        # MiMo via Nous Portal).
+        # MiMo viagateway Hat Nguyen Portal).
         if self._memory_manager and self.tools is not None:
             _existing_tool_names = {
                 t.get("function", {}).get("name")
@@ -3527,7 +3527,7 @@ class AIAgent:
     ) -> bool:
         """Return True when this provider/model pair should use Responses API."""
         normalized_provider = (provider or "").strip().lower()
-        # Nous serves GPT-5.x models via its OpenAI-compatible chat
+        #Nous serves GPT-5.x models via its OpenAI-compatible chat
         # completions endpoint; its /v1/responses endpoint returns 404.
         if normalized_provider == "nous":
             return False
@@ -6915,7 +6915,7 @@ class AIAgent:
         self.base_url = base_url.strip().rstrip("/")
         self._client_kwargs["api_key"] = self.api_key
         self._client_kwargs["base_url"] = self.base_url
-        # Nous requests should not inherit OpenRouter-only attribution headers.
+        #Nous requests should not inherit OpenRouter-only attribution headers.
         self._client_kwargs.pop("default_headers", None)
 
         if not self._replace_primary_openai_client(reason="nous_credential_refresh"):
@@ -8740,7 +8740,7 @@ class AIAgent:
         Anthropic, OpenAI, local models) where a TCP-level hiccup does not
         mean the provider is down.
 
-        Skipped for proxy/aggregator providers (OpenRouter, Nous) which
+        Skipped for proxy/aggregator providers (OpenRouter,Nous) which
         already manage connection pools and retries server-side — if our
         retries through them are exhausted, one more rebuilt client won't help.
         """
@@ -9473,7 +9473,7 @@ class AIAgent:
 
         OpenRouter forwards unknown extra_body fields to upstream providers.
         Some providers/routes reject `reasoning` with 400s, so gate it to
-        known reasoning-capable model families and direct Nous Portal.
+        known reasoning-capable model families and directgateway Hat Nguyen Portal.
         """
         if base_url_host_matches(self._base_url_lower, "nousresearch.com"):
             return True
@@ -12236,8 +12236,8 @@ class AIAgent:
             api_kwargs = None  # Guard against UnboundLocalError in except handler
 
             while retry_count < max_retries:
-                # ── Nous Portal rate limit guard ──────────────────────
-                # If another session already recorded that Nous is rate-
+                # ──gateway Hat Nguyen Portal rate limit guard ──────────────────────
+                # If another session already recorded thatNous is rate-
                 # limited, skip the API call entirely.  Each attempt
                 # (including SDK-level retries) counts against RPH and
                 # deepens the rate limit hole.
@@ -12250,7 +12250,7 @@ class AIAgent:
                         _nous_remaining = nous_rate_limit_remaining()
                         if _nous_remaining is not None and _nous_remaining > 0:
                             _nous_msg = (
-                                f"Nous Portal rate limit active — "
+                                f"gateway Hat Nguyen Portal rate limit active — "
                                 f"resets in {_fmt_nous_remaining(_nous_remaining)}."
                             )
                             self._vprint(
@@ -12946,9 +12946,9 @@ class AIAgent:
                             )
                     
                     has_retried_429 = False  # Reset on success
-                    # Clear Nous rate limit state on successful request —
+                    # ClearNous rate limit state on successful request —
                     # proves the limit has reset and other sessions can
-                    # resume hitting Nous.
+                    # resume hittingNous.
                     if self.provider == "nous":
                         try:
                             from agent.nous_rate_guard import clear_nous_rate_limit
@@ -13307,7 +13307,7 @@ class AIAgent:
                     ):
                         nous_auth_retry_attempted = True
                         if self._try_refresh_nous_client_credentials(force=True):
-                            print(f"{self.log_prefix}🔐 Nous agent key refreshed after 401. Retrying request...")
+                            print(f"{self.log_prefix}🔐Nous agent key refreshed after 401. Retrying request...")
                             continue
                         # Credential refresh didn't help — show diagnostic info.
                         # Most common causes: Portal OAuth expired/revoked,
@@ -13321,7 +13321,7 @@ class AIAgent:
                                 _body_text = str(_body)[:200]
                         except Exception:
                             pass
-                        print(f"{self.log_prefix}🔐 Nous 401 — Portal authentication failed.")
+                        print(f"{self.log_prefix}🔐Nous 401 — Portal authentication failed.")
                         if _body_text:
                             print(f"{self.log_prefix}   Response: {_body_text}")
                         print(f"{self.log_prefix}   Most likely: Portal OAuth expired, account out of credits, or agent key revoked.")
@@ -13597,8 +13597,8 @@ class AIAgent:
                                 primary_recovery_attempted = False
                                 continue
 
-                    # ── Nous Portal: record rate limit & skip retries ─────
-                    # When Nous returns a 429 that is a genuine account-
+                    # ──gateway Hat Nguyen Portal: record rate limit & skip retries ─────
+                    # WhenNous returns a 429 that is a genuine account-
                     # level rate limit, record the reset time to a shared
                     # file so ALL sessions (cron, gateway, auxiliary) know
                     # not to pile on, then skip further retries -- each
@@ -13606,13 +13606,13 @@ class AIAgent:
                     # The retry loop's top-of-iteration guard will catch
                     # this on the next pass and try fallback or bail.
                     #
-                    # IMPORTANT: Nous Portal multiplexes multiple upstream
+                    # IMPORTANT:gateway Hat Nguyen Portal multiplexes multiple upstream
                     # providers (DeepSeek, Kimi, MiMo, Hagent).  A 429 can
                     # also mean an UPSTREAM provider is out of capacity
                     # for one specific model -- transient, clears in
                     # seconds, nothing to do with the caller's quota.
                     # Tripping the cross-session breaker on that would
-                    # block every Nous model for minutes.  We use
+                    # block everyNous model for minutes.  We use
                     # ``is_genuine_nous_rate_limit`` to tell the two
                     # apart via the 429's own x-ratelimit-* headers and
                     # the last-known-good state captured on the previous

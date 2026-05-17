@@ -1292,7 +1292,7 @@ async def reveal_env_var(body: EnvVarReveal, request: Request):
 #
 # Phase 1 surfaces *which OAuth providers exist* and whether each is
 # connected, plus a disconnect button. The actual login flow (PKCE for
-# Anthropic, device-code for Nous/Codex) still runs in the CLI for now;
+# Anthropic, device-code forNous/Codex) still runs in the CLI for now;
 # Phase 2 will add in-browser flows. For unconnected providers we return
 # the canonical ``hagent auth add <provider>`` command so the dashboard
 # can surface a one-click copy.
@@ -1432,7 +1432,7 @@ _OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
     },
     {
         "id": "nous",
-        "name": "Nous Portal",
+        "name": "gateway Hat Nguyen Portal",
         "flow": "device_code",
         "cli_command": "hagent auth add nous",
         "docs_url": "https://portal.nousresearch.com",
@@ -1479,7 +1479,7 @@ def _resolve_provider_status(provider_id: str, status_fn) -> Dict[str, Any]:
             return {
                 "logged_in": bool(raw.get("logged_in")),
                 "source": "nous_portal",
-                "source_label": raw.get("portal_base_url") or "Nous Portal",
+                "source_label": raw.get("portal_base_url") or "gateway Hat Nguyen Portal",
                 "token_preview": _truncate_token(raw.get("access_token")),
                 "expires_at": raw.get("access_expires_at"),
                 "has_refresh_token": bool(raw.get("has_refresh_token")),
@@ -1903,7 +1903,7 @@ async def _start_device_code_flow(provider_id: str) -> Dict[str, Any]:
 
 
 def _nous_poller(session_id: str) -> None:
-    """Background poller that drives a Nous device-code flow to completion."""
+    """Background poller that drives aNous device-code flow to completion."""
     from hagent_cli.auth import _poll_for_token, refresh_nous_oauth_from_state
     from datetime import datetime, timezone
     import httpx

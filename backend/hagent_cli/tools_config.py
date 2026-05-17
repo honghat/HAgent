@@ -163,7 +163,7 @@ TOOL_CATEGORIES = {
         "icon": "🔊",
         "providers": [
             {
-                "name": "Nous Subscription",
+                "name": "gateway Hat Nguyen Subscription",
                 "badge": "subscription",
                 "tag": "Managed OpenAI TTS billed to your subscription",
                 "env_vars": [],
@@ -248,7 +248,7 @@ TOOL_CATEGORIES = {
         "icon": "🔍",
         "providers": [
             {
-                "name": "Nous Subscription",
+                "name": "gateway Hat Nguyen Subscription",
                 "badge": "subscription",
                 "tag": "Managed Firecrawl billed to your subscription",
                 "web_backend": "firecrawl",
@@ -335,7 +335,7 @@ TOOL_CATEGORIES = {
         "icon": "🎨",
         "providers": [
             {
-                "name": "Nous Subscription",
+                "name": "gateway Hat Nguyen Subscription",
                 "badge": "subscription",
                 "tag": "Managed FAL image generation billed to your subscription",
                 "env_vars": [],
@@ -360,7 +360,7 @@ TOOL_CATEGORIES = {
         "icon": "🌐",
         "providers": [
             {
-                "name": "Nous Subscription (Browser Use cloud)",
+                "name": "gateway Hat Nguyen Subscription (Browser Use cloud)",
                 "badge": "subscription",
                 "tag": "Managed Browser Use billed to your subscription",
                 "env_vars": [],
@@ -1461,7 +1461,7 @@ def _visible_providers(cat: dict, config: dict) -> list[dict]:
         visible.append(provider)
 
     # Inject plugin-registered image_gen backends (OpenAI today, more
-    # later) so the picker lists them alongside FAL / Nous Subscription.
+    # later) so the picker lists them alongside FAL /gateway Hat Nguyen Subscription.
     if cat.get("name") == "Image Generation":
         visible.extend(_plugin_image_gen_providers())
 
@@ -1884,7 +1884,7 @@ def _configure_provider(provider: dict, config: dict):
     if provider.get("requires_nous_auth"):
         features = get_nous_subscription_features(config)
         if not features.nous_auth_present:
-            _print_warning("  Nous Subscription is only available after logging into Nous Portal.")
+            _print_warning(" gateway Hat Nguyen Subscription is only available after logging intogateway Hat Nguyen Portal.")
             return
 
     # Set TTS provider in config if applicable
@@ -1931,7 +1931,7 @@ def _configure_provider(provider: dict, config: dict):
             _run_post_setup(provider["post_setup"])
         _print_success(f"  {provider['name']} - no configuration needed!")
         if managed_feature:
-            _print_info("  Requests for this tool will be billed to your Nous subscription.")
+            _print_info("  Requests for this tool will be billed to yourNous subscription.")
         # Plugin-registered image_gen provider: write image_gen.provider
         # and route model selection to the plugin's own catalog.
         plugin_name = provider.get("image_gen_plugin_name")
@@ -2159,7 +2159,7 @@ def _reconfigure_provider(provider: dict, config: dict):
     if provider.get("requires_nous_auth"):
         features = get_nous_subscription_features(config)
         if not features.nous_auth_present:
-            _print_warning("  Nous Subscription is only available after logging into Nous Portal.")
+            _print_warning(" gateway Hat Nguyen Subscription is only available after logging intogateway Hat Nguyen Portal.")
             return
 
     if provider.get("tts_provider"):
@@ -2205,7 +2205,7 @@ def _reconfigure_provider(provider: dict, config: dict):
             _run_post_setup(provider["post_setup"])
         _print_success(f"  {provider['name']} - no configuration needed!")
         if managed_feature:
-            _print_info("  Requests for this tool will be billed to your Nous subscription.")
+            _print_info("  Requests for this tool will be billed to yourNous subscription.")
         plugin_name = provider.get("image_gen_plugin_name")
         if plugin_name:
             _select_plugin_image_gen_provider(plugin_name, config)
@@ -2350,7 +2350,7 @@ def tools_command(args=None, first_install: bool = False, config: dict = None):
             if managed_nous_tools_enabled():
                 for ts_key in sorted(auto_configured):
                     label = next((l for k, l, _ in CONFIGURABLE_TOOLSETS if k == ts_key), ts_key)
-                    print(color(f"  ✓ {label}: using your Nous subscription defaults", Colors.GREEN))
+                    print(color(f"  ✓ {label}: using yourNous subscription defaults", Colors.GREEN))
 
             # Walk through ALL selected tools that have provider options or
             # need API keys.  This ensures browser (Local vs Browserbase),

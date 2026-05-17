@@ -9,8 +9,9 @@ from uuid import uuid4
 
 from api.services.provider_config import get_provider_config
 
+from api.services.db import get_connection
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-HAGENT_DB_PATH = PROJECT_ROOT / "data" / "hagent.db"
 DEFAULT_SESSION_TOKEN = "398f6a8a-8954-4315-8240-df769e664b54"
 DEFAULT_USERNAME = "hat"
 
@@ -115,9 +116,9 @@ def _normalize_entry(entry: dict) -> dict | None:
 
 def save_wiki_entry(user_id: str, entry: dict, source: str = "chat") -> dict | None:
     normalized = _normalize_entry(entry)
-    if not normalized or not HAGENT_DB_PATH.exists():
+    if not normalized:
         return None
-    with sqlite3.connect(HAGENT_DB_PATH) as conn:
+    with get_connection() as conn:
         conn.row_factory = sqlite3.Row
         existing = conn.execute(
             "SELECT id, content FROM wiki_entries WHERE user_id = ? AND lower(title) = lower(?) ORDER BY updated_at DESC LIMIT 1",

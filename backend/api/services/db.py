@@ -70,6 +70,65 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS wiki_entries (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                summary TEXT DEFAULT '',
+                content TEXT NOT NULL,
+                topics TEXT DEFAULT '[]',
+                source TEXT DEFAULT 'chat',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS wiki_embeddings (
+                entry_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                embedding_json TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (entry_id) REFERENCES wiki_entries(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS self_evolution_events (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'reflection',
+                source_session_id TEXT,
+                source_message_id TEXT,
+                related_message_id TEXT,
+                title TEXT NOT NULL,
+                evidence TEXT NOT NULL DEFAULT '',
+                lesson TEXT NOT NULL DEFAULT '',
+                action TEXT NOT NULL DEFAULT '',
+                confidence REAL NOT NULL DEFAULT 0.5,
+                status TEXT NOT NULL DEFAULT 'pending',
+                metadata_json TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                applied_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS message_feedback (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                message_id TEXT NOT NULL,
+                rating TEXT NOT NULL,
+                comment TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, message_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS self_evolution (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
         _ensure_column(conn, "chat_sessions", "agent_id", "TEXT")
@@ -78,6 +137,21 @@ def init_db() -> None:
         _ensure_column(conn, "chat_sessions", "parent_session_id", "TEXT")
         _ensure_column(conn, "messages", "provider", "TEXT")
         _ensure_column(conn, "messages", "usage_json", "TEXT")
+        _ensure_column(conn, "self_evolution", "metadata_json", "TEXT")
+        conn.executescript(
+            """
+            CREATE INDEX IF NOT EXISTS idx_evolution_user_status
+                ON self_evolution_events(user_id, status, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_evolution_user_type
+                ON self_evolution_events(user_id, event_type, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_feedback_message
+                ON message_feedback(user_id, message_id);
+            CREATE INDEX IF NOT EXISTS idx_wiki_user
+                ON wiki_entries(user_id);
+            CREATE INDEX IF NOT EXISTS idx_wiki_updated
+                ON wiki_entries(updated_at DESC);
+            """
+        )
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:

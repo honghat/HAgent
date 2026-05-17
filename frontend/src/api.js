@@ -56,3 +56,52 @@ export async function createEntry(data, token) {
   });
   return res.json();
 }
+
+export async function fetchEvolutionSummary(token) {
+  const res = await fetch(`${API}/evolution/summary`, { headers: { ...auth(token) } });
+  return res.json();
+}
+
+export async function fetchEvolutionEvents(token, params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') qs.set(key, value);
+  });
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API}/evolution/events${suffix}`, { headers: { ...auth(token) } });
+  return res.json();
+}
+
+export async function sendMessageFeedback(token, data) {
+  const res = await fetch(`${API}/evolution/feedback`, {
+    method: 'POST',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function updateEvolutionEventStatus(token, id, status) {
+  const res = await fetch(`${API}/evolution/events/${id}/status`, {
+    method: 'PUT',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  return res.json();
+}
+
+export async function applyEvolutionEvent(token, id) {
+  const res = await fetch(`${API}/evolution/events/${id}/apply`, {
+    method: 'POST',
+    headers: { ...auth(token) },
+  });
+  return res.json();
+}
+
+export async function runEvolutionDailyReview(token) {
+  const res = await fetch(`${API}/evolution/daily-review`, {
+    method: 'POST',
+    headers: { ...auth(token) },
+  });
+  return res.json();
+}

@@ -141,6 +141,19 @@ module.exports = {
         PYTHONPATH: '.'
       }
     },
+    {
+      name: 'hagent-cron',
+      cwd: './backend',
+      script: '.venv/bin/python',
+      args: '-m cron.loop',
+      error_file: `${LOG_DIR}/cron-error.log`,
+      out_file: `${LOG_DIR}/cron-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      env: {
+        HAGENT_HOME: '/Users/nguyenhat/HAgent/backend',
+        PYTHONPATH: '.'
+      }
+    },
   ]
 };
-

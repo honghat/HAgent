@@ -29,6 +29,7 @@ from api.services.session_store import (
 )
 from api.services.source_core_agent import run_source_agent
 from api.services.source_core_agent import analyze_with_js_heuristics
+from api.services.self_evolution import reflect_interaction
 from api.services.workspace_state import record_tool, record_tool_result
 from api.services.wiki_memory import extract_and_save_wiki, resolve_user_id
 
@@ -67,6 +68,21 @@ def _run_and_store_reply(
             provider=_provider_name(provider),
             usage=usage,
         )
+        try:
+            record = get_session(session_id)
+            user_id = record.user_id if record else resolve_user_id(None)
+            reflect_interaction(
+                user_id=user_id,
+                session_id=session_id,
+                user_message_id=None,
+                assistant_message_id=message_id,
+                user_content=content,
+                assistant_content=reply,
+                provider=provider,
+                model=model,
+            )
+        except Exception:
+            pass
         add_journal(
             session_id,
             "tool",
@@ -292,6 +308,11 @@ def create_message(session_id: str, payload: MessageRequest, request: Request) -
                 args=(user_id, payload.content, reply, payload.provider, payload.model, session_id),
                 daemon=True,
             ).start()
+            threading.Thread(
+                target=_reflect_background,
+                args=(user_id, session_id, user_message_id, message_id, payload.content, reply, payload.provider, payload.model),
+                daemon=True,
+            ).start()
 
         except Exception as exc:  # noqa: BLE001
             error_text = f"Agent nguồn chưa chạy được: {exc}"
@@ -338,6 +359,40 @@ def _save_wiki_background(
                 event_name="wiki_memory",
                 status="done",
                 count=1,
+            )
+    except Exception:
+        pass
+
+
+def _reflect_background(
+    user_id: str,
+    session_id: str,
+    user_message_id: str | None,
+    assistant_message_id: str | None,
+    user_content: str,
+    assistant_content: str,
+    provider: str | None,
+    model: str | None,
+) -> None:
+    try:
+        events = reflect_interaction(
+            user_id=user_id,
+            session_id=session_id,
+            user_message_id=user_message_id,
+            assistant_message_id=assistant_message_id,
+            user_content=user_content,
+            assistant_content=assistant_content,
+            provider=provider,
+            model=model,
+        )
+        if events:
+            add_journal(
+                session_id,
+                "tool",
+                message_id=assistant_message_id,
+                event_name="self_evolution",
+                status="done",
+                count=len(events),
             )
     except Exception:
         pass

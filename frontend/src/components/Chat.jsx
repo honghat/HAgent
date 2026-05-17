@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { sendMessageFeedback } from '../api.js'
 
 export default function Chat({ token, provider, cxModel, agents, user }) {
   const defaultProviderLabels = {
@@ -31,6 +32,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
   const [showWorkspace, setShowWorkspace] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [copiedId, setCopiedId] = useState(null)
+  const [feedbackState, setFeedbackState] = useState({})
   const [speakingId, setSpeakingId] = useState(null)
   const [pastedImages, setPastedImages] = useState([])
   const [workspace, setWorkspace] = useState({ tools: [], todos: [], summary: null })
@@ -352,6 +354,27 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     navigator.clipboard.writeText(content)
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  async function handleFeedback(messageId, rating) {
+    if (!activeId || !messageId) return
+    const comment = rating === 'needs_memory'
+      ? window.prompt('Nội dung cần ghi nhớ là gì?', '') || ''
+      : rating === 'negative'
+        ? window.prompt('Phản hồi này sai/thiếu ở đâu?', '') || ''
+        : ''
+    setFeedbackState((prev) => ({ ...prev, [messageId]: 'saving' }))
+    try {
+      await sendMessageFeedback(token, {
+        session_id: activeId,
+        message_id: messageId,
+        rating,
+        comment,
+      })
+      setFeedbackState((prev) => ({ ...prev, [messageId]: rating }))
+    } catch {
+      setFeedbackState((prev) => ({ ...prev, [messageId]: 'error' }))
+    }
   }
 
   const speakAudioRef = useRef(null)
@@ -777,6 +800,31 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                         </svg>
                       )}
                     </button>
+                  )}
+                  {m.role === 'assistant' && (
+                    <>
+                      <button
+                        onClick={() => handleFeedback(m.id, 'positive')}
+                        className={`flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[11px] transition-all ${feedbackState[m.id] === 'positive' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-300 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                        title="Phản hồi tốt"
+                      >
+                        ✓
+                      </button>
+                      <button
+                        onClick={() => handleFeedback(m.id, 'negative')}
+                        className={`flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[11px] transition-all ${feedbackState[m.id] === 'negative' ? 'bg-red-50 text-red-600' : 'text-gray-300 hover:bg-red-50 hover:text-red-600'}`}
+                        title="Phản hồi sai hoặc chưa đủ"
+                      >
+                        !
+                      </button>
+                      <button
+                        onClick={() => handleFeedback(m.id, 'needs_memory')}
+                        className={`flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[11px] transition-all ${feedbackState[m.id] === 'needs_memory' ? 'bg-blue-50 text-blue-600' : 'text-gray-300 hover:bg-blue-50 hover:text-blue-600'}`}
+                        title="Ghi nhớ điều này"
+                      >
+                        M
+                      </button>
+                    </>
                   )}
                   <button onClick={() => deleteMessage(m.id)} className="flex h-5 w-5 items-center justify-center rounded-md text-gray-300 transition-all hover:bg-red-50 hover:text-red-500">×</button>
                 </div>

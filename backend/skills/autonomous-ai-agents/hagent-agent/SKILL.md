@@ -108,7 +108,8 @@ hagent status [--all]       Show component status
 
 ### Tools & Skills
 
-```\nhagent tools                Interactive tool enable/disable (curses UI)
+```
+hagent tools                Interactive tool enable/disable (curses UI)
 hagent tools list           Show all tools and status
 hagent tools enable NAME    Enable a toolset
 hagent tools disable NAME   Disable a toolset
@@ -126,7 +127,7 @@ hagent skills browse        Browse all available skills
 hagent skills tap add REPO  Add a GitHub repo as skill source
 
 hagent browser             Open CDP browser connection (browswr tool)
-`````
+```
 
 ---\n\n## Web Browsing Tools (Browswr)
 
@@ -925,7 +926,126 @@ hagent config set auxiliary.vision.provider <your_provider>
 hagent config set auxiliary.vision.model <model_name>
 ```
 
----\n\n## Third-Party Model Router Integration (e.g., 9Router)\n\n### Installing AI Model Routers via CLI Plugin Management\n\nUse `hagent plugins` to manage model routing layers that sit above HAgent's core provider stack.\n\n#### Quick Workflow for New Routers:\n\n```bash\n# 1. Create plugin directory under ~/.hagent/plugins/\nmkdir -p ~/.hagent/plugins/<router-name>\n\n# 2. Clone router's source (from official repo)\ngit clone https://github.com/<owner>/<router>.git ~/.hagent/plugins/<router-name>/router-backend\n\n# 3. Install dependencies\npip install <requirements-from-router-README>\n\n# 4. Start backend server (usually port-based)\ncd ~/.hagent/plugins/<router-name>/router-backend\ndocker-compose up -d || python3 -m <router.server> &\n\n# 5. Create HAgent proxy wrapper\nmkdir ~/.hagent/plugins/<router-name>/proxy\ncat > ~/.hagent/plugins/<router-name>/proxy/__init__.py << 'EOF'\n# Proxy to router's backend endpoint (e.g., localhost:20128)\nimport http.client\n\ndef get_router_info():\n    return {\"name\": \"<RouterName>\", \"dashboard_url\": \"http://localhost:<PORT>/dashboard\"}\nEOF\n\n# 6. Create plugin.yaml for HAgent discovery\ncat > ~/.hagent/plugins/<router-name>/proxy/plugin.yaml << 'EOF'\nname: <RouterName> Proxy\nversion: 1.0\ntype: model-provider\nenabled: true\nconfig_path: ~/.hagent/plugins/<router-name>\nEOF\n```\n\n#### 9Router Installation (Complete Example):\n\n```bash\n# Clone official backend from decolu/9router repository (NOT from hagent plugins)\ngit clone https://github.com/decolua/9router.git ~/.hagent/plugins/9router/router-backend\n\n# Install Python dependencies\ncd ~/.hagent/plugins/9router/router-backend\npip install requests 2>/dev/null || python3 -m pip install requests -q\n\n# Start backend server (runs on port 20128 by default)\npython3 -m 9router.server &\nsleep 5\n\n# Verify it's running\ncurl http://localhost:20128/dashboard\n```\n\n#### Setup Steps for Any Router:\n\n| Step | Action |\n|------|--------|\n| ✅ Clone backend | From router's official GitHub repo (check README for correct URL) |\n| ✅ Install deps | `pip install` requirements from their docs |\n| ✅ Start server | Backend often runs on port 20128 or custom port |\n| ✅ Create proxy wrapper | In `~/.hagent/plugins/<name>/proxy/` with `__init__.py` and `plugin.yaml` |\n| ✅ Configure routes | Add to HAgent's provider list via `/model` CLI or config.yaml |\n\n#### Dashboard Access:\n\nMost routers (9Router, Kilo Code, etc.) provide web dashboards:\n\n```bash\n# Typical access patterns:\nhttp://localhost:20128/dashboard     # 9Router default\nhttp://localhost:3000/settings       # Some other routers\n\n# Default credentials are often:\n- Username: admin\n- Password: admin123\n```\n\n#### Key Integration Points:\n\n1. **RTK (Result Token Compression)** — routers like 9Router use RTK to compress tokens before routing, saving 20-40% cost\n2. **Auto-fallback** — smart failover between providers based on quota and latency\n3. **Quota tracking** — monitor remaining free tier limits across multiple models\n4. **Provider routes** — configure which models can be auto-routed vs manual selection\n\n#### Troubleshooting Routers:\n\n| Issue | Solution |\n|-------|----------|\n| `pip` command not found | Use `python3 -m pip` instead |\n| Module import errors | Check backend requires Python 3.10+ or specific packages |\n| Port already in use | Backend may conflict with existing service; check `/proc` for port binders |\n| Dashboard returns `401` or `/login` | Router likely requires authentication; check README for default creds |\n\n---\n\n## Where to Find Things\n
+---\n\n## Third-Party Model Router Integration (e.g., 9Router, Kiro AI Free, OpenCode Free)
+
+**⚠️ Critical Update Pattern:** For Next.js plugins (like 9Router), **DO NOT use pip/npm install alone** — you MUST rebuild frontend AND restart. See **"Update Sequence"** below.
+
+Use `hagent plugins` to manage model routing layers that sit above HAgent's core provider stack, or install directly in `/Users/nguyenhat/HAgent/backend/plugins/model-providers/<router-name>/`.
+
+### Quick Workflow for New Routers:
+
+```bash
+# 1. Create plugin directory under ~/.hagent/plugins/ (recommended) or backend/plugins/
+mkdir -p ~/.hagent/plugins/<router-name>/router-backend
+
+# 2. Clone router's source (from official repo)
+git clone https://github.com/<owner>/<router>.git ~/.hagent/plugins/<router-name>/router-backend
+
+# 3. Install dependencies (npm for Next.js, pip for others)
+cd router-backend
+npm install     # Use npm for Next.js plugins! Not pnpm
+pip install <requirements-from-router-README>
+
+# 4. Start backend server (usually port-based)
+npm run dev     # Next.js uses npm run dev
+python3 -m <router.server> &  # Other routers use Python directly
+
+# 5. Create proxy wrapper (for HAgent integration)
+mkdir ~/.hagent/plugins/<router-name>/proxy
+cat > ~/.hagent/plugins/<router-name>/proxy/__init__.py << 'EOF'
+import http.client
+
+def get_router_info():
+    return {"name": "<RouterName>", "dashboard_url": "http://localhost:<PORT>/dashboard"}
+EOF
+
+# 6. Create plugin.yaml for HAgent discovery
+cat > ~/.hagent/plugins/<router-name>/proxy/plugin.yaml << 'EOF'
+name: <RouterName> Proxy
+version: 1.0
+type: model-provider
+enabled: true
+config_path: ~/.hagent/plugins/<router-name>
+EOF
+
+# 7. Configure in HAgent (via /model CLI or config.yaml)
+hagent model          # Interactive picker, then select your router
+```
+
+### 🔄 Updating a Model Provider — Critical Sequence ⚠️
+
+**⛔ NEVER skip steps!** Simply editing package.json or running `npm install` does NOT update the frontend.
+
+```bash
+cd /Users/nguyenhat/HAgent/backend/plugins/model-providers/9router
+
+# Step 1: Clean old artifacts (node_modules, lock files, pnpm store)
+rm -rf node_modules package-lock.json pnpm-lock.yaml .pnpm-store
+
+# Step 2: Reinstall dependencies with npm (not pnpm for Next.js!)
+npm install
+
+# Step 3: REBUILD frontend assets (MUST DO for version updates!)
+npm run build
+# This regenerates static pages, applies new schema migrations, and bundles latest code
+
+# Step 4: Kill old server process
+pkill -f "9router"
+
+# Step 5: Restart with new version
+npm run dev &
+
+# Step 6: Verify (wait ~3s for startup)
+sleep 3 && curl -s http://localhost:20128/api/version | jq .
+# Should return: {"currentVersion":"0.4.52","latestVersion":"0.4.52","hasUpdate":false}
+```
+
+### Dashboard Access:
+
+| Router | Default Port | Default URL | Default Credentials |
+|--------|--------------|-------------|---------------------|
+| 9Router | 20128 | `http://localhost:20128/dashboard` | admin / admin123 |
+| Kiro AI Free | TBD | TBD | TBD |
+| OpenCode Free | TBD | TBD | TBD |
+
+### Key Integration Points:
+
+- **RTK (Result Token Compression)** — routers like 9Router use RTK to compress tokens before routing, saving 20-40% cost
+- **Auto-fallback** — smart failover between providers based on quota and latency
+- **Quota tracking** — monitor remaining free tier limits across multiple models
+- **Provider routes** — configure which models can be auto-routed vs manual selection
+
+### Configuration:
+
+Most routers require these environment variables (stored in `.env` or config):
+
+```yaml
+# 9Router example configuration:
+model:
+  name: "9Router"
+  api_key: "${OPENROUTER_API_KEY}"    # Required for routing
+  base_url: "https://api.openai.com/v1" # Proxy URL if needed
+```
+
+### Troubleshooting Routers:
+
+| Issue | Root Cause | Solution |
+|-------|------------|----------|
+| Version still old (e.g., 4.50) | Frontend not rebuilt after install | Run `npm run build` then restart server |
+| Dashboard shows login page | Credentials changed or auth required | Check README for new default credentials |
+| Port already in use | Old process not killed | `pkill -f "<router-name>"` then retry |
+| API key rejected | Invalid/missing OPENROUTER_API_KEY | Check `.env` has valid key with sufficient quota |
+| Module import errors | Wrong package manager (used pnpm instead of npm) | Next.js plugins MUST use npm install |
+| Database migration failed | Build skipped version number change | Ensure `npm run build` completes successfully |
+
+### Common Pitfalls:
+
+- **Next.js vs. Python routers** — Always check if router is built with Next.js (`package.json`, `next.config.js`) or plain Python (`requirements.txt`)
+- **npm vs pnpm** — For Next.js plugins, use `npm install`, NOT `pnpm install` (discovered during 9Router update)
+- **Build requirement** — Version numbers in package.json don't take effect without `npm run build` and restart
+- **Port conflicts** — Common port: 20128 for 9Router; check README for others
+
+---\n\n## Where to Find Things
 
 | Looking for... | Location |
 |----------------|----------|
@@ -945,9 +1065,7 @@ hagent config set auxiliary.vision.model <model_name>
 | Session files | `~/.hagent/sessions/` or `hagent sessions browse` |
 | Source code | `~/.hagent/hagent-agent/` |
 
----
-
-## Contributor Quick Reference
+---\n\n## Contributor Quick Reference
 
 For occasional contributors and PR authors. Full developer docs: https://hagent-agent.nousresearch.com/docs/developer-guide/
 

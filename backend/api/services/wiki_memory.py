@@ -9,10 +9,10 @@ from uuid import uuid4
 
 from api.services.provider_config import get_provider_config
 
-from api.services.db import get_connection
+from api.services.db import DB_PATH, get_connection
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-HAGENT_DB_PATH = PROJECT_ROOT / "data" / "hagent.db"
+HAGENT_DB_PATH = DB_PATH
 DEFAULT_SESSION_TOKEN = "398f6a8a-8954-4315-8240-df769e664b54"
 DEFAULT_USERNAME = "hat"
 
@@ -140,6 +140,22 @@ def _auto_summary(content: str) -> str:
     return s[:500]
 
 
+def _tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[\wÀ-ỹ]+", (text or "").lower())
+        if len(token) >= 2
+    }
+
+
+def _similarity(a: str, b: str) -> float:
+    left = _tokens(a)
+    right = _tokens(b)
+    if not left or not right:
+        return 0.0
+    return len(left & right) / max(1, len(left | right))
+
+
 def save_wiki_entry(user_id: str, entry: dict, source: str = "chat") -> dict | None:
     normalized = _normalize_entry(entry)
     if not normalized:
@@ -150,6 +166,22 @@ def save_wiki_entry(user_id: str, entry: dict, source: str = "chat") -> dict | N
             "SELECT id, content FROM wiki_entries WHERE user_id = ? AND lower(title) = lower(?) ORDER BY updated_at DESC LIMIT 1",
             (user_id, normalized["title"]),
         ).fetchone()
+        if not existing:
+            candidates = conn.execute(
+                """
+                SELECT id, title, content FROM wiki_entries
+                WHERE user_id = ?
+                ORDER BY updated_at DESC
+                LIMIT 80
+                """,
+                (user_id,),
+            ).fetchall()
+            for candidate in candidates:
+                title_score = _similarity(normalized["title"], candidate["title"])
+                content_score = _similarity(normalized["content"], candidate["content"])
+                if title_score >= 0.72 or content_score >= 0.82:
+                    existing = candidate
+                    break
         if existing:
             merged = existing["content"]
             if normalized["content"] not in merged:
@@ -194,6 +226,10 @@ def extract_and_save_wiki(
 def search_wiki(user_id: str, query: str, limit: int = 5) -> list[dict]:
     if not HAGENT_DB_PATH.exists():
         return []
+    query = (query or "").strip()
+    if not query:
+        return []
+    query_tokens = _tokens(query)
     q = f"%{query}%"
     with sqlite3.connect(HAGENT_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
@@ -204,9 +240,37 @@ def search_wiki(user_id: str, query: str, limit: int = 5) -> list[dict]:
             WHERE user_id = ? AND (title LIKE ? OR summary LIKE ? OR content LIKE ?)
             ORDER BY updated_at DESC LIMIT ?
             """,
-            (user_id, q, q, q, limit),
+            (user_id, q, q, q, max(limit * 8, 30)),
         ).fetchall()
-        return [dict(row) for row in rows]
+        if not rows and query_tokens:
+            clauses = " OR ".join(["title LIKE ? OR summary LIKE ? OR content LIKE ?" for _ in query_tokens])
+            params: list = [user_id]
+            for token in query_tokens:
+                like = f"%{token}%"
+                params.extend([like, like, like])
+            params.append(max(limit * 8, 30))
+            rows = conn.execute(
+                f"""
+                SELECT id, title, summary, content, topics, updated_at
+                FROM wiki_entries
+                WHERE user_id = ? AND ({clauses})
+                ORDER BY updated_at DESC LIMIT ?
+                """,
+                params,
+            ).fetchall()
+
+        ranked = []
+        for row in rows:
+            item = dict(row)
+            haystack = f"{item.get('title', '')} {item.get('summary', '')} {item.get('content', '')}"
+            title_score = 3.0 * _similarity(query, item.get("title", ""))
+            body_score = _similarity(query, haystack)
+            exact_bonus = 2.0 if query.lower() in haystack.lower() else 0.0
+            token_bonus = sum(1 for token in query_tokens if token in _tokens(haystack)) / max(1, len(query_tokens))
+            item["_score"] = round(title_score + body_score + exact_bonus + token_bonus, 4)
+            ranked.append(item)
+        ranked.sort(key=lambda item: (item["_score"], item.get("updated_at") or ""), reverse=True)
+        return ranked[:limit]
 
 
 def list_wiki_entries(user_id: str, limit: int = 20) -> list[dict]:

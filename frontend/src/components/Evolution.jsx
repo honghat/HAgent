@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  applyEvolutionEvent,
   fetchEvolutionEvents,
   fetchEvolutionSummary,
   runEvolutionDailyReview,
-  updateEvolutionEventStatus,
 } from '../api.js'
 
 const typeLabels = {
@@ -16,11 +14,12 @@ const typeLabels = {
   tool_issue: 'Tool issue',
   new_skill_candidate: 'Ứng viên skill',
   daily_review: 'Tổng kết',
+  context_compaction: 'Context compact',
 }
 
 const statusLabels = {
-  pending: 'Chờ duyệt',
-  approved: 'Đã duyệt',
+  pending: 'Cần xử lý',
+  approved: 'Sẵn sàng',
   applied: 'Đã áp dụng',
   rejected: 'Bỏ qua',
 }
@@ -28,12 +27,12 @@ const statusLabels = {
 export default function Evolution({ token }) {
   const [summary, setSummary] = useState(null)
   const [events, setEvents] = useState([])
-  const [status, setStatus] = useState('pending')
+  const [status, setStatus] = useState('applied')
   const [eventType, setEventType] = useState('')
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState('')
 
-  const stats = useMemo(() => summary || { total: 0, pending: 0, applied: 0, by_type: {} }, [summary])
+  const stats = useMemo(() => summary || { total: 0, pending: 0, approved: 0, applied: 0, rejected: 0, by_type: {} }, [summary])
 
   async function load() {
     setLoading(true)
@@ -53,18 +52,6 @@ export default function Evolution({ token }) {
     load()
   }, [token, status, eventType])
 
-  async function setEventStatus(id, nextStatus) {
-    await updateEvolutionEventStatus(token, id, nextStatus)
-    await load()
-  }
-
-  async function applyEvent(id) {
-    const result = await applyEvolutionEvent(token, id)
-    setNotice(result?.applied_to ? `Đã áp dụng vào ${result.applied_to}` : 'Đã áp dụng')
-    await load()
-    setTimeout(() => setNotice(''), 2500)
-  }
-
   async function reviewNow() {
     const result = await runEvolutionDailyReview(token)
     setNotice(result?.skipped ? 'Không có tổng kết mới' : 'Đã tạo tổng kết tự học')
@@ -78,7 +65,7 @@ export default function Evolution({ token }) {
         <div className="mb-6 flex flex-col gap-4 border-b border-black/[0.06] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-gray-950">Agent Learning</h1>
-            <p className="mt-1 text-sm text-gray-500">Duyệt bài học, feedback và lỗi lặp lại trước khi đưa vào memory/wiki.</p>
+            <p className="mt-1 text-sm text-gray-500">Bài học mới được tự động áp dụng vào memory/wiki khi có thể. Màn này chỉ để theo dõi.</p>
           </div>
           <button
             onClick={reviewNow}
@@ -93,13 +80,13 @@ export default function Evolution({ token }) {
 
         <div className="mb-6 grid gap-3 sm:grid-cols-4">
           <Metric label="Tổng bài học" value={stats.total} />
-          <Metric label="Chờ duyệt" value={stats.pending} />
-          <Metric label="Đã áp dụng" value={stats.applied} />
+          <Metric label="Tự áp dụng" value={stats.applied} />
+          <Metric label="Cần xử lý" value={stats.pending + stats.approved} />
           <Metric label="Lỗi/tool issue" value={(stats.by_type?.agent_failure || 0) + (stats.by_type?.tool_issue || 0)} />
         </div>
 
         <div className="mb-5 flex flex-wrap items-center gap-2">
-          {['pending', 'approved', 'applied', 'rejected'].map((item) => (
+          {['applied', 'pending', 'approved', 'rejected'].map((item) => (
             <button
               key={item}
               onClick={() => setStatus(item)}
@@ -131,17 +118,6 @@ export default function Evolution({ token }) {
                   <h2 className="text-sm font-semibold text-gray-950">{event.title}</h2>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{event.lesson}</p>
                   {event.evidence && <p className="mt-3 whitespace-pre-wrap border-l-2 border-gray-100 pl-3 text-xs leading-5 text-gray-500">{event.evidence}</p>}
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  {event.status === 'pending' && (
-                    <>
-                      <button onClick={() => setEventStatus(event.id, 'approved')} className="h-8 rounded-md bg-gray-950 px-3 text-xs font-medium text-white">Duyệt</button>
-                      <button onClick={() => setEventStatus(event.id, 'rejected')} className="h-8 rounded-md bg-gray-100 px-3 text-xs font-medium text-gray-600">Bỏ qua</button>
-                    </>
-                  )}
-                  {event.status !== 'applied' && event.status !== 'rejected' && (
-                    <button onClick={() => applyEvent(event.id)} className="h-8 rounded-md bg-emerald-600 px-3 text-xs font-medium text-white">Áp dụng</button>
-                  )}
                 </div>
               </div>
             </article>

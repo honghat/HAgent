@@ -81,27 +81,24 @@ export async function sendMessageFeedback(token, data) {
   return res.json();
 }
 
-export async function updateEvolutionEventStatus(token, id, status) {
-  const res = await fetch(`${API}/evolution/events/${id}/status`, {
-    method: 'PUT',
-    headers: { ...auth(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
-  });
-  return res.json();
-}
-
-export async function applyEvolutionEvent(token, id) {
-  const res = await fetch(`${API}/evolution/events/${id}/apply`, {
-    method: 'POST',
-    headers: { ...auth(token) },
-  });
-  return res.json();
-}
-
 export async function runEvolutionDailyReview(token) {
   const res = await fetch(`${API}/evolution/daily-review`, {
     method: 'POST',
     headers: { ...auth(token) },
+  });
+  return res.json();
+}
+
+export async function fetchContextCompaction(token) {
+  const res = await fetch(`${API}/context/compaction`, { headers: { ...auth(token) } });
+  return res.json();
+}
+
+export async function updateContextCompaction(token, data) {
+  const res = await fetch(`${API}/context/compaction`, {
+    method: 'PUT',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   });
   return res.json();
 }

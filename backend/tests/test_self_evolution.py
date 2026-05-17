@@ -37,9 +37,11 @@ def test_feedback_creates_learning_event(monkeypatch, tmp_path):
 
     assert result["ok"] is True
     assert result["event"]["event_type"] == "agent_failure"
+    assert result["event"]["status"] == "applied"
     events = evolution.list_events("hat")
     assert len(events) == 1
     assert "chưa đạt" in events[0]["title"]
+    assert events[0]["status"] == "applied"
 
 
 def test_heuristic_reflection_flags_fake_execution(monkeypatch, tmp_path):
@@ -57,3 +59,4 @@ def test_heuristic_reflection_flags_fake_execution(monkeypatch, tmp_path):
 
     assert events
     assert any(event["event_type"] == "agent_failure" for event in events)
+    assert all(event["status"] == "applied" for event in events)

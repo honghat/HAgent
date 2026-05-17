@@ -129,6 +129,40 @@ def init_db() -> None:
                 metadata_json TEXT,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS agent_goals (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'active',
+                priority INTEGER NOT NULL DEFAULT 3,
+                deadline TEXT,
+                progress INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT 'manual',
+                metadata_json TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                completed_at TEXT,
+                archived_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS goal_tasks (
+                id TEXT PRIMARY KEY,
+                goal_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                detail TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                priority INTEGER NOT NULL DEFAULT 3,
+                evidence TEXT NOT NULL DEFAULT '',
+                result TEXT NOT NULL DEFAULT '',
+                last_attempt_at TEXT,
+                completed_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (goal_id) REFERENCES agent_goals(id) ON DELETE CASCADE
+            );
             """
         )
         _ensure_column(conn, "chat_sessions", "agent_id", "TEXT")
@@ -150,6 +184,10 @@ def init_db() -> None:
                 ON wiki_entries(user_id);
             CREATE INDEX IF NOT EXISTS idx_wiki_updated
                 ON wiki_entries(updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_goals_user_status
+                ON agent_goals(user_id, status, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_goal_tasks_goal_status
+                ON goal_tasks(goal_id, status, priority ASC);
             """
         )
 

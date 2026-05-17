@@ -10234,6 +10234,37 @@ class AIAgent:
             self.session_id or "none", _pre_msg_count, len(compressed),
             f"{_compressed_est:,}",
         )
+        try:
+            from api.services.self_evolution import record_event
+
+            _old_sid = locals().get("old_session_id")
+            record_event(
+                user_id=getattr(self, "_user_id", None) or "hat",
+                event_type="context_compaction",
+                source="context_compaction",
+                source_session_id=_old_sid or self.session_id,
+                title=f"Context compacted for session {_old_sid or self.session_id or 'unknown'}",
+                evidence=(
+                    f"messages={_pre_msg_count}->{len(compressed)}, "
+                    f"tokens_before~={approx_tokens or 0}, tokens_after~={_compressed_est}"
+                ),
+                lesson="Context dài đã được tự động compact để agent tiếp tục làm việc mà không vượt giới hạn model.",
+                action="Theo dõi chất lượng sau compact; nếu session compact nhiều lần, cân nhắc bắt đầu session mới hoặc giảm ngưỡng nén.",
+                confidence=0.95,
+                status="applied",
+                metadata={
+                    "old_session_id": _old_sid,
+                    "new_session_id": self.session_id,
+                    "messages_before": _pre_msg_count,
+                    "messages_after": len(compressed),
+                    "tokens_before_estimate": approx_tokens,
+                    "tokens_after_estimate": _compressed_est,
+                    "threshold_tokens": getattr(self.context_compressor, "threshold_tokens", None),
+                    "compression_count": getattr(self.context_compressor, "compression_count", None),
+                },
+            )
+        except Exception as exc:
+            logger.debug("context compaction learning event failed: %s", exc)
         return compressed, new_system_prompt
 
     def _set_tool_guardrail_halt(self, decision: ToolGuardrailDecision) -> None:

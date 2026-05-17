@@ -40,7 +40,7 @@ def init_user_tables():
                 UNIQUE(user_id, name)
             );
         """)
-        for col, ddl in [("default_provider", "TEXT DEFAULT 'deepseek'"), ("claude_mode", "TEXT DEFAULT 'qwen'")]:
+        for col, ddl in [("default_provider", "TEXT DEFAULT 'deepseek'"), ("claude_mode", "TEXT DEFAULT 'qwen'"), ("pinned_folders", "TEXT DEFAULT '[]'")]:
             existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
             if col not in existing:
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
@@ -93,7 +93,7 @@ def get_user_by_username(username: str) -> dict | None:
 def get_user_by_id(user_id: str) -> dict | None:
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT id, username, display_name, created_at, default_provider, claude_mode FROM users WHERE id = ?",
+            "SELECT id, username, display_name, created_at, default_provider, claude_mode, pinned_folders FROM users WHERE id = ?",
             (user_id,)).fetchone()
     return dict(row) if row else None
 
@@ -109,6 +109,12 @@ def update_user(user_id: str, updates: dict) -> None:
             params.append(val)
         elif key == "username":
             fields.append("username = ?")
+            params.append(val)
+        elif key in ("default_provider", "claude_mode", "pinned_folders"):
+            fields.append(f"{key} = ?")
+            params.append(val)
+        else:
+            fields.append(f"{key} = ?")
             params.append(val)
     if not fields:
         return

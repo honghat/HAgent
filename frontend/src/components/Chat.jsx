@@ -552,9 +552,9 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     }
   }
 
-  async function send() {
-    const msg = input
-    const hasImages = pastedImages.length > 0
+  async function send(overrideContent = null) {
+    const msg = overrideContent ?? input
+    const hasImages = overrideContent ? false : pastedImages.length > 0
     if (!msg.trim() && !hasImages) return
     let currentId = activeId
     if (!currentId) {
@@ -570,8 +570,10 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     }
 
     setLoading(true)
-    setInput('')
-    setPastedImages([])
+    if (!overrideContent) {
+      setInput('')
+      setPastedImages([])
+    }
     setStreamingText('')
     setSteps([])
     setCurrentClarification(null)

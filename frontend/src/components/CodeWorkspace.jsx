@@ -62,9 +62,9 @@ export default function CodeWorkspace({ token, provider }) {
   const [showFiles, setShowFiles] = useState(false)
   const [activePanel, setActivePanel] = useState('terminal')
   const [terminalLines, setTerminalLines] = useState([
-    { type: 'info', text: 'Choose a workspace root from this Mac mini.' },
+    { type: 'info', text: 'Chọn một workspace trên Mac mini này.' },
   ])
-  const [aiPrompt, setAiPrompt] = useState('Review this file and suggest concrete improvements.')
+  const [aiPrompt, setAiPrompt] = useState('Rà soát file này và đề xuất cải thiện cụ thể.')
   const [aiResult, setAiResult] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
 
@@ -247,7 +247,7 @@ export default function CodeWorkspace({ token, provider }) {
           {loadingTree ? (
             <div className="flex items-center gap-2 px-2 py-3 text-[10px] text-slate-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading...
+              Đang tải...
             </div>
           ) : entries.map(entry => (
             <button
@@ -315,7 +315,7 @@ export default function CodeWorkspace({ token, provider }) {
                 {loadingTree ? (
                   <div className="flex items-center gap-2 px-2 py-3 text-[10px] text-slate-500">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Loading...
+                    Đang tải...
                   </div>
                 ) : entries.length === 0 ? (
                   <div className="px-2 py-3 text-[10px] text-slate-500">Thư mục rỗng</div>
@@ -359,27 +359,27 @@ export default function CodeWorkspace({ token, provider }) {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <button onClick={copyCode} disabled={!activeFile} className="flex h-6 items-center gap-1 rounded-md border border-slate-700 px-1.5 text-[10px] text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+            <button onClick={copyCode} disabled={!activeFile} className="flex h-6 items-center gap-1 rounded-md border border-slate-700 px-1.5 text-[9px] text-slate-300 hover:bg-slate-800 disabled:opacity-40">
               {copied ? <Check className="h-2.5 w-2.5 text-emerald-400" /> : <Copy className="h-2.5 w-2.5" />}
-              Copy
+              Sao chép
             </button>
-            <button onClick={saveFile} disabled={!activeFile || !dirty || saving} className="flex h-6 items-center gap-1 rounded-md border border-slate-700 px-1.5 text-[10px] text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+            <button onClick={saveFile} disabled={!activeFile || !dirty || saving} className="flex h-6 items-center gap-1 rounded-md border border-slate-700 px-1.5 text-[9px] text-slate-300 hover:bg-slate-800 disabled:opacity-40">
               {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Save className="h-2.5 w-2.5" />}
-              Save
+              Lưu
             </button>
-            <button onClick={runAiReview} disabled={!activeFile || aiLoading} className="flex h-6 items-center gap-1 rounded-md bg-amber-500 px-2 text-[10px] font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50">
+            <button onClick={runAiReview} disabled={!activeFile || aiLoading} className="flex h-6 items-center gap-1 rounded-md bg-amber-500 px-2 text-[9px] font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50">
               {aiLoading ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Sparkles className="h-2.5 w-2.5" />}
-              Review
+              Rà soát
             </button>
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_148px]">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_118px]">
           <section className="min-h-0 border-b border-slate-800 bg-[#0b1020]">
             {loadingFile ? (
               <div className="flex h-full items-center justify-center gap-2 text-[9px] text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Opening file...
+                Đang mở file...
               </div>
             ) : activeFile ? (
               <textarea
@@ -391,23 +391,23 @@ export default function CodeWorkspace({ token, provider }) {
             ) : (
               <div className="flex h-full flex-col items-center justify-center px-4 text-center">
                 <Code2 className="mb-3 h-6 w-8 text-slate-700" />
-                <p className="text-[13px] font-semibold text-slate-300">Chọn workspace và mở file</p>
-                <p className="mt-1 max-w-sm text-[12px] leading-5 text-slate-500">Duyệt các thư mục được phép trên Mac mini như HAgent, home folder và /Volumes/HatAI.</p>
+                <p className="text-[11px] font-semibold text-slate-300">Chọn workspace và mở file</p>
+                <p className="mt-1 max-w-xs text-[10px] leading-4 text-slate-500">Duyệt các thư mục được phép trên Mac mini như HAgent, thư mục home và /Volumes/HatAI.</p>
               </div>
             )}
           </section>
 
           <aside className="flex min-h-0 flex-col bg-[#101827]">
-            <div className="flex h-8 shrink-0 items-center border-b border-slate-800 text-[10px] font-medium">
+            <div className="flex h-7 shrink-0 items-center border-b border-slate-800 text-[9px] font-medium">
               {[
                 ['terminal', Terminal, 'Terminal'],
-                ['problems', AlertCircle, 'Problems'],
+                ['problems', AlertCircle, 'Vấn đề'],
                 ['ai', Bot, 'AI'],
               ].map(([id, Icon, label]) => (
                 <button
                   key={id}
                   onClick={() => setActivePanel(id)}
-                  className={`flex h-full items-center gap-1.5 border-r border-slate-800 px-3 ${
+                  className={`flex h-full items-center gap-1.5 border-r border-slate-800 px-2.5 ${
                     activePanel === id ? 'bg-[#0b1020] text-slate-100' : 'text-slate-500 hover:text-slate-200'
                   }`}
                 >
@@ -417,7 +417,7 @@ export default function CodeWorkspace({ token, provider }) {
               ))}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-2.5 custom-scrollbar">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2 custom-scrollbar">
               {activePanel === 'terminal' && (
                 <div className="space-y-1.5 font-mono text-[10px] leading-5">
                   {terminalLines.map((line, index) => (
@@ -427,7 +427,7 @@ export default function CodeWorkspace({ token, provider }) {
                   ))}
                   <button onClick={() => addTerminalLine(`Current directory: ${currentDir}`, 'info')} className="mt-1 flex h-7 items-center gap-1.5 rounded-md border border-slate-700 px-2 text-[11px] text-slate-300 hover:bg-slate-800">
                     <Play className="h-3 w-3" />
-                    Print cwd
+                    In thư mục hiện tại
                   </button>
                 </div>
               )}
@@ -438,7 +438,7 @@ export default function CodeWorkspace({ token, provider }) {
                     <div key={`${problem.line}-${problem.text}`} className="rounded-lg border border-slate-800 bg-slate-900/40 p-2 text-left">
                       <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-200">
                         <Wrench className="h-3 w-3 text-amber-300" />
-                        {problem.line ? `Line ${problem.line}` : 'Workspace'}
+                        {problem.line ? `Dòng ${problem.line}` : 'Workspace'}
                       </div>
                       <p className="mt-1 text-[11px] leading-4 text-slate-400">{problem.text}</p>
                     </div>
@@ -447,20 +447,21 @@ export default function CodeWorkspace({ token, provider }) {
               )}
 
               {activePanel === 'ai' && (
-                <div className="grid h-full min-h-0 grid-cols-[240px_minmax(0,1fr)] gap-2">
-                  <div className="space-y-2">
+                <div className="grid h-full min-h-0 grid-cols-[190px_minmax(0,1fr)] gap-2">
+                  <div className="space-y-1.5">
                     <textarea
                       value={aiPrompt}
                       onChange={event => setAiPrompt(event.target.value)}
-                      className="h-16 w-full resize-none rounded-lg border border-slate-700 bg-[#0b1020] p-2 text-[10px] leading-4 text-slate-200 outline-none focus:border-amber-500/60"
+                      className="h-12 w-full resize-none rounded-md border border-slate-700 bg-[#0b1020] p-2 text-slate-200 outline-none focus:border-amber-500/60"
+                      style={{ fontSize: 9, lineHeight: '14px' }}
                     />
-                    <button onClick={runAiReview} disabled={!activeFile || aiLoading} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md bg-amber-500 text-[10px] font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50">
-                      {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                      Review current file
+                    <button onClick={runAiReview} disabled={!activeFile || aiLoading} className="flex h-6 w-full items-center justify-center gap-1 rounded-md bg-amber-500 font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50" style={{ fontSize: 9 }}>
+                      {aiLoading ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Sparkles className="h-2.5 w-2.5" />}
+                      Rà soát file hiện tại
                     </button>
                   </div>
-                  <div className="min-h-0 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950/50 p-2 text-[10px] leading-5 text-slate-300 custom-scrollbar">
-                    {aiResult || 'AI review output will appear here.'}
+                  <div className="min-h-0 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-800 bg-slate-950/50 p-2 text-slate-300 custom-scrollbar" style={{ fontSize: 9, lineHeight: '15px' }}>
+                    {aiResult || 'Kết quả rà soát AI sẽ hiện ở đây.'}
                   </div>
                 </div>
               )}

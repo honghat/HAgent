@@ -13,6 +13,8 @@ import CodeWorkspace from './components/CodeWorkspace.jsx'
 import Learn from './components/Learn.jsx'
 import English from './components/English.jsx'
 import Evolution from './components/Evolution.jsx'
+import FileManager from './components/FileManager.jsx'
+import ContextCompaction from './components/ContextCompaction.jsx'
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -125,6 +127,7 @@ export default function App() {
         {view === 'chat' && <Chat key="chat" token={token} provider={provider} cxModel={cxModel} agents={agents} user={user} onProviderChange={saveProvider} onShowAgentManager={() => setView('agents')} onLogout={logout} />}
         {view === 'wiki' && <Wiki token={token} provider={provider} />}
         {view === 'evolution' && <Evolution token={token} />}
+        {view === 'context' && <ContextCompaction token={token} />}
         {view === 'omni' && <OmniChat token={token} provider={provider} />}
         {view === 'job-hunter' && <JobHunter token={token} provider={provider} />}
         {view === 'learn' && <Learn token={token} provider={provider} />}
@@ -134,6 +137,7 @@ export default function App() {
         {view === 'video' && <VideoPage token={token} provider={provider} />}
         {view === 'ports' && <PortManager token={token} />}
         {view === 'settings' && <UserSettings token={token} user={user} provider={provider} cxModel={cxModel} onCxModelChange={saveCxModel} onProviderChange={saveProvider} onUpdate={fetchUser} onLogout={logout} />}
+        {view === 'files' && <FileManager token={token} />}
       </main>
     </div>
   )

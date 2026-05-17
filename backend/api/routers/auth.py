@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from api.services.user_store import (
-    init_user_tables, create_user, get_user_by_id, update_user,
+    init_user_tables, create_user, get_user_by_id, get_user_by_username, update_user,
     authenticate_user, create_session, delete_session, resolve_user_id,
     get_providers, upsert_provider, delete_provider, BUILTIN_PROVIDERS,
 )

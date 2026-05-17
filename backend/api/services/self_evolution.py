@@ -21,6 +21,7 @@ EVENT_TYPES = {
     "tool_issue",
     "new_skill_candidate",
     "daily_review",
+    "context_compaction",
 }
 
 REFLECTION_PROMPT = """Bạn là bộ phận tự học của HAgent. Phân tích một lượt hội thoại và trích xuất các bài học giúp agent hỗ trợ người dùng tốt hơn.
@@ -210,6 +211,7 @@ def record_event(
     related_message_id: str | None = None,
     status: str = "pending",
     metadata: dict | None = None,
+    auto_apply: bool = True,
 ) -> dict | None:
     normalized = _normalize_event({
         "event_type": event_type,
@@ -245,7 +247,11 @@ def record_event(
                 """,
                 (normalized["evidence"], normalized["lesson"], normalized["action"], normalized["confidence"], duplicate["id"]),
             )
-            return get_event(str(duplicate["id"]), user_id)
+            event = get_event(str(duplicate["id"]), user_id)
+            if auto_apply and event and event.get("status") in {"pending", "approved"}:
+                result = apply_event(event["id"], user_id)
+                return result.get("event") or event
+            return event
 
         conn.execute(
             """
@@ -279,6 +285,10 @@ def record_event(
                 json.dumps({"event_id": event_id, "title": normalized["title"], **(metadata or {})}, ensure_ascii=False),
             ),
         )
+    if auto_apply and status in {"pending", "approved"}:
+        result = apply_event(event_id, user_id)
+        if result.get("ok") and result.get("event"):
+            return result["event"]
     return get_event(event_id, user_id)
 
 
@@ -395,6 +405,7 @@ def list_events(
     event_type: str | None = None,
     limit: int = 100,
 ) -> list[dict]:
+    auto_apply_pending_events(user_id)
     clauses = ["user_id = ?"]
     params: list = [user_id]
     if status:
@@ -419,6 +430,7 @@ def list_events(
 
 
 def summary(user_id: str) -> dict:
+    auto_apply_pending_events(user_id)
     events = list_events(user_id, limit=300)
     by_type = Counter(event["event_type"] for event in events)
     by_status = Counter(event["status"] for event in events)
@@ -442,6 +454,29 @@ def update_event_status(event_id: str, user_id: str, status: str) -> dict | None
             (status, event_id, user_id),
         )
     return get_event(event_id, user_id)
+
+
+def auto_apply_pending_events(user_id: str, limit: int = 100) -> dict:
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT id FROM self_evolution_events
+            WHERE user_id = ? AND status IN ('pending', 'approved')
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            (user_id, max(1, min(int(limit or 100), 300))),
+        ).fetchall()
+    applied = 0
+    failed = 0
+    for row in rows:
+        result = apply_event(str(row["id"]), user_id)
+        if result.get("ok"):
+            applied += 1
+        else:
+            failed += 1
+    return {"ok": True, "applied": applied, "failed": failed}
 
 
 def apply_event(event_id: str, user_id: str) -> dict:
@@ -518,7 +553,7 @@ def run_daily_review(user_id: str = "hat") -> dict:
         f"- Lỗi/tool issue: {len(failures)}",
         f"- Sở thích/quy tắc user: {len(preferences)}",
         f"- Ứng viên skill: {len(candidates)}",
-        "Ưu tiên xử lý các event pending có confidence cao và các lỗi lặp lại trước khi tự động cập nhật memory/skill.",
+        "Các bài học mới được tự động áp dụng; ưu tiên xem lại lỗi lặp lại nếu cần chỉnh code/skill.",
     ])
     review = record_event(
         user_id=user_id,
@@ -529,9 +564,8 @@ def run_daily_review(user_id: str = "hat") -> dict:
             ensure_ascii=False,
         ),
         lesson=lesson,
-        action="Duyệt các bài học pending và áp dụng bài học có độ tin cậy cao.",
+        action="Theo dõi bài học đã tự áp dụng và sửa code/skill nếu lỗi lặp lại.",
         confidence=0.8,
         source="daily_review",
-        status="approved",
     )
     return {"ok": True, "review": review, "counts": {"events": len(events), "failures": len(failures)}}

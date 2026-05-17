@@ -32,6 +32,7 @@ import {
   RefreshCw,
   Pin,
   PinOff,
+  Cloud,
 } from 'lucide-react'
 
 const PINNED_FOLDERS_KEY = 'hagent_pinned_folders'
@@ -101,9 +102,232 @@ function loadPinnedFolders() {
   }
 }
 
+function DriveFilesPanel({ token }) {
+  const [config, setConfig] = useState(null)
+  const [items, setItems] = useState([])
+  const [folderStack, setFolderStack] = useState([{ id: '', name: 'My Drive' }])
+  const [newFolder, setNewFolder] = useState('')
+  const [scope, setScope] = useState('data')
+  const [busy, setBusy] = useState('')
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const jsonHeaders = { ...authHeaders(token), 'Content-Type': 'application/json' }
+  const currentFolder = folderStack[folderStack.length - 1] || { id: '', name: 'My Drive' }
+
+  async function readJson(res) {
+    const text = await res.text()
+    try { return text ? JSON.parse(text) : {} } catch { return { detail: text || 'Lỗi không rõ' } }
+  }
+
+  async function loadDrive(folderId = currentFolder.id) {
+    setBusy('load'); setError('')
+    try {
+      const cfgRes = await fetch('/api/drive/config', { headers: authHeaders(token) })
+      const cfgData = await readJson(cfgRes)
+      if (!cfgRes.ok) throw new Error(cfgData.detail || 'Không tải được Google Drive')
+      setConfig(cfgData.config || {})
+      if (cfgData.ready) await loadItems(folderId)
+      else setItems([])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function loadItems(parentId = currentFolder.id) {
+    setBusy('items'); setError('')
+    try {
+      const qs = parentId ? '?parent_id=' + encodeURIComponent(parentId) : ''
+      const r = await fetch('/api/drive/items' + qs, { headers: authHeaders(token) })
+      const data = await readJson(r)
+      if (!r.ok) throw new Error(data.detail || 'Không tải được Drive')
+      setItems(data.items || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  useEffect(() => { loadDrive('') }, [token])
+
+  function openFolder(item) {
+    setFolderStack(prev => [...prev, { id: item.id, name: item.name }])
+    loadItems(item.id)
+  }
+
+  function goToFolder(index) {
+    const next = folderStack.slice(0, index + 1)
+    setFolderStack(next)
+    loadItems(next[next.length - 1]?.id || '')
+  }
+
+  async function createFolder() {
+    if (!newFolder.trim()) return
+    setBusy('create'); setError(''); setMessage('')
+    try {
+      const r = await fetch('/api/drive/folders', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ name: newFolder.trim(), parent_id: currentFolder.id })
+      })
+      const data = await readJson(r)
+      if (!r.ok) throw new Error(data.detail || 'Không tạo được thư mục')
+      setNewFolder('')
+      setMessage('Đã tạo thư mục')
+      await loadItems(currentFolder.id)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function renameItem(item) {
+    const name = window.prompt('Tên mới', item.name)
+    if (!name || name.trim() === item.name) return
+    setBusy('rename-' + item.id); setError(''); setMessage('')
+    try {
+      const r = await fetch('/api/drive/items', {
+        method: 'PATCH',
+        headers: jsonHeaders,
+        body: JSON.stringify({ id: item.id, name: name.trim() })
+      })
+      const data = await readJson(r)
+      if (!r.ok) throw new Error(data.detail || 'Không đổi tên được')
+      setMessage('Đã đổi tên')
+      await loadItems(currentFolder.id)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function deleteItem(item) {
+    if (!window.confirm('Xóa "' + item.name + '" trên Google Drive?')) return
+    setBusy('delete-' + item.id); setError(''); setMessage('')
+    try {
+      const r = await fetch('/api/drive/items', {
+        method: 'DELETE',
+        headers: jsonHeaders,
+        body: JSON.stringify({ id: item.id })
+      })
+      const data = await readJson(r)
+      if (!r.ok) throw new Error(data.detail || 'Không xóa được')
+      setMessage('Đã xóa')
+      await loadItems(currentFolder.id)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function backup() {
+    setBusy('backup'); setError(''); setMessage('')
+    try {
+      const r = await fetch('/api/drive/backup', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ folder_id: currentFolder.id, scope })
+      })
+      const data = await readJson(r)
+      if (!r.ok) throw new Error(data.detail || 'Backup thất bại')
+      setMessage('Đã backup: ' + (data.file?.name || 'hagent-backup.zip'))
+      await loadItems(currentFolder.id)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const ready = Boolean(config?.has_refresh_token || config?.has_access_token)
+  const isScopeError = /scope|quyền Google Drive|insufficient/i.test(error || '')
+  const isFolder = item => item.mimeType === 'application/vnd.google-apps.folder'
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[#0f1320]">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-slate-800 bg-[#121728] px-3">
+        <Cloud className="h-4 w-4 text-cyan-300" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[12px] font-semibold text-slate-100">Google Drive</div>
+          <div className="truncate text-[9px] text-slate-500">{ready ? 'Đã kết nối' : 'Chưa có token Drive'}</div>
+        </div>
+        <a href="/api/drive/auth/login" target="_blank" rel="noreferrer" className="flex h-7 items-center gap-1.5 rounded-md bg-cyan-600 px-2 text-[10px] font-semibold text-white hover:bg-cyan-500">
+          <ExternalLink className="h-3.5 w-3.5" />
+          Kết nối
+        </a>
+        <button onClick={() => loadDrive(currentFolder.id)} disabled={!!busy} className="flex h-7 items-center gap-1.5 rounded-md border border-slate-700 px-2 text-[10px] font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+          <RefreshCw className={'h-3.5 w-3.5 ' + ((busy === 'load' || busy === 'items') ? 'animate-spin' : '')} />
+          Làm mới
+        </button>
+      </div>
+
+      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-slate-800 bg-[#0b1020] px-3">
+        {folderStack.map((folder, index) => (
+          <span key={folder.id + '-' + index} className="flex items-center gap-1">
+            {index > 0 && <ChevronRight className="h-3 w-3 text-slate-600" />}
+            <button onClick={() => goToFolder(index)} className={'rounded px-1.5 py-1 text-[10px] ' + (index === folderStack.length - 1 ? 'text-cyan-200' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200')}>
+              {folder.name}
+            </button>
+          </span>
+        ))}
+      </div>
+
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-800 bg-[#121728] px-3">
+        <input value={newFolder} onChange={e => setNewFolder(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') createFolder() }} placeholder="Tên thư mục mới" className="h-7 min-w-0 flex-1 rounded-md border border-slate-700 bg-[#0b1020] px-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-600" />
+        <button onClick={createFolder} disabled={!ready || !!busy || !newFolder.trim()} className="h-7 rounded-md border border-slate-700 px-2 text-[10px] font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40">Tạo thư mục</button>
+        <select value={scope} onChange={e => setScope(e.target.value)} className="hidden h-7 rounded-md border border-slate-700 bg-[#0b1020] px-2 text-[10px] text-slate-200 outline-none sm:block">
+          <option value="data">Dữ liệu + config</option>
+          <option value="config">Config</option>
+          <option value="workspace">Workspace nhẹ</option>
+        </select>
+        <button onClick={backup} disabled={!ready || !!busy} className="h-7 rounded-md bg-emerald-600 px-2.5 text-[10px] font-semibold text-white hover:bg-emerald-500 disabled:opacity-40">Backup</button>
+      </div>
+
+      {isScopeError && <div className="border-b border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">Token hiện thiếu quyền Drive. Bấm Kết nối để cấp quyền đầy đủ rồi bấm Làm mới.</div>}
+      {message && <div className="border-b border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300">{message}</div>}
+      {error && !isScopeError && <div className="border-b border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">{error}</div>}
+
+      <div className="flex h-7 shrink-0 items-center border-b border-slate-800 bg-[#121728] px-3 text-[9px] font-medium uppercase tracking-wider text-slate-500">
+        <span className="min-w-0 flex-1">Tên</span>
+        <span className="w-20 shrink-0 text-right">Cỡ</span>
+        <span className="w-28 shrink-0 text-right">Sửa lúc</span>
+        <span className="w-24 shrink-0 text-right">Thao tác</span>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+        {(busy === 'items' || busy === 'load') ? (
+          <div className="flex items-center justify-center gap-2 py-12 text-[11px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Đang tải Drive...</div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center"><Cloud className="mb-2 h-8 w-8 text-slate-700" /><p className="text-[11px] text-slate-500">Thư mục Drive này đang trống</p></div>
+        ) : items.map(item => (
+          <div key={item.id} className="group/drive flex h-9 items-center border-b border-slate-800/60 px-3 text-[11px] hover:bg-slate-800/50">
+            <button onClick={() => isFolder(item) ? openFolder(item) : window.open(item.webViewLink, '_blank')} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              {isFolder(item) ? <Folder className="h-4 w-4 shrink-0 text-amber-400" /> : <File className="h-4 w-4 shrink-0 text-sky-400" />}
+              <span className="truncate font-medium text-slate-200">{item.name}</span>
+            </button>
+            <span className="w-20 shrink-0 text-right text-[10px] text-slate-500">{item.size ? formatSize(Number(item.size)) : '-'}</span>
+            <span className="w-28 shrink-0 text-right text-[10px] text-slate-500">{item.modifiedTime ? new Date(item.modifiedTime).toLocaleDateString('vi-VN') : ''}</span>
+            <div className="flex w-24 shrink-0 justify-end gap-1 opacity-100 md:opacity-0 md:group-hover/drive:opacity-100">
+              {!isFolder(item) && item.webViewLink && <a href={item.webViewLink} target="_blank" rel="noreferrer" className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-100">Mở</a>}
+              <button onClick={() => renameItem(item)} className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-100">Sửa</button>
+              <button onClick={() => deleteItem(item)} className="rounded px-1.5 py-1 text-[10px] text-red-300 hover:bg-red-500/10">Xóa</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 
 export default function FileManager({ token }) {
+  const [activeTab, setActiveTab] = useState('local')
   const [volumes, setVolumes] = useState([])
   const [activeVolume, setActiveVolume] = useState(null)
   const [currentPath, setCurrentPath] = useState('')
@@ -712,6 +936,26 @@ export default function FileManager({ token }) {
 
       {/* Main area */}
       <main onContextMenu={e => { e.preventDefault(); closeContextMenu() }} className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-9 shrink-0 items-center gap-1 border-b border-slate-800 bg-[#0b1020] px-3">
+          <button
+            onClick={() => setActiveTab('local')}
+            className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[10px] font-semibold transition-all ${activeTab === 'local' ? 'bg-slate-800 text-cyan-200' : 'text-slate-500 hover:bg-slate-900 hover:text-slate-200'}`}
+          >
+            <HardDrive className="h-3.5 w-3.5" />
+            Mac mini
+          </button>
+          <button
+            onClick={() => setActiveTab('drive')}
+            className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[10px] font-semibold transition-all ${activeTab === 'drive' ? 'bg-slate-800 text-cyan-200' : 'text-slate-500 hover:bg-slate-900 hover:text-slate-200'}`}
+          >
+            <Cloud className="h-3.5 w-3.5" />
+            Google Drive
+          </button>
+        </div>
+        {activeTab === 'drive' ? (
+          <DriveFilesPanel token={token} />
+        ) : (
+        <>
         {/* Mobile volume selector */}
         <div className="flex flex-col border-b border-slate-800 bg-[#121728] md:hidden">
           <div className="flex h-9 items-center gap-2 px-3">
@@ -1156,6 +1400,8 @@ export default function FileManager({ token }) {
             </div>
           )}
         </div>
+        </>
+        )}
       </main>
     </div>
   )

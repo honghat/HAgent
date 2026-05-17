@@ -128,6 +128,22 @@ export default function JobHunter({ token }) {
     }
   }, [headers])
 
+  const clearAllJobs = useCallback(async () => {
+    if (!jobs.length) return
+    if (!window.confirm('Xóa hết công việc đã kiếm?')) return
+    try {
+      const res = await fetch('/api/job-hunter/cache', { method: 'DELETE', headers })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.detail || 'Xóa thất bại')
+      setJobs([])
+      setStats({ total: 0 })
+      setStatus('Đã xóa hết công việc đã kiếm')
+      setError('')
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [jobs.length, headers])
+
   function fmtSalary(job) {
     if (job.salary) return job.salary
     if (job.salary_min && job.salary_max && job.salary_min !== job.salary_max)
@@ -277,8 +293,23 @@ export default function JobHunter({ token }) {
         {/* Job results */}
         <div className="space-y-2 pb-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-gray-700">Lịch sử việc đã kiếm</h2>
-            {jobs.length > 0 && <span className="text-[10px] text-gray-400">{jobs.length} việc</span>}
+            <div>
+              <h2 className="text-xs font-semibold text-gray-700">Lịch sử việc đã kiếm</h2>
+              <p className="text-[10px] text-gray-400">Chỉ giữ kết quả trong 3 ngày gần nhất</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {jobs.length > 0 && <span className="text-[10px] text-gray-400">{jobs.length} việc</span>}
+              {jobs.length > 0 && (
+                <button
+                  onClick={clearAllJobs}
+                  className="inline-flex items-center gap-1 rounded-md border border-red-100 bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-100"
+                  title="Xóa hết công việc đã kiếm"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Xóa hết
+                </button>
+              )}
+            </div>
           </div>
           {jobs.length === 0 && !loading && (
             <div className="bg-white border border-gray-200 rounded-lg py-12 text-center">

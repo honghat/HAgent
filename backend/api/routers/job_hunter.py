@@ -24,6 +24,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 CACHE_FILE = DATA_DIR / "jobs_cache.json"
 WATCH_FILE = DATA_DIR / "watches.json"
+JOB_RETENTION_DAYS = 3
 
 # ── Models ────────────────────────────────────────────────────────────
 
@@ -73,6 +74,36 @@ def _load_cache() -> List[dict]:
 
 def _save_cache(jobs: List[dict]):
     CACHE_FILE.write_text(json.dumps(jobs, ensure_ascii=False, indent=2))
+
+def _parse_cache_date(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        pass
+    try:
+        return datetime.strptime(value[:10], "%Y-%m-%d")
+    except Exception:
+        return None
+
+def _job_cache_date(job: dict) -> Optional[datetime]:
+    return _parse_cache_date(job.get("discovered_at")) or _parse_cache_date(job.get("posted_date"))
+
+def _prune_old_jobs(jobs: List[dict], save: bool = False) -> List[dict]:
+    cutoff = datetime.now() - timedelta(days=JOB_RETENTION_DAYS)
+    kept = []
+    for job in jobs:
+        job_date = _job_cache_date(job)
+        if job_date and job_date < cutoff:
+            continue
+        kept.append(job)
+    if save and len(kept) != len(jobs):
+        _save_cache(kept)
+    return kept
+
+def _load_fresh_cache(save: bool = True) -> List[dict]:
+    return _prune_old_jobs(_load_cache(), save=save)
 
 def _load_watches() -> List[dict]:
     if WATCH_FILE.exists():
@@ -630,7 +661,7 @@ async def _scrape_source(
 
 @router.get("/health")
 async def health():
-    cached = len(_load_cache())
+    cached = len(_load_fresh_cache())
     return {
         "status": "ok",
         "timestamp": datetime.now().isoformat(),
@@ -676,15 +707,18 @@ async def scrape_jobs(req: ScrapeRequest):
             seen.add(j["url"])
             unique.append(j)
 
-    # Merge with cache
-    cached = _load_cache()
+    # Merge with cache, keeping only the last 3 days of search results.
+    cached = _load_fresh_cache()
     existing_urls = {j["url"] for j in cached}
     new_count = 0
+    now_iso = datetime.now().isoformat()
     for j in unique:
         if j["url"] not in existing_urls:
+            j["discovered_at"] = now_iso
             cached.append(j)
             existing_urls.add(j["url"])
             new_count += 1
+    cached = _prune_old_jobs(cached)
     _save_cache(cached)
 
     return {"jobs": unique, "count": len(unique), "new_count": new_count, "total_cached": len(cached)}
@@ -700,7 +734,7 @@ async def search_jobs(
     limit: int = Query(50, le=200),
 ):
     """Search cached jobs with filters."""
-    jobs = _load_cache()
+    jobs = _load_fresh_cache()
     if not jobs:
         return {"jobs": [], "count": 0, "message": "No jobs cached. POST /job-hunter/scrape first."}
 
@@ -741,7 +775,7 @@ async def list_sources():
 
 @router.delete("/jobs")
 async def delete_job(req: DeleteJobRequest):
-    jobs = _load_cache()
+    jobs = _load_fresh_cache()
     kept = [job for job in jobs if job.get("url") != req.url]
     if len(kept) == len(jobs):
         raise HTTPException(404, "Job not found")
@@ -784,7 +818,7 @@ async def export_csv(
     salary_min: Optional[int] = Query(None),
 ):
     """Export cached jobs as CSV."""
-    jobs = _load_cache()
+    jobs = _load_fresh_cache()
     filtered = []
     for j in jobs:
         if source and j.get("source") != source:
@@ -825,7 +859,7 @@ async def clear_cache():
 @router.get("/stats")
 async def stats():
     """Statistics about cached jobs."""
-    jobs = _load_cache()
+    jobs = _load_fresh_cache()
     if not jobs:
         return {"total": 0}
     by_source = {}

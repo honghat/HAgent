@@ -62,9 +62,9 @@ module.exports = {
     },
     {
       name: '9router',
-      cwd: '/Users/nguyenhat/.local/lib/node_modules/9router/app',
+      cwd: '/Users/nguyenhat/HAgent/backend/plugins/model-providers/9router',
       script: 'node',
-      args: 'server.js',
+      args: '.next/standalone/server.js',
       error_file: `${LOG_DIR}/9router-error.log`,
       out_file: `${LOG_DIR}/9router-out.log`,
       merge_logs: true,
@@ -72,7 +72,6 @@ module.exports = {
       env: {
         PORT: 20128,
         HOSTNAME: '0.0.0.0',
-        HOME: '/Users/nguyenhat/HAgent/backend/9router'
       }
     },
     {

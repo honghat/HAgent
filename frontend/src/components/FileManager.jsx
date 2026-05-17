@@ -106,6 +106,7 @@ function DriveFilesPanel({ token }) {
   const [config, setConfig] = useState(null)
   const [items, setItems] = useState([])
   const [folderStack, setFolderStack] = useState([{ id: '', name: 'My Drive' }])
+  const [driveMode, setDriveMode] = useState('my')
   const [newFolder, setNewFolder] = useState('')
   const [scope, setScope] = useState('data')
   const [busy, setBusy] = useState('')
@@ -120,14 +121,14 @@ function DriveFilesPanel({ token }) {
     try { return text ? JSON.parse(text) : {} } catch { return { detail: text || 'Lỗi không rõ' } }
   }
 
-  async function loadDrive(folderId = currentFolder.id) {
+  async function loadDrive(folderId = currentFolder.id, mode = driveMode) {
     setBusy('load'); setError('')
     try {
       const cfgRes = await fetch('/api/drive/config', { headers: authHeaders(token) })
       const cfgData = await readJson(cfgRes)
       if (!cfgRes.ok) throw new Error(cfgData.detail || 'Không tải được Google Drive')
       setConfig(cfgData.config || {})
-      if (cfgData.ready) await loadItems(folderId)
+      if (cfgData.ready) await loadItems(folderId, mode)
       else setItems([])
     } catch (err) {
       setError(err.message)
@@ -136,10 +137,13 @@ function DriveFilesPanel({ token }) {
     }
   }
 
-  async function loadItems(parentId = currentFolder.id) {
+  async function loadItems(parentId = currentFolder.id, mode = driveMode) {
     setBusy('items'); setError('')
     try {
-      const qs = parentId ? '?parent_id=' + encodeURIComponent(parentId) : ''
+      const params = new URLSearchParams()
+      if (parentId) params.set('parent_id', parentId)
+      if (mode === 'shared' && !parentId) params.set('shared', 'true')
+      const qs = params.toString() ? '?' + params.toString() : ''
       const r = await fetch('/api/drive/items' + qs, { headers: authHeaders(token) })
       const data = await readJson(r)
       if (!r.ok) throw new Error(data.detail || 'Không tải được Drive')
@@ -151,7 +155,14 @@ function DriveFilesPanel({ token }) {
     }
   }
 
-  useEffect(() => { loadDrive('') }, [token])
+  useEffect(() => { loadDrive('', 'my') }, [token])
+
+  function switchDriveMode(mode) {
+    setDriveMode(mode)
+    const root = { id: '', name: mode === 'shared' ? 'Được chia sẻ' : 'My Drive' }
+    setFolderStack([root])
+    loadDrive('', mode)
+  }
 
   function openFolder(item) {
     setFolderStack(prev => [...prev, { id: item.id, name: item.name }])
@@ -268,6 +279,13 @@ function DriveFilesPanel({ token }) {
       </div>
 
       <div className="flex h-9 shrink-0 items-center gap-1 border-b border-slate-800 bg-[#0b1020] px-3">
+        <button onClick={() => switchDriveMode('my')} className={'mr-1 rounded px-2 py-1 text-[10px] font-semibold ' + (driveMode === 'my' ? 'bg-cyan-500/15 text-cyan-200' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200')}>
+          My Drive
+        </button>
+        <button onClick={() => switchDriveMode('shared')} className={'mr-2 rounded px-2 py-1 text-[10px] font-semibold ' + (driveMode === 'shared' ? 'bg-cyan-500/15 text-cyan-200' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200')}>
+          Được chia sẻ
+        </button>
+        <div className="mx-1 h-4 w-px bg-slate-800" />
         {folderStack.map((folder, index) => (
           <span key={folder.id + '-' + index} className="flex items-center gap-1">
             {index > 0 && <ChevronRight className="h-3 w-3 text-slate-600" />}
@@ -333,7 +351,7 @@ export default function FileManager({ token }) {
   const [currentPath, setCurrentPath] = useState('')
   const [parentPath, setParentPath] = useState(null)
   const [entries, setEntries] = useState([])
-  const [showHidden, setShowHidden] = useState(false)
+  const [showHidden, setShowHidden] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMode, setFilterMode] = useState('all') // 'all' | 'files' | 'folders'
   const [pinnedFolders, setPinnedFolders] = useState(loadPinnedFolders)
@@ -348,6 +366,7 @@ export default function FileManager({ token }) {
   const [loadingFile, setLoadingFile] = useState(false)
   const [saving, setSaving] = useState(false)
   const [mediaError, setMediaError] = useState('')
+  const [uploadingDrive, setUploadingDrive] = useState(false)
 
   // Delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState(null)
@@ -380,6 +399,9 @@ export default function FileManager({ token }) {
 
   const filteredEntries = useMemo(() => {
     let result = entries
+    if (!showHidden) {
+      result = result.filter(e => !e.name.startsWith('.'))
+    }
     if (filterMode === 'files') {
       result = result.filter(e => e.type === 'file')
     } else if (filterMode === 'folders') {
@@ -388,10 +410,10 @@ export default function FileManager({ token }) {
     if (!searchQuery) return result
     const q = searchQuery.toLowerCase()
     return result.filter(e => e.name.toLowerCase().includes(q))
-  }, [entries, searchQuery, filterMode])
+  }, [entries, searchQuery, filterMode, showHidden])
 
   useEffect(() => { loadVolumes() }, [])
-  useEffect(() => { if (currentPath) loadDirectory(currentPath) }, [currentPath])
+  useEffect(() => { if (currentPath) loadDirectory(currentPath) }, [currentPath, showHidden])
 
   // Load pinned folders from backend
   useEffect(() => {
@@ -688,6 +710,25 @@ export default function FileManager({ token }) {
     }
   }
 
+  async function uploadPathToDrive(path) {
+    if (!path || uploadingDrive) return
+    setUploadingDrive(true)
+    try {
+      const r = await fetch('/api/drive/upload-path', {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.detail || 'Upload Google Drive thất bại')
+      showToast(`Đã upload Drive: ${data.file?.name || folderLabel(path)}`, 'ok')
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setUploadingDrive(false)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 bg-[#0f1320] text-slate-100 select-none">
       {/* Toast */}
@@ -827,6 +868,13 @@ export default function FileManager({ token }) {
                 Chuyển vào thùng rác
               </button>
               <div className="mx-2 my-1 border-t border-slate-700" />
+              <button
+                onClick={() => { uploadPathToDrive(contextMenu.entry.path); closeContextMenu() }}
+                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
+              >
+                <Upload className="h-3.5 w-3.5 text-emerald-400" />
+                Up Google Drive
+              </button>
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(contextMenu.entry.path)
@@ -1063,12 +1111,13 @@ export default function FileManager({ token }) {
             <div className="mx-1 h-5 w-px bg-slate-700" />
             <button
               onClick={() => setShowHidden(!showHidden)}
-              className={`flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-800 ${
+              className={`flex h-7 items-center gap-1 rounded-md px-2 text-[10px] font-semibold hover:bg-slate-800 ${
                 showHidden ? 'text-cyan-300 bg-cyan-500/10' : 'text-slate-400'
               }`}
               title={showHidden ? 'Ẩn file ẩn' : 'Hiện file ẩn'}
             >
               {showHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              <span>{showHidden ? 'File ẩn: Bật' : 'File ẩn: Tắt'}</span>
             </button>
             <button
               onClick={() => { setShowNewFolder(true); setShowNewFile(false) }}
@@ -1083,6 +1132,14 @@ export default function FileManager({ token }) {
               title="File mới"
             >
               <FileText className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => uploadPathToDrive(currentPath)}
+              disabled={!currentPath || uploadingDrive}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-30"
+              title="Up thư mục hiện tại lên Google Drive"
+            >
+              {uploadingDrive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
             </button>
           </div>
         </div>

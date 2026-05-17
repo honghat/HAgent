@@ -6,6 +6,7 @@ import os
 import tempfile
 import zipfile
 from datetime import datetime
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Optional
 
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/api/drive", tags=["drive"])
 ROOT_DIR = Path(__file__).resolve().parents[3]
 DATA_DIR = ROOT_DIR / "data"
 CONFIG_FILE = DATA_DIR / "google_drive.json"
+HIDDEN_SHARED_FILE = DATA_DIR / "google_drive_hidden_shared.json"
 
 DRIVE_API = "https://www.googleapis.com/drive/v3"
 DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3"
@@ -35,6 +37,7 @@ EXCLUDED_DIRS = {
     "venv",
 }
 EXCLUDED_SUFFIXES = {".pyc", ".log", ".mp4", ".mov", ".webm", ".wav", ".mp3"}
+DRIVEIGNORE_FILE = ROOT_DIR / ".driveignore"
 
 
 def _env_value(*names: str) -> str:
@@ -89,6 +92,11 @@ class BackupRequest(BaseModel):
     scope: str = "data"
 
 
+class UploadPathRequest(BaseModel):
+    path: str
+    folder_id: str = ""
+
+
 def _load_config() -> dict[str, Any]:
     env_config = {
         "client_id": _env_value("GOOGLE_DRIVE_CLIENT_ID", "GDRIVE_CLIENT_ID", "GOOGLE_CLIENT_ID", "YOUTUBE_CLIENT_ID"),
@@ -110,6 +118,27 @@ def _load_config() -> dict[str, Any]:
 def _save_config(config: dict[str, Any]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_hidden_shared() -> set[str]:
+    if not HIDDEN_SHARED_FILE.exists():
+        return set()
+    try:
+        data = json.loads(HIDDEN_SHARED_FILE.read_text(encoding="utf-8"))
+        return set(data if isinstance(data, list) else [])
+    except Exception:
+        return set()
+
+
+def _save_hidden_shared(ids: set[str]) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    HIDDEN_SHARED_FILE.write_text(json.dumps(sorted(ids), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _hide_shared_item(item_id: str) -> None:
+    hidden = _load_hidden_shared()
+    hidden.add(item_id)
+    _save_hidden_shared(hidden)
 
 
 def _write_env_value(key: str, value: str) -> None:
@@ -197,6 +226,22 @@ async def _drive_request(method: str, url: str, **kwargs) -> httpx.Response:
     return res
 
 
+async def _remove_my_permission(file_id: str) -> None:
+    about = await _drive_request(
+        "GET",
+        f"{DRIVE_API}/about",
+        params={"fields": "user(permissionId)"},
+    )
+    permission_id = (about.json().get("user") or {}).get("permissionId")
+    if not permission_id:
+        raise HTTPException(status_code=403, detail="Không tìm thấy quyền truy cập của tài khoản hiện tại")
+    await _drive_request(
+        "DELETE",
+        f"{DRIVE_API}/files/{file_id}/permissions/{permission_id}",
+        params={"supportsAllDrives": "true"},
+    )
+
+
 def _backup_roots(scope: str) -> list[Path]:
     if scope == "workspace":
         return [ROOT_DIR]
@@ -205,10 +250,47 @@ def _backup_roots(scope: str) -> list[Path]:
     return [ROOT_DIR / "data", ROOT_DIR / "config", ROOT_DIR / "ecosystem.config.cjs"]
 
 
-def _should_skip(path: Path) -> bool:
+def _driveignore_patterns() -> list[str]:
+    if not DRIVEIGNORE_FILE.exists():
+        return []
+    patterns = []
+    for raw in DRIVEIGNORE_FILE.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        patterns.append(line)
+    return patterns
+
+
+def _matches_driveignore(path: Path, base: Path) -> bool:
+    patterns = _driveignore_patterns()
+    if not patterns:
+        return False
+    try:
+        rel = path.relative_to(base).as_posix()
+    except ValueError:
+        try:
+            rel = path.relative_to(ROOT_DIR).as_posix()
+        except ValueError:
+            rel = path.name
+    rel_dir = rel + "/" if path.is_dir() and not rel.endswith("/") else rel
+    for pattern in patterns:
+        pat = pattern.strip("/")
+        if pattern.endswith("/"):
+            if rel_dir.startswith(pattern) or any(part == pat for part in rel.split("/")):
+                return True
+            continue
+        if fnmatch(rel, pattern) or fnmatch(path.name, pattern) or fnmatch(rel, pat):
+            return True
+    return False
+
+
+def _should_skip(path: Path, base: Path = ROOT_DIR) -> bool:
     if any(part in EXCLUDED_DIRS for part in path.parts):
         return True
     if path.suffix.lower() in EXCLUDED_SUFFIXES:
+        return True
+    if _matches_driveignore(path, base):
         return True
     return False
 
@@ -225,10 +307,44 @@ def _create_backup_zip(scope: str) -> Path:
                 zf.write(root, root.relative_to(ROOT_DIR))
                 continue
             for path in root.rglob("*"):
-                if not path.is_file() or _should_skip(path):
+                if not path.is_file() or _should_skip(path, ROOT_DIR):
                     continue
                 zf.write(path, path.relative_to(ROOT_DIR))
     return out_path
+
+
+def _zip_path(source: Path) -> Path:
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    out_path = Path(tempfile.gettempdir()) / f"{source.name}-{stamp}.zip"
+    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        if source.is_file():
+            zf.write(source, source.name)
+        else:
+            for path in source.rglob("*"):
+                if not path.is_file() or _should_skip(path, source):
+                    continue
+                zf.write(path, source.name / path.relative_to(source))
+    return out_path
+
+
+async def _upload_local_file(path: Path, folder_id: str) -> dict[str, Any]:
+    metadata = {"name": path.name, "parents": [folder_id or _load_config().get("root_folder_id") or "root"]}
+    mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+    files = {
+        "metadata": (None, json.dumps(metadata), "application/json; charset=UTF-8"),
+        "file": (path.name, path.read_bytes(), mime),
+    }
+    res = await _drive_request(
+        "POST",
+        f"{DRIVE_UPLOAD_API}/files",
+        params={
+            "uploadType": "multipart",
+            "fields": "id,name,size,webViewLink,createdTime",
+            "supportsAllDrives": "true",
+        },
+        files=files,
+    )
+    return res.json()
 
 
 @router.get("/config")
@@ -327,10 +443,10 @@ async def list_folders(parent_id: Optional[str] = None):
 
 
 @router.get("/items")
-async def list_items(parent_id: Optional[str] = None):
+async def list_items(parent_id: Optional[str] = None, shared: bool = Query(False)):
     config = _load_config()
     parent = parent_id or config.get("root_folder_id") or "root"
-    query = f"'{parent}' in parents and trashed = false"
+    query = "sharedWithMe = true and trashed = false" if shared and not parent_id else f"'{parent}' in parents and trashed = false"
     res = await _drive_request(
         "GET",
         f"{DRIVE_API}/files",
@@ -339,6 +455,8 @@ async def list_items(parent_id: Optional[str] = None):
             "fields": "files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,parents)",
             "orderBy": "folder,name",
             "pageSize": 200,
+            "includeItemsFromAllDrives": "true",
+            "supportsAllDrives": "true",
         },
     )
     items = res.json().get("files", [])
@@ -394,8 +512,14 @@ async def delete_item(payload: FolderDelete):
     item_id = payload.id.strip()
     if not item_id:
         raise HTTPException(status_code=400, detail="Thiếu item id")
-    await _drive_request("DELETE", f"{DRIVE_API}/files/{item_id}")
-    return {"status": "deleted"}
+    try:
+        await _drive_request("DELETE", f"{DRIVE_API}/files/{item_id}", params={"supportsAllDrives": "true"})
+        return {"status": "deleted"}
+    except HTTPException as exc:
+        if exc.status_code not in (403, 404):
+            raise
+        await _remove_my_permission(item_id)
+        return {"status": "removed_shared"}
 
 
 @router.post("/backup")
@@ -419,3 +543,25 @@ async def backup_to_drive(payload: BackupRequest):
       return {"file": res.json(), "size": archive.stat().st_size}
     finally:
       archive.unlink(missing_ok=True)
+
+
+@router.post("/upload-path")
+async def upload_path_to_drive(payload: UploadPathRequest):
+    source = Path(payload.path).expanduser().resolve()
+    if not source.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy file/thư mục")
+    archive: Path | None = None
+    try:
+        upload_source = source
+        if source.is_dir():
+            archive = _zip_path(source)
+            upload_source = archive
+        file_info = await _upload_local_file(upload_source, payload.folder_id.strip())
+        return {
+            "file": file_info,
+            "source": str(source),
+            "archived": source.is_dir(),
+        }
+    finally:
+        if archive:
+            archive.unlink(missing_ok=True)

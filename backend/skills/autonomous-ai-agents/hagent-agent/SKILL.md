@@ -108,8 +108,7 @@ hagent status [--all]       Show component status
 
 ### Tools & Skills
 
-```
-hagent tools                Interactive tool enable/disable (curses UI)
+```\nhagent tools                Interactive tool enable/disable (curses UI)
 hagent tools list           Show all tools and status
 hagent tools enable NAME    Enable a toolset
 hagent tools disable NAME   Disable a toolset
@@ -125,6 +124,90 @@ hagent skills uninstall N   Remove a hub skill
 hagent skills publish PATH  Publish to registry
 hagent skills browse        Browse all available skills
 hagent skills tap add REPO  Add a GitHub repo as skill source
+
+hagent browser             Open CDP browser connection (browswr tool)
+`````
+
+---\n\n## Web Browsing Tools (Browswr)
+
+The `browser` toolset uses **Browswr** to automate web interaction like a real user: scroll, click links, fill forms, view console logs. Three backend modes available:
+
+### Backend Modes
+
+1. **Local** (default, FREE)
+   - Chromium headless running locally
+   - No API key needed
+   - May be less stable for production use
+   - Warning: "Running WITHOUT residential proxies. Bot detection may be more aggressive"
+
+2. **Browserbase** (cloud, ~$10/month)
+   - Residential proxies enabled
+   - Higher stealth rating
+   - Requires Browserbase API key configuration
+
+3. **Browser Use** (cloud)
+   - Uses if already configured in `config.yaml`
+   - Automatic switching when available
+
+### Core Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `browser_navigate(url)` | Load a webpage | `browser_navigate("https://shopee.vn/")` |
+| `browser_snapshot(full=False)` | Get page content (compact/full mode) | `browser_snapshot(full=True)` |
+| `browser_click(ref)` | Click element by ref ID | `browser_click("@e5")` |
+| `browser_type(ref, text)` | Type into input field | `"email", "test@example.com"` |
+| `browser_press(key)` | Press virtual key | `"Enter"`, `"Tab"`, `"Escape"` |
+| `browser_scroll(direction)` | Scroll page | `"up"`, `"down"` |
+| `browser_back()` | Navigate to previous page | - |
+| `browser_console([expression])` | Console logs + JS eval | `'document.title'` or empty for logs |
+| `browser_get_images()` | List images on page | Returns URLs + alt text |
+| `browser_vision(question)` | AI visual analysis | `"What's on this page?"` |
+
+### Practical Examples
+
+**Get Vietnam News from VnExpress:**
+```python
+browser_navigate("https://vnexpress.net/")  # Navigate to site
+snapshot = browser_snapshot(full=True)      # Get full content
+browser_click("@e5")                        # Click latest article
+save_wiki(title="Tin mới", content=...)     # Save to Wiki
+```
+
+**Check Gold Prices on DOJI:**
+```python
+browser_navigate("https://giavang.doji.vn/")
+price = browser_snapshot(full=True)
+save_wiki(title="Giá vàng hôm nay", content=price)
+```
+
+**Shopee Shopping (with login):**
+- Shopee requires authentication for full functionality
+- Can read HTML structure even when logged out (useful for analysis)
+- Meta tags: `shopee:git-sha`, `shopee:version`
+- Configs exposed in `<head>`: `MART_CONFIG`, `CHECKOUT_CONFIGS`
+
+### Tips & Pitfalls
+
+1. **Use `full=True`** on first snapshot to get complete page content for analysis
+2. **Element refs are dynamic** — click targets may change after each interaction
+3. **Login-first sites** (Shopee, Facebook) require OAuth tokens or alternative approaches
+4. **Console logs reveal errors** — empty `browser_console()` shows stdout/stderr from page scripts
+5. **Avoid accidental data loss** — backup SQLite databases before bulk operations
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Bot detection may be more aggressive" | Use Browserbase backend for production |
+| Elements not clickable | Try `browser_scroll()` or refresh with `browser_navigate()` |
+| Console errors in snapshots | Check `browser_console()` output for JS exceptions |
+| Login required | Use OAuth tokens or API-based scraping as fallback |
+
+**References:**
+- [Browser Tool documentation](/Users/nguyenhat/HAgent/backend/data/hagent.db/browser-20260517)
+- Common pitfalls documented in session logs
+
 ```
 
 ### MCP Servers
@@ -842,9 +925,7 @@ hagent config set auxiliary.vision.provider <your_provider>
 hagent config set auxiliary.vision.model <model_name>
 ```
 
----
-
-## Where to Find Things
+---\n\n## Third-Party Model Router Integration (e.g., 9Router)\n\n### Installing AI Model Routers via CLI Plugin Management\n\nUse `hagent plugins` to manage model routing layers that sit above HAgent's core provider stack.\n\n#### Quick Workflow for New Routers:\n\n```bash\n# 1. Create plugin directory under ~/.hagent/plugins/\nmkdir -p ~/.hagent/plugins/<router-name>\n\n# 2. Clone router's source (from official repo)\ngit clone https://github.com/<owner>/<router>.git ~/.hagent/plugins/<router-name>/router-backend\n\n# 3. Install dependencies\npip install <requirements-from-router-README>\n\n# 4. Start backend server (usually port-based)\ncd ~/.hagent/plugins/<router-name>/router-backend\ndocker-compose up -d || python3 -m <router.server> &\n\n# 5. Create HAgent proxy wrapper\nmkdir ~/.hagent/plugins/<router-name>/proxy\ncat > ~/.hagent/plugins/<router-name>/proxy/__init__.py << 'EOF'\n# Proxy to router's backend endpoint (e.g., localhost:20128)\nimport http.client\n\ndef get_router_info():\n    return {\"name\": \"<RouterName>\", \"dashboard_url\": \"http://localhost:<PORT>/dashboard\"}\nEOF\n\n# 6. Create plugin.yaml for HAgent discovery\ncat > ~/.hagent/plugins/<router-name>/proxy/plugin.yaml << 'EOF'\nname: <RouterName> Proxy\nversion: 1.0\ntype: model-provider\nenabled: true\nconfig_path: ~/.hagent/plugins/<router-name>\nEOF\n```\n\n#### 9Router Installation (Complete Example):\n\n```bash\n# Clone official backend from decolu/9router repository (NOT from hagent plugins)\ngit clone https://github.com/decolua/9router.git ~/.hagent/plugins/9router/router-backend\n\n# Install Python dependencies\ncd ~/.hagent/plugins/9router/router-backend\npip install requests 2>/dev/null || python3 -m pip install requests -q\n\n# Start backend server (runs on port 20128 by default)\npython3 -m 9router.server &\nsleep 5\n\n# Verify it's running\ncurl http://localhost:20128/dashboard\n```\n\n#### Setup Steps for Any Router:\n\n| Step | Action |\n|------|--------|\n| ✅ Clone backend | From router's official GitHub repo (check README for correct URL) |\n| ✅ Install deps | `pip install` requirements from their docs |\n| ✅ Start server | Backend often runs on port 20128 or custom port |\n| ✅ Create proxy wrapper | In `~/.hagent/plugins/<name>/proxy/` with `__init__.py` and `plugin.yaml` |\n| ✅ Configure routes | Add to HAgent's provider list via `/model` CLI or config.yaml |\n\n#### Dashboard Access:\n\nMost routers (9Router, Kilo Code, etc.) provide web dashboards:\n\n```bash\n# Typical access patterns:\nhttp://localhost:20128/dashboard     # 9Router default\nhttp://localhost:3000/settings       # Some other routers\n\n# Default credentials are often:\n- Username: admin\n- Password: admin123\n```\n\n#### Key Integration Points:\n\n1. **RTK (Result Token Compression)** — routers like 9Router use RTK to compress tokens before routing, saving 20-40% cost\n2. **Auto-fallback** — smart failover between providers based on quota and latency\n3. **Quota tracking** — monitor remaining free tier limits across multiple models\n4. **Provider routes** — configure which models can be auto-routed vs manual selection\n\n#### Troubleshooting Routers:\n\n| Issue | Solution |\n|-------|----------|\n| `pip` command not found | Use `python3 -m pip` instead |\n| Module import errors | Check backend requires Python 3.10+ or specific packages |\n| Port already in use | Backend may conflict with existing service; check `/proc` for port binders |\n| Dashboard returns `401` or `/login` | Router likely requires authentication; check README for default creds |\n\n---\n\n## Where to Find Things\n
 
 | Looking for... | Location |
 |----------------|----------|

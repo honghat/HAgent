@@ -641,9 +641,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
     if not text:
         return
-    if text.lower() in ["ok", "roger", "lam di", "tiep di", "continue", "yes", "y"]:
-        await update.message.reply_text("✅ Đã rõ, tiếp tục!", parse_mode="HTML")
-        return
     await _forward_to_agent(update, context, text)
 
 

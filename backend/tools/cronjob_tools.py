@@ -644,15 +644,12 @@ def check_cronjob_requirements() -> bool:
     """
     Check if cronjob tools can be used.
 
-    Available in interactive CLI mode and gateway/messaging platforms.
-    The cron system is internal (JSON file-based scheduler ticked by the gateway),
-    so no external crontab executable is required.
+    Available in interactive CLI mode, gateway/messaging platforms,
+    and API/Telegram mode. The cron system is internal (JSON file-based
+    scheduler ticked by the gateway), so no external crontab executable
+    is required.
     """
-    return bool(
-        os.getenv("HAGENT_INTERACTIVE")
-        or os.getenv("HAGENT_GATEWAY_SESSION")
-        or os.getenv("HAGENT_EXEC_ASK")
-    )
+    return True
 
 
 # --- Registry ---

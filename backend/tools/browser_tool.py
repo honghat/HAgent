@@ -194,7 +194,7 @@ def _get_command_timeout() -> int:
     _command_timeout_resolved = True
     result = DEFAULT_COMMAND_TIMEOUT
     try:
-        from hagent_cli.config import read_raw_config
+        from hagent_cli.config import read_raw_config, cfg_get
         cfg = read_raw_config()
         val = cfg_get(cfg, "browser", "command_timeout")
         if val is not None:
@@ -2792,7 +2792,7 @@ def _maybe_start_recording(task_id: str):
         if task_id in _recording_sessions:
             return
     try:
-        from hagent_cli.config import read_raw_config
+        from hagent_cli.config import read_raw_config, cfg_get
         hagent_home = get_hagent_home()
         cfg = read_raw_config()
         record_enabled = cfg_get(cfg, "browser", "record_sessions", default=False)
@@ -3059,7 +3059,7 @@ def browser_vision(question: str, annotate: bool = False, task_id: Optional[str]
         vision_timeout = 120.0
         vision_temperature = 0.1
         try:
-            from hagent_cli.config import load_config
+            from hagent_cli.config import load_config, cfg_get
             _cfg = load_config()
             _vision_cfg = cfg_get(_cfg, "auxiliary", "vision", default={})
             _vt = _vision_cfg.get("timeout")

@@ -12,6 +12,7 @@ from api.services.provider_config import get_provider_config
 from api.services.db import get_connection
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+HAGENT_DB_PATH = PROJECT_ROOT / "data" / "hagent.db"
 DEFAULT_SESSION_TOKEN = "398f6a8a-8954-4315-8240-df769e664b54"
 DEFAULT_USERNAME = "hat"
 
@@ -108,12 +109,35 @@ def _normalize_entry(entry: dict) -> dict | None:
         topics = ["general"]
     topics = [re.sub(r"[^a-z0-9_-]+", "-", str(t).lower()).strip("-") for t in topics[:3]]
     topics = [t for t in topics if t] or ["general"]
+    # Loại bỏ topic trùng lặp
+    seen = set()
+    topics = [t for t in topics if not (t in seen or seen.add(t))]
     return {
         "title": title,
-        "summary": str(entry.get("summary") or "").strip()[:500],
+        "summary": str(entry.get("summary") or "").strip()[:500] or _auto_summary(content),
         "topics": topics,
         "content": content,
     }
+
+
+def _auto_summary(content: str) -> str:
+    """Lấy 1-2 câu đầu làm summary nếu LLM không cung cấp."""
+    s = content.strip()
+    # Tìm câu đầu tiên kết thúc bằng dấu câu
+    for sep in (". ", ".\n", ".\r", "! ", "? "):
+        if sep in s:
+            idx = s.index(sep) + 1
+            rest = s[idx:].strip()
+            # Thêm câu thứ 2 nếu có
+            for sep2 in (". ", ".\n", ".\r", "! ", "? "):
+                if sep2 in rest:
+                    idx2 = rest.index(sep2) + 1
+                    s = s[:idx] + rest[:idx2]
+                    break
+            else:
+                s = s[:idx]
+            break
+    return s[:500]
 
 
 def save_wiki_entry(user_id: str, entry: dict, source: str = "chat") -> dict | None:
@@ -131,15 +155,15 @@ def save_wiki_entry(user_id: str, entry: dict, source: str = "chat") -> dict | N
             if normalized["content"] not in merged:
                 merged = f"{merged}\n\n---\n\n{normalized['content']}"
             conn.execute(
-                "UPDATE wiki_entries SET summary = ?, content = ?, topics = ?, updated_at = datetime('now') WHERE id = ?",
+                "UPDATE wiki_entries SET summary = ?, content = ?, topics = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
                 (normalized["summary"], merged, json.dumps(normalized["topics"]), existing["id"]),
             )
             return {"id": existing["id"], "title": normalized["title"], "existing": True}
         entry_id = str(uuid4())
         conn.execute(
             """
-            INSERT INTO wiki_entries (id, user_id, title, summary, content, topics, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO wiki_entries (id, user_id, title, summary, content, topics, source, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
             """,
             (
                 entry_id,

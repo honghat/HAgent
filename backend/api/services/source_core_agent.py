@@ -142,7 +142,7 @@ def run_source_agent(
         model=cfg.model,
         quiet_mode=False,
         prefill_messages=prefill_messages,
-        max_iterations=8,
+        max_iterations=500,
         tool_delay=0.2,
         enabled_toolsets=enabled_toolsets or None,
         ephemeral_system_prompt=agent_prompt,

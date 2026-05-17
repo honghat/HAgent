@@ -781,12 +781,14 @@ def handle_function_call(
                 function_name, function_args,
                 task_id=task_id,
                 enabled_tools=sandbox_enabled,
+                session_id=session_id or "",
             )
         else:
             result = registry.dispatch(
                 function_name, function_args,
                 task_id=task_id,
                 user_task=user_task,
+                session_id=session_id or "",
             )
         duration_ms = int((time.monotonic() - _dispatch_start) * 1000)
 

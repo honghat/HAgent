@@ -1,0 +1,6 @@
+name: 9Router Proxy
+version: 1.0
+description: Proxy for 9Router AI routing service
+type: model-provider
+enabled: true
+config_path: ~/.hagent/plugins/9router-proxy

@@ -1,4 +1,7 @@
 from tools.registry import registry, tool_result, tool_error
+import json
+
+_DEFAULT_USER = "398f6a8a-8954-4315-8240-df769e664b54"
 
 def search_user_wiki(args, **kwargs):
     """Search the user's private HAgent Wiki for relevant information."""
@@ -12,7 +15,7 @@ def search_user_wiki(args, **kwargs):
         from api.services.wiki_memory import search_wiki
         
         session = get_session(session_id)
-        user_id = session.user_id if session else "hat"
+        user_id = session.user_id if session else _DEFAULT_USER
         
         results = search_wiki(user_id, query)
         if not results:
@@ -42,7 +45,7 @@ def save_user_wiki(args, **kwargs):
         from api.services.wiki_memory import save_wiki_entry
         
         session = get_session(session_id)
-        user_id = session.user_id if session else "hat"
+        user_id = session.user_id if session else _DEFAULT_USER
         
         entry = {
             "title": title,
@@ -76,7 +79,7 @@ def edit_user_wiki(args, **kwargs):
         from api.services.wiki_store import update_entry, get_entry
         
         session = get_session(session_id)
-        user_id = session.user_id if session else "hat"
+        user_id = session.user_id if session else _DEFAULT_USER
         
         existing = get_entry(entry_id, user_id)
         if not existing:
@@ -112,7 +115,7 @@ def delete_user_wiki(args, **kwargs):
         from api.services.wiki_store import delete_entry, get_entry
         
         session = get_session(session_id)
-        user_id = session.user_id if session else "hat"
+        user_id = session.user_id if session else _DEFAULT_USER
         
         if not get_entry(entry_id, user_id):
             return tool_error(f"Wiki entry '{entry_id}' not found")
@@ -132,7 +135,7 @@ def list_user_wiki(args, **kwargs):
         from api.services.wiki_memory import list_wiki_entries
         
         session = get_session(session_id)
-        user_id = session.user_id if session else "hat"
+        user_id = session.user_id if session else _DEFAULT_USER
         
         entries = list_wiki_entries(user_id)
         if not entries:
@@ -149,11 +152,15 @@ registry.register(
     name="search_wiki",
     toolset="knowledge",
     schema={
-        "type": "object",
-        "properties": {
-            "query": {"type": "string", "description": "Search query for the wiki"}
+        "name": "search_wiki",
+        "description": "Search your private HAgent Wiki memory for facts, snippets, and learned knowledge. This queries the real SQLite database (data/hagent.db) — it will return empty only if nothing matches the query. Use list_wiki first to see all entries.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query for the wiki"}
+            },
+            "required": ["query"]
         },
-        "required": ["query"]
     },
     handler=search_user_wiki,
     description="Search your private HAgent Wiki memory for facts, snippets, and learned knowledge. This queries the real SQLite database (data/hagent.db) — it will return empty only if nothing matches the query. Use list_wiki first to see all entries.",
@@ -164,14 +171,18 @@ registry.register(
     name="save_wiki",
     toolset="knowledge",
     schema={
-        "type": "object",
-        "properties": {
-            "title": {"type": "string", "description": "Short, descriptive title for the entry"},
-            "content": {"type": "string", "description": "Full factual content to remember"},
-            "summary": {"type": "string", "description": "A brief 1-2 sentence overview"},
-            "topics": {"type": "array", "items": {"type": "string"}, "description": "Category tags/slugs"}
+        "name": "save_wiki",
+        "description": "Explicitly save a new piece of information or fact to your private Wiki memory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Short, descriptive title for the entry"},
+                "content": {"type": "string", "description": "Full factual content to remember"},
+                "summary": {"type": "string", "description": "A brief 1-2 sentence overview"},
+                "topics": {"type": "array", "items": {"type": "string"}, "description": "Category tags/slugs"}
+            },
+            "required": ["title", "content"]
         },
-        "required": ["title", "content"]
     },
     handler=save_user_wiki,
     description="Explicitly save a new piece of information or fact to your private Wiki memory.",
@@ -182,15 +193,19 @@ registry.register(
     name="edit_wiki",
     toolset="knowledge",
     schema={
-        "type": "object",
-        "properties": {
-            "entry_id": {"type": "string", "description": "ID of the wiki entry to edit"},
-            "title": {"type": "string", "description": "New title (optional)"},
-            "content": {"type": "string", "description": "New content (optional)"},
-            "summary": {"type": "string", "description": "New summary (optional)"},
-            "topics": {"type": "array", "items": {"type": "string"}, "description": "New topics/tags (optional)"}
+        "name": "edit_wiki",
+        "description": "Edit an existing wiki entry. Provide entry_id and the fields to update.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entry_id": {"type": "string", "description": "ID of the wiki entry to edit"},
+                "title": {"type": "string", "description": "New title (optional)"},
+                "content": {"type": "string", "description": "New content (optional)"},
+                "summary": {"type": "string", "description": "New summary (optional)"},
+                "topics": {"type": "array", "items": {"type": "string"}, "description": "New topics/tags (optional)"}
+            },
+            "required": ["entry_id"]
         },
-        "required": ["entry_id"]
     },
     handler=edit_user_wiki,
     description="Edit an existing wiki entry. Provide entry_id and the fields to update.",
@@ -201,11 +216,15 @@ registry.register(
     name="delete_wiki",
     toolset="knowledge",
     schema={
-        "type": "object",
-        "properties": {
-            "entry_id": {"type": "string", "description": "ID of the wiki entry to delete"}
+        "name": "delete_wiki",
+        "description": "Delete a wiki entry by its ID. Use list_wiki first to find the entry ID — do NOT guess or assume IDs.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entry_id": {"type": "string", "description": "ID of the wiki entry to delete"}
+            },
+            "required": ["entry_id"]
         },
-        "required": ["entry_id"]
     },
     handler=delete_user_wiki,
     description="Delete a wiki entry by its ID. Use list_wiki first to find the entry ID — do NOT guess or assume IDs.",
@@ -216,9 +235,13 @@ registry.register(
     name="list_wiki",
     toolset="knowledge",
     schema={
-        "type": "object",
-        "properties": {},
-        "required": []
+        "name": "list_wiki",
+        "description": "List all wiki entries with their IDs and titles. ALWAYS call this first when asked about wiki — do NOT guess or assume what exists in the database. The wiki is stored in data/hagent.db and already contains real entries.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
     },
     handler=list_user_wiki,
     description="List all wiki entries with their IDs and titles. ALWAYS call this first when asked about wiki — do NOT guess or assume what exists in the database. The wiki is stored in data/hagent.db and already contains real entries.",

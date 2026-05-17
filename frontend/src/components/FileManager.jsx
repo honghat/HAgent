@@ -165,8 +165,9 @@ function DriveFilesPanel({ token }) {
   }
 
   function openFolder(item) {
-    setFolderStack(prev => [...prev, { id: item.id, name: item.name }])
-    loadItems(item.id)
+    const targetId = item.shortcutDetails?.targetId || item.id
+    setFolderStack(prev => [...prev, { id: targetId, name: item.name }])
+    loadItems(targetId)
   }
 
   function goToFolder(index) {
@@ -218,17 +219,21 @@ function DriveFilesPanel({ token }) {
   }
 
   async function deleteItem(item) {
-    if (!window.confirm('Xóa "' + item.name + '" trên Google Drive?')) return
+    const hideShared = driveMode === 'shared'
+    const confirmText = hideShared
+      ? 'Ẩn "' + item.name + '" khỏi mục Được chia sẻ?'
+      : 'Xóa "' + item.name + '" trên Google Drive?'
+    if (!window.confirm(confirmText)) return
     setBusy('delete-' + item.id); setError(''); setMessage('')
     try {
       const r = await fetch('/api/drive/items', {
         method: 'DELETE',
         headers: jsonHeaders,
-        body: JSON.stringify({ id: item.id })
+        body: JSON.stringify({ id: item.id, hide_shared: hideShared })
       })
       const data = await readJson(r)
-      if (!r.ok) throw new Error(data.detail || 'Không xóa được')
-      setMessage('Đã xóa')
+      if (!r.ok) throw new Error(data.detail || (hideShared ? 'Không ẩn được' : 'Không xóa được'))
+      setMessage(hideShared ? 'Đã ẩn khỏi Được chia sẻ' : 'Đã xóa')
       await loadItems(currentFolder.id)
     } catch (err) {
       setError(err.message)
@@ -259,6 +264,8 @@ function DriveFilesPanel({ token }) {
   const ready = Boolean(config?.has_refresh_token || config?.has_access_token)
   const isScopeError = /scope|quyền Google Drive|insufficient/i.test(error || '')
   const isFolder = item => item.mimeType === 'application/vnd.google-apps.folder'
+  const isShortcut = item => item.mimeType === 'application/vnd.google-apps.shortcut'
+  const isFolderLike = item => isFolder(item) || (isShortcut(item) && item.shortcutDetails?.targetMimeType === 'application/vnd.google-apps.folder')
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#0f1320]">
@@ -325,16 +332,17 @@ function DriveFilesPanel({ token }) {
           <div className="flex flex-col items-center justify-center py-12 text-center"><Cloud className="mb-2 h-8 w-8 text-slate-700" /><p className="text-[11px] text-slate-500">Thư mục Drive này đang trống</p></div>
         ) : items.map(item => (
           <div key={item.id} className="group/drive flex h-9 items-center border-b border-slate-800/60 px-3 text-[11px] hover:bg-slate-800/50">
-            <button onClick={() => isFolder(item) ? openFolder(item) : window.open(item.webViewLink, '_blank')} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              {isFolder(item) ? <Folder className="h-4 w-4 shrink-0 text-amber-400" /> : <File className="h-4 w-4 shrink-0 text-sky-400" />}
+            <button onClick={() => isFolderLike(item) ? openFolder(item) : window.open(item.webViewLink, '_blank')} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              {isFolderLike(item) ? <Folder className="h-4 w-4 shrink-0 text-amber-400" /> : <File className="h-4 w-4 shrink-0 text-sky-400" />}
               <span className="truncate font-medium text-slate-200">{item.name}</span>
+              {isShortcut(item) && <span className="shrink-0 rounded bg-slate-800 px-1 text-[9px] font-semibold text-cyan-200">link</span>}
             </button>
             <span className="w-20 shrink-0 text-right text-[10px] text-slate-500">{item.size ? formatSize(Number(item.size)) : '-'}</span>
             <span className="w-28 shrink-0 text-right text-[10px] text-slate-500">{item.modifiedTime ? new Date(item.modifiedTime).toLocaleDateString('vi-VN') : ''}</span>
             <div className="flex w-24 shrink-0 justify-end gap-1 opacity-100 md:opacity-0 md:group-hover/drive:opacity-100">
-              {!isFolder(item) && item.webViewLink && <a href={item.webViewLink} target="_blank" rel="noreferrer" className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-100">Mở</a>}
+              {!isFolderLike(item) && item.webViewLink && <a href={item.webViewLink} target="_blank" rel="noreferrer" className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-100">Mở</a>}
               <button onClick={() => renameItem(item)} className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-slate-700 hover:text-slate-100">Sửa</button>
-              <button onClick={() => deleteItem(item)} className="rounded px-1.5 py-1 text-[10px] text-red-300 hover:bg-red-500/10">Xóa</button>
+              <button onClick={() => deleteItem(item)} className="rounded px-1.5 py-1 text-[10px] text-red-300 hover:bg-red-500/10">{driveMode === 'shared' ? 'Ẩn' : 'Xóa'}</button>
             </div>
           </div>
         ))}
@@ -351,7 +359,7 @@ export default function FileManager({ token }) {
   const [currentPath, setCurrentPath] = useState('')
   const [parentPath, setParentPath] = useState(null)
   const [entries, setEntries] = useState([])
-  const [showHidden, setShowHidden] = useState(true)
+  const [showHidden, setShowHidden] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMode, setFilterMode] = useState('all') // 'all' | 'files' | 'folders'
   const [pinnedFolders, setPinnedFolders] = useState(loadPinnedFolders)

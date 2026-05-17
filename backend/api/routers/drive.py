@@ -82,6 +82,11 @@ class FolderDelete(BaseModel):
     id: str
 
 
+class DriveItemDelete(BaseModel):
+    id: str
+    hide_shared: bool = False
+
+
 class DriveItemUpdate(BaseModel):
     id: str
     name: str
@@ -242,6 +247,27 @@ async def _remove_my_permission(file_id: str) -> None:
     )
 
 
+async def _resolve_folder_id(folder_id: str) -> str:
+    item_id = folder_id.strip()
+    if not item_id or item_id == "root":
+        return item_id
+    res = await _drive_request(
+        "GET",
+        f"{DRIVE_API}/files/{item_id}",
+        params={
+            "fields": "id,mimeType,shortcutDetails",
+            "supportsAllDrives": "true",
+        },
+    )
+    item = res.json()
+    if item.get("mimeType") != "application/vnd.google-apps.shortcut":
+        return item_id
+    shortcut = item.get("shortcutDetails") or {}
+    if shortcut.get("targetMimeType") == "application/vnd.google-apps.folder" and shortcut.get("targetId"):
+        return shortcut["targetId"]
+    return item_id
+
+
 def _backup_roots(scope: str) -> list[Path]:
     if scope == "workspace":
         return [ROOT_DIR]
@@ -328,7 +354,8 @@ def _zip_path(source: Path) -> Path:
 
 
 async def _upload_local_file(path: Path, folder_id: str) -> dict[str, Any]:
-    metadata = {"name": path.name, "parents": [folder_id or _load_config().get("root_folder_id") or "root"]}
+    parent = await _resolve_folder_id(folder_id or _load_config().get("root_folder_id") or "root")
+    metadata = {"name": path.name, "parents": [parent]}
     mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
     files = {
         "metadata": (None, json.dumps(metadata), "application/json; charset=UTF-8"),
@@ -427,7 +454,7 @@ async def update_drive_config(payload: DriveConfig):
 @router.get("/folders")
 async def list_folders(parent_id: Optional[str] = None):
     config = _load_config()
-    parent = parent_id or config.get("root_folder_id") or "root"
+    parent = await _resolve_folder_id(parent_id or config.get("root_folder_id") or "root")
     query = f"'{parent}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
     res = await _drive_request(
         "GET",
@@ -445,21 +472,25 @@ async def list_folders(parent_id: Optional[str] = None):
 @router.get("/items")
 async def list_items(parent_id: Optional[str] = None, shared: bool = Query(False)):
     config = _load_config()
-    parent = parent_id or config.get("root_folder_id") or "root"
+    parent = await _resolve_folder_id(parent_id or config.get("root_folder_id") or "root")
     query = "sharedWithMe = true and trashed = false" if shared and not parent_id else f"'{parent}' in parents and trashed = false"
     res = await _drive_request(
         "GET",
         f"{DRIVE_API}/files",
         params={
             "q": query,
-            "fields": "files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,parents)",
+            "fields": "files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,parents,shortcutDetails)",
             "orderBy": "folder,name",
             "pageSize": 200,
+            "corpora": "allDrives",
             "includeItemsFromAllDrives": "true",
             "supportsAllDrives": "true",
         },
     )
     items = res.json().get("files", [])
+    if shared and not parent_id:
+        hidden = _load_hidden_shared()
+        items = [item for item in items if item.get("id") not in hidden]
     return {"parent_id": parent, "items": items}
 
 
@@ -469,7 +500,7 @@ async def create_folder(payload: FolderCreate):
     if not name:
         raise HTTPException(status_code=400, detail="Tên thư mục bắt buộc")
     config = _load_config()
-    parent = payload.parent_id.strip() or config.get("root_folder_id") or "root"
+    parent = await _resolve_folder_id(payload.parent_id.strip() or config.get("root_folder_id") or "root")
     res = await _drive_request(
         "POST",
         f"{DRIVE_API}/files",
@@ -479,6 +510,7 @@ async def create_folder(payload: FolderCreate):
             "parents": [parent],
         },
         headers={"Content-Type": "application/json"},
+        params={"supportsAllDrives": "true", "fields": "id,name,mimeType,parents,webViewLink"},
     )
     return {"folder": res.json()}
 
@@ -508,23 +540,30 @@ async def rename_item(payload: DriveItemUpdate):
 
 
 @router.delete("/items")
-async def delete_item(payload: FolderDelete):
+async def delete_item(payload: DriveItemDelete):
     item_id = payload.id.strip()
     if not item_id:
         raise HTTPException(status_code=400, detail="Thiếu item id")
+    if payload.hide_shared:
+        _hide_shared_item(item_id)
+        return {"status": "hidden_shared"}
     try:
         await _drive_request("DELETE", f"{DRIVE_API}/files/{item_id}", params={"supportsAllDrives": "true"})
         return {"status": "deleted"}
     except HTTPException as exc:
         if exc.status_code not in (403, 404):
             raise
-        await _remove_my_permission(item_id)
-        return {"status": "removed_shared"}
+        try:
+            await _remove_my_permission(item_id)
+            return {"status": "removed_shared"}
+        except HTTPException:
+            _hide_shared_item(item_id)
+            return {"status": "hidden_shared"}
 
 
 @router.post("/backup")
 async def backup_to_drive(payload: BackupRequest):
-    folder_id = payload.folder_id.strip() or _load_config().get("root_folder_id") or "root"
+    folder_id = await _resolve_folder_id(payload.folder_id.strip() or _load_config().get("root_folder_id") or "root")
     scope = payload.scope if payload.scope in {"data", "config", "workspace"} else "data"
     archive = _create_backup_zip(scope)
     metadata = {"name": archive.name, "parents": [folder_id]}

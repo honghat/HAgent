@@ -52,10 +52,10 @@ function formatDate(ts) {
   const d = new Date(ts * 1000)
   const now = new Date()
   const diff = (now - d) / 1000
-  if (diff < 60) return 'Just now'
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`
+  if (diff < 60) return 'Vừa xong'
+  if (diff < 3600) return `${Math.floor(diff / 60)} phút`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ`
+  if (diff < 604800) return `${Math.floor(diff / 86400)} ngày`
   return d.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
@@ -480,14 +480,14 @@ export default function FileManager({ token }) {
       {/* Delete confirmation modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-96 rounded-xl border border-slate-700 bg-[#1a1f33] p-5 shadow-2xl">
+          <div className="w-80 rounded-lg border border-slate-700 bg-[#1a1f33] p-4 shadow-2xl">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20">
                 <AlertTriangle className="h-5 w-5 text-red-400" />
               </div>
               <div>
-                <h3 className="text-[14px] font-semibold text-slate-100">Move to Trash</h3>
-                <p className="mt-0.5 text-[12px] text-slate-400">"{deleteConfirm.name}" will be moved to Trash.</p>
+                <h3 className="text-[13px] font-semibold text-slate-100">Chuyển vào thùng rác</h3>
+                <p className="mt-0.5 text-[11px] text-slate-400">"{deleteConfirm.name}" sẽ được chuyển vào thùng rác.</p>
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -495,7 +495,7 @@ export default function FileManager({ token }) {
                 onClick={() => setDeleteConfirm(null)}
                 className="h-8 rounded-lg border border-slate-600 px-3 text-[11px] text-slate-300 hover:bg-slate-700"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={executeDelete}
@@ -503,7 +503,7 @@ export default function FileManager({ token }) {
                 className="flex h-8 items-center gap-1.5 rounded-lg bg-red-600 px-3 text-[11px] font-semibold text-white hover:bg-red-500 disabled:opacity-50"
               >
                 {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                Move to Trash
+                Chuyển
               </button>
             </div>
           </div>
@@ -513,7 +513,7 @@ export default function FileManager({ token }) {
       {/* Context menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 min-w-[160px] rounded-xl border border-slate-700 bg-[#1a1f33] py-1 shadow-2xl"
+          className="fixed z-50 min-w-[150px] rounded-md border border-slate-700 bg-[#1a1f33] py-1 shadow-2xl"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={e => e.stopPropagation()}
         >
@@ -525,14 +525,14 @@ export default function FileManager({ token }) {
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
               >
                 <FileText className="h-3.5 w-3.5 text-sky-400" />
-                New file
+                File mới
               </button>
               <button
                 onClick={() => { closeContextMenu(); setShowNewFolder(true); setShowNewFile(false) }}
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
               >
                 <Folder className="h-3.5 w-3.5 text-amber-400" />
-                New folder
+                Thư mục mới
               </button>
             </>
           ) : contextMenu.entry.type === 'directory' ? (
@@ -542,7 +542,7 @@ export default function FileManager({ token }) {
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
               >
                 <Folder className="h-3.5 w-3.5 text-amber-400" />
-                Open folder
+                Mở thư mục
               </button>
             </>
           ) : (
@@ -552,7 +552,7 @@ export default function FileManager({ token }) {
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
               >
                 <FileText className="h-3.5 w-3.5 text-sky-400" />
-                Open file
+                Mở file
               </button>
               {['.mp4','.mov','.webm','.mkv','.avi','.wmv','.flv','.m4v','.3gp','.ogv','.mts','.m2ts','.ts'].includes(contextMenu.entry.extension) && (
                 <button
@@ -565,7 +565,7 @@ export default function FileManager({ token }) {
                   className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
                 >
                   <Video className="h-3.5 w-3.5 text-blue-400" />
-                  Open video
+                  Mở video
                 </button>
               )}
               <button
@@ -573,7 +573,7 @@ export default function FileManager({ token }) {
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
               >
                 <Download className="h-3.5 w-3.5 text-cyan-400" />
-                Download
+                Tải xuống
               </button>
             </>
           )}
@@ -593,14 +593,14 @@ export default function FileManager({ token }) {
                   <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
-                Rename
+                Đổi tên
               </button>
               <button
                 onClick={() => { const e = contextMenu.entry; closeContextMenu(); confirmDelete(e) }}
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-red-300 hover:bg-red-500/20"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Move to Trash
+                Chuyển vào thùng rác
               </button>
               <div className="mx-2 my-1 border-t border-slate-700" />
               <button
@@ -612,7 +612,7 @@ export default function FileManager({ token }) {
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
               >
                 <Copy className="h-3.5 w-3.5 text-slate-400" />
-                Copy path
+                Sao chép đường dẫn
               </button>
             </>
           )}
@@ -620,16 +620,16 @@ export default function FileManager({ token }) {
       )}
 
       {/* Sidebar — Volumes */}
-      <aside onContextMenu={e => { e.preventDefault(); closeContextMenu() }} className="hidden w-52 shrink-0 border-r border-slate-800 bg-[#121728] md:flex md:flex-col">
+      <aside onContextMenu={e => { e.preventDefault(); closeContextMenu() }} className="hidden w-48 shrink-0 border-r border-slate-800 bg-[#121728] md:flex md:flex-col">
         <div className="flex items-center gap-2 border-b border-slate-800 px-3 py-3">
           <HardDrive className="h-4 w-4 text-cyan-400" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Volumes</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">Ổ đĩa</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-2 custom-scrollbar">
           {loadingVolumes ? (
             <div className="flex items-center gap-2 px-2 py-4 text-[11px] text-slate-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading drives...
+              Đang tải ổ đĩa...
             </div>
           ) : (
             <>
@@ -658,7 +658,7 @@ export default function FileManager({ token }) {
                           {vol.remote_info.host}
                         </span>
                       ) : vol.total_gb != null ? (
-                        <span>{vol.free_gb} GB / {vol.total_gb} GB free</span>
+                        <span>{vol.free_gb} GB / {vol.total_gb} GB trống</span>
                       ) : null}
                     </div>
                   </div>
@@ -669,7 +669,7 @@ export default function FileManager({ token }) {
                 <div className="mt-4 border-t border-slate-800 pt-3">
                   <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-500">
                     <Pin className="h-3 w-3" />
-                    Pinned
+                    Đã ghim
                   </div>
                   <div className="space-y-1">
                     {pinnedFolders.map(folder => (
@@ -714,7 +714,7 @@ export default function FileManager({ token }) {
       <main onContextMenu={e => { e.preventDefault(); closeContextMenu() }} className="flex min-w-0 flex-1 flex-col">
         {/* Mobile volume selector */}
         <div className="flex flex-col border-b border-slate-800 bg-[#121728] md:hidden">
-          <div className="flex h-10 items-center gap-2 px-3">
+          <div className="flex h-9 items-center gap-2 px-3">
             <HardDrive className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
             <select
               value={activeVolume?.path || ''}
@@ -750,20 +750,20 @@ export default function FileManager({ token }) {
         </div>
 
         {/* Toolbar */}
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-800 bg-[#121728] px-3">
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b border-slate-800 bg-[#121728] px-3">
           {/* Nav buttons */}
           <button
             onClick={() => parentPath && navigateTo(parentPath)}
             disabled={!parentPath}
             className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-800 disabled:opacity-30"
-            title="Parent directory"
+            title="Thư mục cha"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => loadDirectory(currentPath)}
             className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-800"
-            title="Refresh"
+            title="Làm mới"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loadingDir ? 'animate-spin' : ''}`} />
           </button>
@@ -811,7 +811,7 @@ export default function FileManager({ token }) {
                     ? 'bg-cyan-500/15 text-cyan-200'
                     : 'text-slate-500 hover:text-slate-300'
                 }`}
-                title={mode === 'all' ? 'Show all' : mode === 'files' ? 'Files only' : 'Folders only'}
+              title={mode === 'all' ? 'Hiện tất cả' : mode === 'files' ? 'Chỉ file' : 'Chỉ thư mục'}
               >
                 {mode === 'all' ? <span className="text-[10px] font-bold">A</span> : mode === 'files' ? <File className="h-3.5 w-3.5" /> : <Folder className="h-3.5 w-3.5" />}
               </button>
@@ -822,21 +822,21 @@ export default function FileManager({ token }) {
               className={`flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-800 ${
                 showHidden ? 'text-cyan-300 bg-cyan-500/10' : 'text-slate-400'
               }`}
-              title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
+              title={showHidden ? 'Ẩn file ẩn' : 'Hiện file ẩn'}
             >
               {showHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
             </button>
             <button
               onClick={() => { setShowNewFolder(true); setShowNewFile(false) }}
               className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-              title="New folder"
+              title="Thư mục mới"
             >
               <Folder className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => { setShowNewFile(true); setShowNewFolder(false) }}
               className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-              title="New file"
+              title="File mới"
             >
               <FileText className="h-3.5 w-3.5" />
             </button>
@@ -852,7 +852,7 @@ export default function FileManager({ token }) {
               value={newFolderName}
               onChange={e => setNewFolderName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName('') } }}
-              placeholder="Folder name..."
+              placeholder="Tên thư mục..."
               className="h-7 flex-1 rounded-lg border border-slate-600 bg-[#0b1020] px-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-500"
             />
             <button
@@ -861,7 +861,7 @@ export default function FileManager({ token }) {
               className="flex h-7 items-center gap-1 rounded-lg bg-cyan-600 px-2 text-[10px] font-medium text-white hover:bg-cyan-500 disabled:opacity-40"
             >
               {creatingFolder ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              Create
+              Tạo
             </button>
             <button
               onClick={() => { setShowNewFolder(false); setNewFolderName('') }}
@@ -881,7 +881,7 @@ export default function FileManager({ token }) {
               value={newFileName}
               onChange={e => setNewFileName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') createFile(); if (e.key === 'Escape') { setShowNewFile(false); setNewFileName('') } }}
-              placeholder="File name (e.g. notes.md)..."
+              placeholder="Tên file (ví dụ notes.md)..."
               className="h-7 flex-1 rounded-lg border border-slate-600 bg-[#0b1020] px-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-500"
             />
             <button
@@ -890,7 +890,7 @@ export default function FileManager({ token }) {
               className="flex h-7 items-center gap-1 rounded-lg bg-cyan-600 px-2 text-[10px] font-medium text-white hover:bg-cyan-500 disabled:opacity-40"
             >
               {creatingFile ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              Create
+              Tạo
             </button>
             <button
               onClick={() => { setShowNewFile(false); setNewFileName('') }}
@@ -907,7 +907,7 @@ export default function FileManager({ token }) {
           <input
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Filter files..."
+            placeholder="Lọc file..."
             className="h-full flex-1 bg-transparent text-[11px] text-slate-200 outline-none placeholder:text-slate-500"
           />
           {searchQuery && (
@@ -922,7 +922,7 @@ export default function FileManager({ token }) {
           <div className="flex items-center gap-2 border-b border-red-800 bg-red-900/30 px-3 py-1.5 text-[11px] text-red-300">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             <span className="flex-1">{error}</span>
-            <button onClick={() => { loadDirectory(currentPath); setError(null) }} className="text-red-300 underline hover:text-red-200">Retry</button>
+            <button onClick={() => { loadDirectory(currentPath); setError(null) }} className="text-red-300 underline hover:text-red-200">Thử lại</button>
           </div>
         )}
 
@@ -935,9 +935,9 @@ export default function FileManager({ token }) {
           <div className={`flex min-w-0 flex-col border-slate-800 ${preview ? 'border-r' : 'flex-1'}`}>
             {/* Column headers */}
             <div className="flex h-7 shrink-0 items-center border-b border-slate-800 bg-[#121728] px-3 text-[9px] font-medium uppercase tracking-wider text-slate-500">
-              <span className="min-w-0 flex-1">Name</span>
-              {!previewIsVideo && <span className="w-20 shrink-0 text-right">Size</span>}
-              {!previewIsVideo && <span className="w-24 shrink-0 text-right">Modified</span>}
+              <span className="min-w-0 flex-1">Tên</span>
+              {!previewIsVideo && <span className="w-20 shrink-0 text-right">Cỡ</span>}
+              {!previewIsVideo && <span className="w-24 shrink-0 text-right">Sửa lúc</span>}
             </div>
 
             {/* Files */}
@@ -952,13 +952,13 @@ export default function FileManager({ token }) {
               {loadingDir ? (
                 <div className="flex items-center justify-center gap-2 py-12 text-[11px] text-slate-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading...
+                  Đang tải...
                 </div>
               ) : filteredEntries.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Folder className="mb-2 h-8 w-8 text-slate-700" />
                   <p className="text-[11px] text-slate-500">
-                    {searchQuery ? 'No files match your search' : 'This folder is empty'}
+                    {searchQuery ? 'Không có file phù hợp' : 'Thư mục này đang trống'}
                   </p>
                 </div>
               ) : (
@@ -1014,13 +1014,13 @@ export default function FileManager({ token }) {
             </div>
 
             {/* Status bar */}
-            <div className="flex h-7 shrink-0 items-center border-t border-slate-800 bg-[#121728] px-3 text-[9px] text-slate-500">
-              <span>{filteredEntries.length} item{filteredEntries.length !== 1 ? 's' : ''}</span>
+            <div className="flex h-6 shrink-0 items-center border-t border-slate-800 bg-[#121728] px-3 text-[9px] text-slate-500">
+              <span>{filteredEntries.length} mục</span>
               {filterMode !== 'all' && (
                 <span className="ml-2 text-[9px] text-cyan-500/70">{filterMode === 'files' ? '📄' : '📁'} {filterMode}</span>
               )}
               {searchQuery && filteredEntries.length !== entries.length && (
-                <span className="ml-2">(filtered from {entries.length})</span>
+                <span className="ml-2">(lọc từ {entries.length})</span>
               )}
             </div>
           </div>
@@ -1028,7 +1028,7 @@ export default function FileManager({ token }) {
           {/* Preview / Editor pane */}
           {preview && (
             <div className="flex min-w-0 flex-col">
-              <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-800 bg-[#121728] px-4">
+              <div className="flex h-9 shrink-0 items-center justify-between border-b border-slate-800 bg-[#121728] px-3">
                 <div className="flex min-w-0 items-center gap-2">
                   {preview.is_binary ? (
                     fileIcon({ type: 'file', extension: '.' + (preview.language || '') })
@@ -1059,7 +1059,7 @@ export default function FileManager({ token }) {
                       } disabled:opacity-40`}
                     >
                       {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                      Save
+                      Lưu
                     </button>
                   )}
                   <button
@@ -1075,7 +1075,7 @@ export default function FileManager({ token }) {
                 {loadingFile ? (
                   <div className="flex items-center justify-center gap-2 py-12 text-[11px] text-slate-500">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Opening file...
+                    Đang mở file...
                   </div>
                 ) : preview.is_binary ? (
                   (() => {
@@ -1105,10 +1105,10 @@ export default function FileManager({ token }) {
                           />
                           <div className="absolute bottom-4 right-4 flex gap-2">
                             <a href={mediaUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-900/80 px-3 py-2 text-[11px] font-medium text-slate-100 hover:bg-slate-800">
-                              Open
+                              Mở
                             </a>
                             <button onClick={() => downloadFile(preview.path, preview.name)} className="rounded-lg bg-slate-900/80 px-3 py-2 text-[11px] font-medium text-slate-100 hover:bg-slate-800">
-                              Download
+                              Tải
                             </button>
                           </div>
                         </div>
@@ -1126,14 +1126,14 @@ export default function FileManager({ token }) {
                     return (
                       <div className="flex flex-col items-center justify-center py-16 text-center">
                         <File className="mb-3 h-12 w-12 text-slate-700" />
-                        <p className="text-[13px] font-medium text-slate-400">Cannot preview this file</p>
-                        <p className="mt-1 text-[11px] text-slate-500">Binary files are not viewable in the browser.</p>
+                        <p className="text-[12px] font-medium text-slate-400">Không xem trước được file này</p>
+                        <p className="mt-1 text-[10px] text-slate-500">Trình duyệt không hiển thị được file nhị phân.</p>
                         <button
                           onClick={() => downloadFile(preview.path, preview.name)}
                           className="mt-4 flex h-8 items-center gap-1.5 rounded-lg border border-slate-600 px-4 text-[11px] text-slate-300 hover:bg-slate-800"
                         >
                           <Download className="h-3.5 w-3.5" />
-                          Download file
+                          Tải file
                         </button>
                       </div>
                     )
@@ -1150,7 +1150,7 @@ export default function FileManager({ token }) {
 
               {dirty && !preview.is_binary && (
                 <div className="flex h-6 shrink-0 items-center border-t border-cyan-800 bg-cyan-900/30 px-3 text-[9px] text-cyan-300">
-                  Unsaved changes
+                  Chưa lưu
                 </div>
               )}
             </div>

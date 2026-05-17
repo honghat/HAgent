@@ -31,7 +31,29 @@ const VOICES = [
 
 const TYPE_LABELS = Object.fromEntries(TYPES.map(item => [item.id, item.label]))
 
-export default function English({ token }) {
+function isLearned(item) {
+  return !!item?.completed || Number(item?.learnCount || 0) > 0
+}
+
+function extractJson(raw = '') {
+  const text = String(raw).replace(/```(?:json)?/gi, '').replace(/```/g, '').trim()
+  const arrayStart = text.indexOf('[')
+  const arrayEnd = text.lastIndexOf(']')
+  const objectStart = text.indexOf('{')
+  const objectEnd = text.lastIndexOf('}')
+  if (arrayStart >= 0 && arrayEnd > arrayStart && (objectStart < 0 || arrayStart < objectStart)) {
+    try { return JSON.parse(text.slice(arrayStart, arrayEnd + 1)) } catch (e) {}
+  }
+  if (objectStart >= 0 && objectEnd > objectStart) {
+    try { return JSON.parse(text.slice(objectStart, objectEnd + 1)) } catch (e) {}
+  }
+  if (arrayStart >= 0 && arrayEnd > arrayStart) {
+    try { return JSON.parse(text.slice(arrayStart, arrayEnd + 1)) } catch (e) {}
+  }
+  return null
+}
+
+export default function English({ token, provider, cxModel }) {
   const [items, setItems] = useState([])
   const [type, setType] = useState('all')
   const [level, setLevel] = useState('A2')
@@ -61,9 +83,17 @@ export default function English({ token }) {
   const audioRef = useRef(null)
   const synth = typeof window !== 'undefined' ? window.speechSynthesis : null
 
+  const levelItems = useMemo(() => {
+    return items.filter(item => {
+      let meta = {}
+      try { meta = JSON.parse(item.metadata || '{}') } catch (e) {}
+      return meta.level === level
+    })
+  }, [items, level])
+
   const units = useMemo(() => {
     const uMap = {}
-    items.forEach(item => {
+    levelItems.forEach(item => {
       let meta = {}
       try { meta = JSON.parse(item.metadata || '{}') } catch (e) {}
       const u = meta.unit || 0
@@ -71,7 +101,7 @@ export default function English({ token }) {
       uMap[u].items.push(item)
     })
     return Object.values(uMap).sort((a, b) => b.id - a.id)
-  }, [items])
+  }, [levelItems])
 
   const currentUnit = useMemo(() => {
     const uId = selectedUnit || (units.length > 0 ? units[0].id : null)
@@ -90,30 +120,62 @@ export default function English({ token }) {
       })
       .sort((a, b) => {
         const order = ['vocab', 'grammar', 'listen', 'speak', 'reading', 'writing']
+        const learnedDiff = Number(isLearned(a)) - Number(isLearned(b))
+        if (learnedDiff !== 0) return learnedDiff
         return order.indexOf(a.type) - order.indexOf(b.type)
       })
   }, [currentUnit, type, query])
 
   const currentItem = useMemo(() => {
-    return items.find(item => item.id === currentId) || filteredItems[0] || null
-  }, [currentId, filteredItems, items])
+    return levelItems.find(item => item.id === currentId) || filteredItems[0] || null
+  }, [currentId, filteredItems, levelItems])
 
   const meta = useMemo(() => {
     try { return JSON.parse(currentItem?.metadata || '{}') }
     catch (e) { return {} }
   }, [currentItem])
 
+  const providerModel = provider === 'cx' ? cxModel : ''
+
+  const askAgent = async (prompt, temperature = 0.6) => {
+    const res = await fetch('/api/hagent-ai/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider,
+        model: providerModel,
+        temperature,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || data.error || 'AI không phản hồi')
+    const content = data.choices?.[0]?.message?.content?.trim()
+    if (!content) throw new Error('AI trả về rỗng')
+    return content
+  }
+
   const load = async () => {
     setBusy(true)
     try {
       const res = await fetch('/api/english', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const data = await res.json()
-      setItems(Array.isArray(data) ? data : [])
-    } catch { setItems([]) }
+      const nextItems = Array.isArray(data) ? data : []
+      setItems(nextItems)
+      return nextItems
+    } catch {
+      setItems([])
+      return []
+    }
     finally { setBusy(false) }
   }
 
   useEffect(() => { load() }, [token])
+  useEffect(() => {
+    setSelectedUnit(null)
+    setCurrentId(null)
+    setQuery('')
+  }, [level])
 
   const speak = async (text) => {
     if (!text) return
@@ -174,19 +236,141 @@ export default function English({ token }) {
       const res = await fetch('/api/english/gen-batch', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ level, mode })
+        body: JSON.stringify({ level, mode, provider, model: provider === 'cx' ? cxModel : '' })
       })
       if (res.ok) {
         setBatchMsg('Đã tạo bài mới!')
         load()
       } else {
-        const err = await res.json()
+        const err = await res.json().catch(() => ({}))
         setBatchMsg(`Lỗi: ${err.error || 'Tạo thất bại'}`)
       }
     } catch (e) { setBatchMsg('Lỗi kết nối') }
     finally { 
       setBatchRunning(false)
       setTimeout(() => setBatchMsg(''), 5000)
+    }
+  }
+
+  const saveEnglishItem = async (type, content, metadata) => {
+    const res = await fetch('/api/english', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, content, metadata })
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || 'Không lưu được bài')
+    return data
+  }
+
+  const handleGenerateSkill = async (skillType) => {
+    if (busy) return
+    const unitNum = currentUnit?.id || selectedUnit || (units[0]?.id ? units[0].id + 1 : 1)
+    const unitTitle = currentUnit?.title || `Bài ${unitNum}`
+    const modeLabel = MODES.find(m => m.id === mode)?.label || mode
+    const baseMeta = { level, mode, unit: unitNum, unitTitle }
+    const label = TYPE_LABELS[skillType] || skillType
+    setBusy(`gen-${skillType}`)
+    setBatchMsg(`Đang tạo ${label.toLowerCase()}...`)
+    setFeedback('')
+    try {
+      const shared = `Cấp độ: ${level}. Chủ đề/ngữ cảnh: ${unitTitle}. Mode: ${modeLabel}. Người học Việt Nam. Nội dung phải đúng CEFR ${level}, ngắn gọn, thực dụng.`
+      if (skillType === 'vocab') {
+        const raw = await askAgent(`${shared}\nTạo 10 từ vựng tiếng Anh hữu ích. Return JSON array ONLY: [{"word":"...","ipa":"...","def":"short English definition","ex":"Example sentence","vi":"nghĩa tiếng Việt"}]`)
+        const words = extractJson(raw)
+        if (!Array.isArray(words) || !words.length) throw new Error('AI trả từ vựng không đúng JSON')
+        let firstId = ''
+        for (const w of words) {
+          if (!w?.word) continue
+          const saved = await saveEnglishItem('vocab', w.word, { ...baseMeta, word: w.word, ipa: w.ipa || '', def: w.def || '', ex: w.ex || '', vi: w.vi || '', topic: unitTitle })
+          if (!firstId) firstId = saved.id
+        }
+        await load()
+        if (firstId) setCurrentId(firstId)
+      } else {
+        const prompts = {
+          grammar: `${shared}\nSoạn 1 bài ngữ pháp ngắn bằng tiếng Việt. Return JSON ONLY: {"title":"...","content":"...","topic":"..."}`,
+          listen: `${shared}\nTạo 1 bài nghe 4-6 câu tiếng Anh. Return JSON ONLY: {"title":"...","en":"...","vi":"dịch tiếng Việt","vocab":[{"w":"...","m":"..."}]}`,
+          speak: `${shared}\nTạo 1 câu hỏi luyện nói. Return JSON ONLY: {"title":"...","topic":"question only","hint":"short Vietnamese hint"}`,
+          reading: `${shared}\nTạo 1 bài đọc ngắn. Return JSON ONLY: {"title":"...","body":"...","questions":[{"q":"...","options":["A","B","C","D"],"answer":0}]}`,
+          writing: `${shared}\nTạo 1 đề viết ngắn. Return JSON ONLY: {"title":"...","prompt":"...","hint":"short Vietnamese hint"}`
+        }
+        const raw = await askAgent(prompts[skillType] || prompts.grammar)
+        const data = extractJson(raw)
+        if (!data || Array.isArray(data)) throw new Error('AI trả bài không đúng JSON')
+        const payload = {
+          grammar: { content: data.content || raw, metadata: { ...baseMeta, title: data.title || 'Ngữ pháp', topic: data.topic || data.title || unitTitle } },
+          listen: { content: data.en || raw, metadata: { ...baseMeta, title: data.title || 'Bài nghe', vi: data.vi || '', vocab: data.vocab || [], topic: unitTitle } },
+          speak: { content: '', metadata: { ...baseMeta, title: data.title || 'Bài nói', topic: data.topic || '', hint: data.hint || '' } },
+          reading: { content: data.body || raw, metadata: { ...baseMeta, title: data.title || 'Bài đọc', topic: unitTitle, questions: data.questions || [] } },
+          writing: { content: '', metadata: { ...baseMeta, title: data.title || 'Bài viết', prompt: data.prompt || '', hint: data.hint || '' } }
+        }[skillType]
+        const saved = await saveEnglishItem(skillType, payload.content, payload.metadata)
+        await load()
+        setCurrentId(saved.id)
+      }
+      setSelectedUnit(unitNum)
+      setBatchMsg(`Đã tạo ${label.toLowerCase()}.`)
+    } catch (err) {
+      setBatchMsg(`Lỗi: ${err.message}`)
+    } finally {
+      setBusy(false)
+      setTimeout(() => setBatchMsg(''), 5000)
+    }
+  }
+
+  const handleGenerateCurrentSkill = () => {
+    const skillType = type === 'all' ? (currentItem?.type || 'vocab') : type
+    handleGenerateSkill(skillType)
+  }
+
+  const handleSuggest = async () => {
+    if (!currentItem || busy) return
+    setBusy('suggest')
+    setFeedback('')
+    try {
+      const prompt = `Bạn là giáo viên tiếng Anh. Hãy gợi ý ngắn gọn bằng tiếng Việt cho học viên làm bài sau, KHÔNG làm hộ toàn bộ.\nCấp độ: ${level}\nKỹ năng: ${TYPE_LABELS[currentItem.type] || currentItem.type}\nTiêu đề: ${getItemTitle(currentItem)}\nNội dung: ${currentItem.content || meta.prompt || meta.topic || meta.word || ''}\nTrả lời dạng bullet ngắn.`
+      setFeedback(await askAgent(prompt, 0.4))
+    } catch (err) {
+      setFeedback(`Lỗi gợi ý: ${err.message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleAiGrade = async () => {
+    if (!currentItem || busy) return
+    const answer = userText.trim() || transcript.trim()
+    if (!answer) {
+      setFeedback('Nhập câu trả lời trước khi chấm AI.')
+      return
+    }
+    setBusy('grade')
+    setFeedback('')
+    try {
+      const prompt = `Bạn là giám khảo tiếng Anh cho học viên Việt Nam. Chấm câu trả lời theo cấp ${level}.
+Kỹ năng: ${TYPE_LABELS[currentItem.type] || currentItem.type}
+Đề bài/ngữ cảnh: ${currentItem.content || meta.prompt || meta.topic || meta.word || getItemTitle(currentItem)}
+Câu trả lời của học viên:
+${answer}
+
+Trả về tiếng Việt, gọn:
+Điểm: x/10
+Nhận xét:
+Sửa lỗi:
+Câu tốt hơn:`
+      const result = await askAgent(prompt, 0.3)
+      setFeedback(result)
+      await fetch('/api/english', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentItem.id, completed: true, incrementLearnCount: true })
+      }).catch(() => {})
+      load()
+    } catch (err) {
+      setFeedback(`Lỗi chấm AI: ${err.message}`)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -212,30 +396,27 @@ export default function English({ token }) {
 
   const handleCheckWriting = async () => {
     if (!userText.trim()) return
-    setBusy(true)
-    setFeedback('')
+    handleAiGrade()
+  }
+
+  const handleToggleLearned = async () => {
+    if (!currentItem || busy) return
+    const nextCompleted = !isLearned(currentItem)
+    setBusy(`learned-${currentItem.id}`)
     try {
-      const res = await fetch('/api/english/check', {
-        method: 'POST',
+      const res = await fetch('/api/english', {
+        method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          text: userText, 
-          context: currentItem.content,
-          type: 'writing'
-        })
+        body: JSON.stringify({ id: currentItem.id, completed: nextCompleted, incrementLearnCount: nextCompleted })
       })
-      const data = await res.json()
-      setFeedback(data.feedback || 'Đã kiểm tra xong.')
-      if (res.ok) {
-        // Mark as completed
-        fetch('/api/english', {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: currentId, completed: true })
-        }).then(() => load())
-      }
-    } catch { setFeedback('Đánh giá thất bại.') }
-    finally { setBusy(false) }
+      if (!res.ok) throw new Error('Không cập nhật được bài học')
+      await load()
+      if (nextCompleted) setCurrentId(null)
+    } catch (err) {
+      setFeedback(`Lỗi đánh dấu: ${err.message}`)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const getItemTitle = (item) => {
@@ -313,6 +494,34 @@ export default function English({ token }) {
             </button>
           ))}
         </nav>
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-100 bg-white px-3 py-1.5 no-scrollbar">
+          <button
+            type="button"
+            onClick={handleGenerateCurrentSkill}
+            disabled={!!busy || batchRunning}
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-slate-900 px-2.5 text-[10px] font-bold text-white hover:bg-black disabled:opacity-50"
+            title={`Tạo ${TYPE_LABELS[type === 'all' ? (currentItem?.type || 'vocab') : type]?.toLowerCase() || 'bài học'}`}
+          >
+            <RefreshCw size={12} className={String(busy).startsWith('gen-') ? 'animate-spin' : ''} />
+            <span>{String(busy).startsWith('gen-') ? 'Đang tạo...' : 'Tạo bài'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleSuggest}
+            disabled={!currentItem || !!busy}
+            className="h-7 shrink-0 rounded-md border border-indigo-100 bg-indigo-50 px-2 text-[10px] font-bold text-indigo-700 disabled:opacity-50"
+          >
+            Gợi ý
+          </button>
+          <button
+            type="button"
+            onClick={handleAiGrade}
+            disabled={!currentItem || !!busy}
+            className="h-7 shrink-0 rounded-md bg-slate-800 px-2 text-[10px] font-bold text-white disabled:opacity-50"
+          >
+            Chấm AI
+          </button>
+        </div>
 
         <div className="flex-1 flex overflow-hidden relative">
           {/* 3. Skills List */}
@@ -333,8 +542,13 @@ export default function English({ token }) {
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">{TYPE_LABELS[item.type] || item.type}</span>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {item.completed && <Check size={10} className="text-emerald-500" />}
+                    <div className="flex items-center gap-2">
+                      {isLearned(item) && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[8px] font-black uppercase text-emerald-700">
+                          <Check size={9} />
+                          Đã học
+                        </span>
+                      )}
                       <div onClick={(e) => handleDelete(item.id, e)} className="p-1 hover:bg-rose-50 rounded-md text-slate-300 hover:text-rose-500 transition-colors">
                         <X size={12} />
                       </div>
@@ -355,10 +569,20 @@ export default function English({ token }) {
                     <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Bài {currentUnit?.id} • {TYPE_LABELS[currentItem.type] || currentItem.type}</div>
                     <h1 className="text-lg font-black text-slate-900 leading-tight tracking-tight">{getItemTitle(currentItem)}</h1>
                   </div>
-                  <button onClick={() => speak(currentItem.content || meta.word)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md font-bold text-[10px] text-white ${isPlaying ? 'bg-slate-900' : 'bg-slate-700'}`}>
-                    {isPlaying ? <Square size={12} fill="white" /> : <Play size={12} fill="white" />}
-                    {isPlaying ? 'Dừng' : 'Nghe'}
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      onClick={handleToggleLearned}
+                      disabled={!!busy}
+                      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[10px] font-bold transition-all disabled:opacity-50 ${isLearned(currentItem) ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      <Check size={12} />
+                      {isLearned(currentItem) ? 'Đã học' : 'Đánh dấu'}
+                    </button>
+                    <button onClick={() => speak(currentItem.content || meta.word)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md font-bold text-[10px] text-white ${isPlaying ? 'bg-slate-900' : 'bg-slate-700'}`}>
+                      {isPlaying ? <Square size={12} fill="white" /> : <Play size={12} fill="white" />}
+                      {isPlaying ? 'Dừng' : 'Nghe'}
+                    </button>
+                  </div>
                 </header>
 
                 <div className="space-y-6">
@@ -373,6 +597,24 @@ export default function English({ token }) {
                   {currentItem.content && (
                     <div className="text-base leading-relaxed text-slate-700 font-medium whitespace-pre-line border-l-2 border-indigo-100 pl-4 py-1">
                       {currentItem.content}
+                    </div>
+                  )}
+
+                  {(meta.prompt || meta.topic || meta.hint) && (
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                      {meta.prompt && (
+                        <>
+                          <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-slate-400">Đề bài</div>
+                          <p className="text-sm font-bold leading-relaxed text-slate-800">{meta.prompt}</p>
+                        </>
+                      )}
+                      {!meta.prompt && meta.topic && (
+                        <>
+                          <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-slate-400">Câu hỏi</div>
+                          <p className="text-sm font-bold leading-relaxed text-slate-800">{meta.topic}</p>
+                        </>
+                      )}
+                      {meta.hint && <p className="mt-2 text-xs font-semibold leading-relaxed text-indigo-700">Gợi ý: {meta.hint}</p>}
                     </div>
                   )}
 
@@ -425,35 +667,44 @@ export default function English({ token }) {
                     </div>
                   )}
 
+                  {currentItem.type !== 'vocab' && (
+                    <div className="pt-8 border-t border-slate-100 space-y-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-slate-400">
+                        <PenTool size={14} />
+                        Câu trả lời
+                      </h4>
+                      <textarea
+                        value={userText}
+                        onChange={e => setUserText(e.target.value)}
+                        placeholder="Nhập câu trả lời để chấm AI..."
+                        className="w-full h-32 p-3 rounded-md bg-slate-50 border border-transparent focus:bg-white focus:border-slate-400 transition-all text-sm font-medium outline-none resize-none"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={handleSuggest}
+                          disabled={!!busy}
+                          className="py-2 rounded-md border border-indigo-100 bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-100 disabled:opacity-50 transition-all text-xs"
+                        >
+                          Gợi ý
+                        </button>
+                        <button
+                          onClick={handleAiGrade}
+                          disabled={!!busy || !userText.trim()}
+                          className="py-2 rounded-md bg-slate-800 text-white font-bold hover:bg-black disabled:opacity-50 transition-all text-xs"
+                        >
+                          {busy === 'grade' ? 'Đang chấm...' : 'Chấm điểm bằng AI'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {feedback && (
                     <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-slate-900">
                       <div className="flex items-center gap-2 mb-2">
                         <Award size={18} className="text-slate-600" />
                         <span className="text-[10px] font-black uppercase tracking-widest">Nhận xét</span>
                       </div>
-                      <p className="text-sm font-bold leading-relaxed">{feedback}</p>
-                    </div>
-                  )}
-
-                  {currentItem.type === 'writing' && (
-                    <div className="pt-8 border-t border-slate-100 space-y-4">
-                      <h4 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-slate-400">
-                        <PenTool size={14} />
-                        Bài viết
-                      </h4>
-                      <textarea
-                        value={userText}
-                        onChange={e => setUserText(e.target.value)}
-                        placeholder="Nhập câu trả lời..."
-                        className="w-full h-32 p-3 rounded-md bg-slate-50 border border-transparent focus:bg-white focus:border-slate-400 transition-all text-sm font-medium outline-none resize-none"
-                      />
-                      <button 
-                        onClick={handleCheckWriting}
-                        disabled={busy || !userText.trim()}
-                        className="w-full py-2 rounded-md bg-slate-800 text-white font-bold hover:bg-black disabled:opacity-50 transition-all text-sm"
-                      >
-                        {busy ? 'Đang chấm...' : 'Kiểm tra bài viết'}
-                      </button>
+                      <p className="whitespace-pre-line text-sm font-bold leading-relaxed">{feedback}</p>
                     </div>
                   )}
 
@@ -486,6 +737,14 @@ export default function English({ token }) {
               <h2 className="font-bold text-xs uppercase tracking-widest">Lộ trình</h2>
               <button onClick={() => setShowCurriculum(false)} className="text-slate-400"><X size={18} /></button>
             </div>
+            <div className="grid grid-cols-2 gap-2 border-b border-slate-100 p-3">
+              <select value={level} onChange={e => setLevel(e.target.value)} className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-bold">
+                {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+              <select value={mode} onChange={e => setMode(e.target.value)} className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-bold">
+                {MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+            </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {units.map(u => (
                 <button key={u.id} onClick={() => { setSelectedUnit(u.id); setCurrentId(null); setShowCurriculum(false); }} className={`w-full text-left p-3 rounded-xl border transition-all ${selectedUnit === u.id ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'border-transparent text-slate-600'}`}>
@@ -493,6 +752,11 @@ export default function English({ token }) {
                   <div className="text-xs font-bold">{u.title}</div>
                 </button>
               ))}
+              {!units.length && (
+                <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-[11px] font-bold text-slate-400">
+                  Chưa có bài cấp {level}
+                </div>
+              )}
             </div>
           </aside>
         </div>

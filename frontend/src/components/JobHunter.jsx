@@ -20,12 +20,23 @@ export default function JobHunter({ token }) {
 
   const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
 
-  useEffect(() => { loadStats() }, [])
+  useEffect(() => {
+    loadStats()
+    loadHistory()
+  }, [])
 
   async function loadStats() {
     try {
       const res = await fetch('/api/job-hunter/stats', { headers })
       if (res.ok) setStats(await res.json())
+    } catch {}
+  }
+
+  async function loadHistory() {
+    try {
+      const res = await fetch('/api/job-hunter/search?limit=100', { headers })
+      const data = await res.json()
+      if (res.ok) setJobs(data.jobs || [])
     } catch {}
   }
 
@@ -99,6 +110,23 @@ export default function JobHunter({ token }) {
       setStatus(`Đã xuất ${data.rows} việc`)
     } catch (err) { setError(err.message) }
   }, [keywordSearch, sourceFilter, salaryMin, headers])
+
+  const removeJob = useCallback(async (job) => {
+    try {
+      const res = await fetch('/api/job-hunter/jobs', {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify({ url: job.url }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Xóa thất bại')
+      setJobs(current => current.filter(item => item.url !== job.url))
+      setStatus('Đã xóa việc khỏi lịch sử')
+      loadStats()
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [headers])
 
   function fmtSalary(job) {
     if (job.salary) return job.salary
@@ -248,10 +276,14 @@ export default function JobHunter({ token }) {
 
         {/* Job results */}
         <div className="space-y-2 pb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-gray-700">Lịch sử việc đã kiếm</h2>
+            {jobs.length > 0 && <span className="text-[10px] text-gray-400">{jobs.length} việc</span>}
+          </div>
           {jobs.length === 0 && !loading && (
             <div className="bg-white border border-gray-200 rounded-lg py-12 text-center">
               <Briefcase className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-xs text-gray-400 font-medium">Nhập từ khóa rồi bấm Quét</p>
+              <p className="text-xs text-gray-400 font-medium">Chưa có việc nào trong lịch sử</p>
             </div>
           )}
           {jobs.map(job => (
@@ -269,6 +301,13 @@ export default function JobHunter({ token }) {
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-xs font-semibold text-emerald-700">{fmtSalary(job)}</div>
+                  <button
+                    onClick={() => removeJob(job)}
+                    className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-300 hover:bg-red-50 hover:text-red-500"
+                    title="Xóa khỏi lịch sử"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
               {(job.location || job.description_snippet) && (

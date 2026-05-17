@@ -107,23 +107,19 @@ function lessonNumber(lesson) {
   return match ? Number(match[1]) : lesson?.order || lesson?.id || 0
 }
 
-function modelForProvider(provider) {
-  if (!provider || provider === 'lmstudio_local') return 'lmstudio'
-  return provider
-}
-
-async function callHAgentAi({ token, provider, prompt }) {
-  const res = await fetch('/v1/chat/completions', {
+async function callHAgentAi({ token, provider, model, prompt }) {
+  const res = await fetch('/api/hagent-ai/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify({
-      model: modelForProvider(provider),
+      provider,
+      model,
       temperature: 0.5,
       messages: [{ role: 'user', content: prompt }],
     }),
   })
-  if (!res.ok) throw new Error('AI không phản hồi')
-  const data = await res.json()
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || data.detail || 'AI không phản hồi')
   const content = data.choices?.[0]?.message?.content?.trim()
   if (!content) throw new Error('AI trả về rỗng')
   return content
@@ -142,7 +138,7 @@ function Button({ children, active, className = '', ...props }) {
   )
 }
 
-export default function Learn({ token, provider }) {
+export default function Learn({ token, provider, cxModel }) {
   const [track, setTrack] = useState('javascript')
   const [lessons, setLessons] = useState([])
   const [currentId, setCurrentId] = useState(null)
@@ -245,7 +241,7 @@ Hãy tạo bài tiếp theo, không trùng chủ đề. Format:
 [bài tập nhỏ]`
 
     try {
-      const content = await callHAgentAi({ token, provider, prompt })
+      const content = await callHAgentAi({ token, provider, model: provider === 'cx' ? cxModel : '', prompt })
       const topic = content.match(/^#\s+(.+)$/m)?.[1]?.trim() || `${trackLabel} - bài mới`
       const saveRes = await fetch('/api/lessons', {
         method: 'POST',

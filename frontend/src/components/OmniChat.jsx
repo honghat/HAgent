@@ -19,7 +19,7 @@ async function omniApi(path, token, options = {}) {
     },
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || data.message || 'OmniChat request failed')
+  if (!res.ok) throw new Error(data.detail || data.error || data.message || 'OmniChat request failed')
   return data
 }
 
@@ -33,7 +33,7 @@ async function telegramApi(path, token, options = {}) {
     },
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || data.message || 'Telegram request failed')
+  if (!res.ok) throw new Error(data.detail || data.error || data.message || 'Telegram request failed')
   return data
 }
 
@@ -173,6 +173,15 @@ function Avatar({ src, className = 'h-10 w-10' }) {
   )
 }
 
+function isOutgoingMessage(msg) {
+  return msg?.sender_type === 'agent' || msg?.sender_type === 'user'
+}
+
+function hasUsableQr(value) {
+  const raw = String(value || '')
+  return raw.startsWith('data:image/') && raw.length > 'data:image/png;base64,'.length + 24 && !raw.includes('STUB_')
+}
+
 export default function OmniChat({ token }) {
   const [conversations, setConversations] = useState([])
   const [contacts, setContacts] = useState([])
@@ -243,11 +252,12 @@ export default function OmniChat({ token }) {
     const rows = Array.isArray(data) ? data : []
     setConversations(rows)
     setSelectedId(current => current || rows[0]?.id || '')
+    setStatus(current => current === 'OmniChat request failed' ? '' : current)
     setLoading(false)
   }
 
   async function loadContacts() {
-    const data = await omniApi('/contacts?platform=zalo', token)
+    const data = await omniApi('/contacts', token)
     setContacts(Array.isArray(data) ? data : [])
   }
 
@@ -297,6 +307,9 @@ export default function OmniChat({ token }) {
   useEffect(() => {
     if (!token) return undefined
     const events = new EventSource(`/api/omni/events?t=${encodeURIComponent(token)}`)
+    events.onopen = () => {
+      setStatus(current => current === 'Mất kết nối realtime, đang tự nối lại...' || current === 'OmniChat request failed' ? '' : current)
+    }
 
     const scheduleReload = () => {
       window.clearTimeout(reloadTimerRef.current)
@@ -340,6 +353,10 @@ export default function OmniChat({ token }) {
           setQrSession('')
           setChannelStatus('Zalo đã kết nối.')
           await Promise.all([loadConversations({ quiet: true }), loadContacts()])
+        } else if (data.status === 'unavailable') {
+          setQr(null)
+          setQrSession('')
+          setChannelStatus(data.detail || 'Zalo chưa có QR thực trên backend.')
         } else {
           setChannelStatus('Đang chờ quét QR Zalo...')
         }
@@ -364,6 +381,10 @@ export default function OmniChat({ token }) {
           setTelegramQr(null)
           setTelegramQrSession('')
           setChannelStatus('QR Telegram đã hết hạn.')
+        } else if (data.status === 'unavailable') {
+          setTelegramQr(null)
+          setTelegramQrSession('')
+          setChannelStatus(data.detail || 'Telegram chưa có QR thực trên backend.')
         } else {
           setChannelStatus('Đang chờ quét QR Telegram...')
         }
@@ -413,6 +434,7 @@ export default function OmniChat({ token }) {
 
   async function deleteConversation(conv) {
     if (!conv) return
+    if (!window.confirm(`Xóa hội thoại với ${conv.sender || 'người này'}?`)) return
 
     setStatus('')
     try {
@@ -433,6 +455,7 @@ export default function OmniChat({ token }) {
 
   async function deleteMessage(msg) {
     if (!msg || !selected) return
+    if (!window.confirm('Xóa tin nhắn này?')) return
 
     setStatus('')
     try {
@@ -502,9 +525,10 @@ export default function OmniChat({ token }) {
         method: 'POST',
         body: JSON.stringify({}),
       })
-      setTelegramQr(data)
-      setTelegramQrSession(data.session_id)
-      setChannelStatus('Quét QR bằng Telegram.')
+      const usable = hasUsableQr(data.qr)
+      setTelegramQr(usable ? data : null)
+      setTelegramQrSession(usable ? data.session_id : '')
+      setChannelStatus(usable ? 'Quét QR bằng Telegram.' : (data.detail || 'Telegram chưa có QR thực trên backend.'))
     } catch (err) {
       setChannelStatus(err.message)
     }
@@ -536,9 +560,10 @@ export default function OmniChat({ token }) {
         method: 'POST',
         body: JSON.stringify({}),
       })
-      setQr(data.qr)
-      setQrSession(data.session_id)
-      setChannelStatus('Quét QR bằng Zalo trên điện thoại.')
+      const usable = hasUsableQr(data.qr)
+      setQr(usable ? data.qr : null)
+      setQrSession(usable ? data.session_id : '')
+      setChannelStatus(usable ? 'Quét QR bằng Zalo trên điện thoại.' : (data.detail || 'Zalo chưa có QR thực trên backend.'))
     } catch (err) {
       setChannelStatus(err.message)
     }
@@ -601,11 +626,11 @@ export default function OmniChat({ token }) {
   }
 
   function renderMessageActions(msg) {
-    const isAgent = msg.sender_type === 'agent'
-    const menuSide = isAgent ? 'right-0' : 'left-0'
-    const deleteTitle = isAgent && selected?.channel === 'zalo'
+    const outgoing = isOutgoingMessage(msg)
+    const menuSide = outgoing ? 'right-0' : 'left-0'
+    const deleteTitle = outgoing && selected?.channel === 'zalo'
       ? 'Thu hồi Zalo'
-      : isAgent && selected?.channel === 'telegram'
+      : outgoing && selected?.channel === 'telegram'
         ? 'Xoá Telegram'
         : 'Xoá tin nhắn'
 
@@ -661,20 +686,20 @@ export default function OmniChat({ token }) {
   }
 
   return (
-    <div className="h-full bg-[#f7f7f4] p-2 sm:p-4">
-      <div className="h-full overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-sm flex">
-        <aside className={`${selected ? 'hidden sm:flex' : 'flex'} w-full sm:w-72 border-r border-black/[0.06] flex-col`}>
-          <div className="border-b border-black/[0.06] p-2.5">
+    <div className="h-full bg-[#f7f7f4] p-0 sm:p-3">
+      <div className="flex h-full overflow-hidden border border-black/[0.06] bg-white sm:rounded-lg">
+        <aside className={`${selected ? 'hidden sm:flex' : 'flex'} w-full sm:w-64 border-r border-black/[0.06] flex-col`}>
+          <div className="border-b border-black/[0.06] p-2">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <h1 className="text-sm font-semibold leading-5 text-gray-950">OmniChat</h1>
-                <p className="text-[11px] leading-4 text-gray-500">Tập trung chat vào một</p>
+                <h1 className="text-[13px] font-semibold leading-5 text-gray-950">Omni chat</h1>
+                <p className="text-[10px] leading-4 text-gray-500">Gom hội thoại nhiều kênh</p>
               </div>
               <div className="flex shrink-0 gap-1.5">
                 <button
                   type="button"
                   onClick={() => setShowChannels(value => !value)}
-                  className={`h-8 w-8 rounded-lg border border-black/[0.06] inline-flex items-center justify-center ${showChannels ? 'bg-gray-950 text-white' : 'bg-white text-gray-600'}`}
+                  className={`inline-flex h-7 w-7 items-center justify-center rounded-md border border-black/[0.06] ${showChannels ? 'bg-gray-950 text-white' : 'bg-white text-gray-600'}`}
                   title="Kênh"
                 >
                   <Settings className="h-3.5 w-3.5" />
@@ -682,7 +707,7 @@ export default function OmniChat({ token }) {
                 <button
                   type="button"
                   onClick={refresh}
-                  className="h-8 w-8 rounded-lg border border-black/[0.06] bg-white text-gray-600 inline-flex items-center justify-center"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-black/[0.06] bg-white text-gray-600"
                   title="Làm mới"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
@@ -693,9 +718,9 @@ export default function OmniChat({ token }) {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={sidebarMode === 'contacts' ? 'Tìm danh bạ' : 'Tìm hội thoại'}
-              className="w-full rounded-lg border border-black/[0.06] bg-gray-50 px-2.5 py-1.5 text-xs outline-none focus:border-gray-300"
+              className="w-full rounded-md border border-black/[0.06] bg-gray-50 px-2.5 py-1.5 text-[11px] outline-none focus:border-gray-300"
             />
-            <div className="mt-1.5 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-0.5">
+            <div className="mt-1.5 grid grid-cols-2 gap-1 rounded-md bg-gray-100 p-0.5">
               {[
                 ['chats', 'Hội thoại'],
                 ['contacts', 'Danh bạ'],
@@ -704,13 +729,13 @@ export default function OmniChat({ token }) {
                   key={value}
                   type="button"
                   onClick={() => setSidebarMode(value)}
-                  className={`rounded-md px-2 py-1 text-[11px] font-semibold ${sidebarMode === value ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  className={`rounded px-2 py-1 text-[10px] font-semibold ${sidebarMode === value ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <div className="mt-1.5 grid grid-cols-4 gap-1 rounded-lg bg-gray-100 p-0.5">
+            <div className="mt-1.5 grid grid-cols-4 gap-1 rounded-md bg-gray-100 p-0.5">
               {[
                 ['all', 'Tất cả'],
                 ['telegram', 'Tele'],
@@ -728,22 +753,16 @@ export default function OmniChat({ token }) {
               ))}
             </div>
             {showChannels && (
-              <div className="mt-3 rounded-2xl border border-black/[0.06] bg-gray-50 p-2">
+              <div className="mt-2 rounded-md border border-black/[0.06] bg-gray-50 p-2">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2 rounded-xl bg-white p-2">
+                  <div className="flex items-center gap-2 rounded-md bg-white p-2">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
                       <QrCode className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-gray-900">Telegram</p>
+                      <p className="truncate text-[10px] text-gray-400">Dùng bot token</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={startTelegramQr}
-                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
-                    >
-                      QR
-                    </button>
                     <button
                       type="button"
                       onClick={syncTelegramMessages}
@@ -754,20 +773,14 @@ export default function OmniChat({ token }) {
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2 rounded-xl bg-white p-2">
+                  <div className="flex items-center gap-2 rounded-md bg-white p-2">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                       <QrCode className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-gray-900">Zalo</p>
+                      <p className="truncate text-[10px] text-gray-400">Chưa bật QR</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={startZaloQr}
-                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
-                    >
-                      QR
-                    </button>
                     <button
                       type="button"
                       onClick={syncZaloMessages}
@@ -778,7 +791,7 @@ export default function OmniChat({ token }) {
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2 rounded-xl bg-white p-2">
+                  <div className="flex items-center gap-2 rounded-md bg-white p-2">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
                       <Settings className="h-4 w-4" />
                     </div>
@@ -809,7 +822,7 @@ export default function OmniChat({ token }) {
                       value={facebookCookie}
                       onChange={e => setFacebookCookie(e.target.value)}
                       placeholder="Cookie Facebook"
-                      className="min-h-16 w-full resize-none rounded-lg border border-black/[0.06] bg-gray-50 px-3 py-2 text-xs outline-none focus:border-gray-300"
+                      className="min-h-16 w-full resize-none rounded-md border border-black/[0.06] bg-gray-50 px-3 py-2 text-xs outline-none focus:border-gray-300"
                     />
                     <button
                       type="button"
@@ -864,7 +877,7 @@ export default function OmniChat({ token }) {
                     key={contact.id}
                     type="button"
                     onClick={() => setSelectedId(contact.id)}
-                    className={`group w-full rounded-xl p-2 text-left flex gap-3 transition-colors ${selectedId === contact.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+                    className={`group flex w-full gap-3 rounded-md p-2 text-left transition-colors ${selectedId === contact.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
                   >
                     <Avatar src={contact.avatar} />
                     <div className="min-w-0 flex-1">
@@ -886,7 +899,7 @@ export default function OmniChat({ token }) {
                 return (
                   <div
                     key={conv.id}
-                    className={`group w-full rounded-xl p-2 text-left flex gap-2 transition-colors ${selectedId === conv.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+                    className={`group flex w-full gap-2 rounded-md p-2 text-left transition-colors ${selectedId === conv.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
                   >
                     <button
                       type="button"
@@ -939,7 +952,7 @@ export default function OmniChat({ token }) {
         <section className={`${selected ? 'flex' : 'hidden sm:flex'} min-w-0 flex-1 flex-col bg-gray-50`}>
           {selected ? (
             <>
-              <div className="min-h-16 border-b border-black/[0.06] bg-white px-3 py-2 flex items-center gap-3">
+              <div className="flex min-h-14 items-center gap-2 border-b border-black/[0.06] bg-white px-3 py-2">
                 <button
                   type="button"
                   onClick={() => setSelectedId('')}
@@ -981,7 +994,7 @@ export default function OmniChat({ token }) {
                     </div>
                   ) : (
                     <div className="flex min-w-0 items-center gap-1.5">
-                      <h2 className="truncate text-sm font-semibold text-gray-950">{selected.sender}</h2>
+                      <h2 className="truncate text-[13px] font-semibold text-gray-950">{selected.sender}</h2>
                       <button
                         type="button"
                         onClick={beginRename}
@@ -992,7 +1005,7 @@ export default function OmniChat({ token }) {
                       </button>
                     </div>
                   )}
-                  <p className="truncate text-xs text-gray-500">
+                  <p className="truncate text-[11px] text-gray-500">
                     {selected.channel} · {selected.external_id} · Gửi {selectedStats.sent || 0} / Nhận {selectedStats.received || 0}
                   </p>
                 </div>
@@ -1019,7 +1032,7 @@ export default function OmniChat({ token }) {
                 onScroll={() => {
                   if (reactionMenuId) setReactionMenuId('')
                 }}
-                className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-5 space-y-3"
+                className="flex-1 space-y-2 overflow-y-auto p-3 custom-scrollbar sm:p-4"
               >
                 {messages.length === 0 && (
                   <div className="pt-12 text-center text-xs font-semibold text-gray-400">Chưa có tin nhắn</div>
@@ -1035,11 +1048,12 @@ export default function OmniChat({ token }) {
                     )
                   }
 
+                  const outgoing = isOutgoingMessage(msg)
                   return (
-                    <div key={msg.id} className={`group flex items-end gap-2 ${msg.sender_type === 'agent' ? 'justify-end' : 'justify-start'}`}>
-                      {msg.sender_type === 'agent' && renderMessageActions(msg)}
-                      <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm ${msg.sender_type === 'agent' ? 'bg-gray-950 text-white rounded-br-md' : 'bg-white text-gray-800 border border-black/[0.06] rounded-bl-md'}`}>
-                        {selected.thread_type === 'group' && msg.sender_type !== 'agent' && msg.external_author_name && (
+                    <div key={msg.id} className={`group flex items-end gap-2 ${outgoing ? 'justify-end' : 'justify-start'}`}>
+                      {outgoing && renderMessageActions(msg)}
+                      <div className={`max-w-[82%] rounded-xl px-3 py-2 text-[13px] leading-5 shadow-sm ${outgoing ? 'bg-gray-950 text-white rounded-br-md' : 'bg-white text-gray-800 border border-black/[0.06] rounded-bl-md'}`}>
+                        {selected.thread_type === 'group' && !outgoing && msg.external_author_name && (
                           <p className="mb-1 text-[11px] font-semibold leading-none text-gray-400">{msg.external_author_name}</p>
                         )}
                         {msg.reply_to?.content && (
@@ -1049,24 +1063,24 @@ export default function OmniChat({ token }) {
                         )}
                         <MessageBody content={msg.content} />
                         {formatMessageTime(msg.created_at) && (
-                          <p className={`mt-1 text-[10px] leading-none ${msg.sender_type === 'agent' ? 'text-right text-white/55' : 'text-gray-400'}`}>
+                          <p className={`mt-1 text-[10px] leading-none ${outgoing ? 'text-right text-white/55' : 'text-gray-400'}`}>
                             {formatMessageTime(msg.created_at)}
                           </p>
                         )}
                         {msg.status && !['sent', 'synced', 'received'].includes(msg.status) && (
-                          <p className={`mt-1 text-[11px] ${msg.sender_type === 'agent' ? 'text-white/65' : 'text-gray-400'}`}>{msg.status}</p>
+                          <p className={`mt-1 text-[11px] ${outgoing ? 'text-white/65' : 'text-gray-400'}`}>{msg.status}</p>
                         )}
                         {Object.keys(msg.reactions || {}).length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {Object.entries(msg.reactions || {}).map(([emoji, count]) => (
-                              <span key={emoji} className={`rounded-full px-2 py-0.5 text-xs ${msg.sender_type === 'agent' ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                              <span key={emoji} className={`rounded-full px-2 py-0.5 text-xs ${outgoing ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-700'}`}>
                                 {emoji}{count > 1 ? ` ${count}` : ''}
                               </span>
                             ))}
                           </div>
                         )}
                       </div>
-                      {msg.sender_type !== 'agent' && renderMessageActions(msg)}
+                      {!outgoing && renderMessageActions(msg)}
                     </div>
                   )
                 })}
@@ -1082,7 +1096,7 @@ export default function OmniChat({ token }) {
                     <Reply className="h-4 w-4 shrink-0 text-gray-400" />
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] font-semibold text-gray-400">
-                        Reply {replyTo.sender_type === 'agent' ? 'tin đã gửi' : 'tin đã nhận'}
+                        Trả lời {isOutgoingMessage(replyTo) ? 'tin đã gửi' : 'tin đã nhận'}
                       </p>
                       <p className="truncate text-xs text-gray-700">{messagePreview(replyTo.content) || 'File phương tiện'}</p>
                     </div>
@@ -1097,16 +1111,16 @@ export default function OmniChat({ token }) {
                   </div>
                 </div>
               )}
-              <form onSubmit={sendMessage} className="border-t border-black/[0.06] bg-white p-3 pb-safe flex gap-2">
+              <form onSubmit={sendMessage} className="flex gap-2 border-t border-black/[0.06] bg-white p-3 pb-safe">
                 <input
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
                   placeholder="Nhập phản hồi"
-                  className="min-w-0 flex-1 rounded-xl border border-black/[0.06] bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-gray-300"
+                  className="min-w-0 flex-1 rounded-md border border-black/[0.06] bg-gray-50 px-3 py-2 text-[13px] outline-none focus:border-gray-300"
                 />
                 <button
                   disabled={sending || !draft.trim()}
-                  className="h-11 px-4 rounded-xl bg-gray-950 text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
+                  className="inline-flex h-9 items-center gap-2 rounded-md bg-gray-950 px-3 text-[12px] font-semibold text-white disabled:opacity-40"
                 >
                   <Send className="h-4 w-4" />
                   Gửi

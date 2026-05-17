@@ -1,4 +1,4 @@
-"""Telegram OmniChat endpoints — QR login + sync stubs."""
+"""Telegram OmniChat endpoints — sync placeholders."""
 
 from __future__ import annotations
 
@@ -17,11 +17,12 @@ _qr_sessions: dict[str, str] = {}
 @router.post("/qr/start")
 def start_qr():
     session_id = str(uuid.uuid4())
-    _qr_sessions[session_id] = "pending"
+    _qr_sessions[session_id] = "unavailable"
     return {
         "session_id": session_id,
-        "qr": "data:image/png;base64,",
-        "status": "pending",
+        "qr": None,
+        "status": "unavailable",
+        "detail": "OmniChat hiện chưa bật đăng nhập QR Telegram. Telegram đang dùng bot token ở dịch vụ riêng.",
     }
 
 
@@ -31,6 +32,7 @@ def qr_status(session: str):
     return OmniQRStatusResponse(
         session=session,
         status=status,
+        detail="OmniChat hiện chưa bật đăng nhập QR Telegram. Telegram đang dùng bot token ở dịch vụ riêng." if status == "unavailable" else None,
     )
 
 
@@ -39,5 +41,5 @@ def sync_messages(payload: OmniSyncMessagesRequest):
     return {
         "synced_conversations": 0,
         "synced_messages": 0,
-        "status": "stub — Telegram SDK not installed",
+        "status": "Đồng bộ Telegram trong OmniChat chưa được nối với bot/gateway.",
     }

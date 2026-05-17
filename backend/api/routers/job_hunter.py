@@ -60,6 +60,9 @@ class WatchRequest(BaseModel):
     interval_minutes: int = 60
     notify: bool = True
 
+class DeleteJobRequest(BaseModel):
+    url: str
+
 # ── Persistence ───────────────────────────────────────────────────────
 
 def _load_cache() -> List[dict]:
@@ -735,6 +738,15 @@ async def search_jobs(
 @router.get("/sources")
 async def list_sources():
     return {"sources": list(SOURCE_CONF.keys())}
+
+@router.delete("/jobs")
+async def delete_job(req: DeleteJobRequest):
+    jobs = _load_cache()
+    kept = [job for job in jobs if job.get("url") != req.url]
+    if len(kept) == len(jobs):
+        raise HTTPException(404, "Job not found")
+    _save_cache(kept)
+    return {"status": "deleted", "total_cached": len(kept)}
 
 @router.post("/watch")
 async def watch_jobs(req: WatchRequest):

@@ -34,7 +34,7 @@ button,
 textarea,
 input,
 select {
-  font: inherit;
+  font-family: inherit;
 }
 
 .no-scrollbar {
@@ -67,6 +67,81 @@ select {
 
 .premium-shadow {
   box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08), 0 2px 10px -2px rgba(0, 0, 0, 0.04);
+}
+
+.learn-article {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #111827;
+}
+
+.learn-article h1,
+.learn-article h2,
+.learn-article h3 {
+  font-family: inherit;
+  letter-spacing: 0;
+  color: #111827;
+}
+
+.learn-article h1 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 750;
+}
+
+.learn-article h2 {
+  margin: 14px 0 6px;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 720;
+}
+
+.learn-article h3 {
+  margin: 12px 0 5px;
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.learn-article p,
+.learn-article li {
+  margin: 0 0 7px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.learn-article strong {
+  font-weight: 700;
+}
+
+.learn-article code {
+  border-radius: 4px;
+  background: #f3f4f6;
+  padding: 0.08rem 0.28rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.learn-article pre {
+  margin: 10px 0 12px;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: #0f172a;
+  padding: 12px;
+}
+
+.learn-article pre code {
+  display: block;
+  background: transparent;
+  padding: 0;
+  color: #e5e7eb;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.learn-article .learn-gap {
+  height: 6px;
 }
 
 /* Markdown Premium Styling */

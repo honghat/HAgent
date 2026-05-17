@@ -161,33 +161,33 @@ export default function Wiki({ token, provider }) {
 
   const SidebarContent = () => (
     <aside className="flex h-full flex-col bg-white">
-      <div className="shrink-0 border-b border-gray-100 px-4 py-4">
+      <div className="shrink-0 border-b border-gray-100 px-3 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 pr-12">
-            <h2 className="truncate text-[15px] font-semibold leading-5 text-gray-950">Wiki</h2>
+            <h2 className="truncate text-sm font-semibold leading-5 text-gray-950">Wiki</h2>
             <p className="mt-0.5 text-[11px] font-medium text-gray-400">{entries.length} mục tri thức</p>
           </div>
           <button
             onClick={startNew}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-950 text-white shadow-sm transition-all hover:bg-black active:scale-95"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gray-950 text-white transition-all hover:bg-black active:scale-95"
             title="Tạo bài mới"
           >
             <Plus className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             onClick={handleRestructure}
             disabled={restructuring}
-            className="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[12px] font-medium text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-40"
+            className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-[11px] font-medium text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-40"
           >
             {restructuring ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowUpDown className="h-3.5 w-3.5" />}
             Sắp xếp
           </button>
           <button
             onClick={() => exportWiki(token)}
-            className="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[12px] font-medium text-gray-600 transition-all hover:bg-gray-50"
+            className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-[11px] font-medium text-gray-600 transition-all hover:bg-gray-50"
           >
             <Download className="h-3.5 w-3.5" />
             Xuất
@@ -200,15 +200,15 @@ export default function Wiki({ token, provider }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Tìm trong wiki"
-            className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 text-[13px] font-medium text-gray-700 outline-none transition-all placeholder:text-gray-400 focus:border-gray-300 focus:bg-white focus:ring-2 focus:ring-gray-100"
+            className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 pl-9 pr-3 text-[12px] font-medium text-gray-700 outline-none transition-all placeholder:text-gray-400 focus:border-gray-300 focus:bg-white focus:ring-2 focus:ring-gray-100"
           />
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 custom-scrollbar">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 custom-scrollbar">
         <button
           onClick={() => { setSelectedTopic(null); setShowSidebar(false) }}
-          className={`group flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-[13px] font-medium transition-all ${
+          className={`group flex h-9 w-full items-center justify-between rounded-md px-3 text-left text-[12px] font-medium transition-all ${
             !selectedTopic ? 'bg-gray-950 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
           }`}
         >
@@ -216,7 +216,7 @@ export default function Wiki({ token, provider }) {
             <BookOpen className="h-4 w-4 shrink-0" />
             <span className="truncate">Tất cả</span>
           </span>
-          <span className={`rounded-lg px-2 py-0.5 text-[11px] ${!selectedTopic ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'}`}>
+          <span className={`rounded px-2 py-0.5 text-[10px] ${!selectedTopic ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'}`}>
             {entries.length}
           </span>
         </button>
@@ -226,7 +226,7 @@ export default function Wiki({ token, provider }) {
             <button
               key={topic}
               onClick={() => { setSelectedTopic(topic); setShowSidebar(false) }}
-              className={`group flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-[13px] font-medium transition-all ${
+              className={`group flex h-9 w-full items-center justify-between rounded-md px-3 text-left text-[12px] font-medium transition-all ${
                 selectedTopic === topic ? 'bg-gray-950 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-950'
               }`}
             >
@@ -234,7 +234,7 @@ export default function Wiki({ token, provider }) {
                 <Folder className="h-4 w-4 shrink-0" />
                 <span className="truncate">{topic}</span>
               </span>
-              <span className={`ml-2 rounded-lg px-2 py-0.5 text-[11px] ${selectedTopic === topic ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              <span className={`ml-2 rounded px-2 py-0.5 text-[10px] ${selectedTopic === topic ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'}`}>
                 {topics[topic].length}
               </span>
             </button>
@@ -247,11 +247,11 @@ export default function Wiki({ token, provider }) {
   if (selectedEntry) {
     return (
       <div className="flex h-full flex-col bg-[#fbfbf8] animate-in fade-in duration-200">
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-100 bg-white/90 px-3 backdrop-blur-md sm:px-5">
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-gray-100 bg-white/90 px-3 backdrop-blur-md sm:px-4">
           <div className="flex min-w-0 items-center gap-2">
             <button
               onClick={() => { setSelectedEntry(null); setEditing(false) }}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-950 active:scale-95"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-950 active:scale-95"
               title="Quay lại"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -272,14 +272,14 @@ export default function Wiki({ token, provider }) {
               </div>
               <button
                 onClick={saveEdit}
-                className="flex h-10 items-center gap-1.5 rounded-2xl bg-gray-950 px-3 text-[12px] font-medium text-white transition-all hover:bg-black active:scale-95"
+                className="flex h-8 items-center gap-1.5 rounded-md bg-gray-950 px-3 text-[11px] font-medium text-white transition-all hover:bg-black active:scale-95"
               >
                 <Save className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Lưu</span>
               </button>
               <button
                 onClick={() => setEditing(false)}
-                className="flex h-10 items-center justify-center rounded-2xl border border-gray-200 bg-white px-3 text-[12px] font-medium text-gray-600 transition-all hover:bg-gray-50 active:scale-95"
+                className="flex h-8 items-center justify-center rounded-md border border-gray-200 bg-white px-3 text-[11px] font-medium text-gray-600 transition-all hover:bg-gray-50 active:scale-95"
               >
                 <span className="hidden sm:inline">Hủy</span>
                 <X className="h-4 w-4 sm:hidden" />
@@ -287,10 +287,10 @@ export default function Wiki({ token, provider }) {
             </div>
           ) : (
             <div className="flex items-center gap-1">
-              <button onClick={() => setEditing(true)} className="flex h-10 w-10 items-center justify-center rounded-2xl text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-950 active:scale-95" title="Chỉnh sửa">
+              <button onClick={() => setEditing(true)} className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-950 active:scale-95" title="Chỉnh sửa">
                 <Edit3 className="h-4 w-4" />
               </button>
-              <button onClick={() => handleDelete(selectedEntry.id)} className="flex h-10 w-10 items-center justify-center rounded-2xl text-gray-400 transition-all hover:bg-red-50 hover:text-red-500 active:scale-95" title="Xóa">
+              <button onClick={() => handleDelete(selectedEntry.id)} className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-red-50 hover:text-red-500 active:scale-95" title="Xóa">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
@@ -298,7 +298,7 @@ export default function Wiki({ token, provider }) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-          <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10 pb-safe">
+          <div className="mx-auto w-full max-w-3xl px-4 py-4 sm:px-5 sm:py-6 pb-safe">
             {editing ? (
               <div className="space-y-4 sm:space-y-5">
                 <div className="space-y-1.5 sm:space-y-2">
@@ -306,7 +306,7 @@ export default function Wiki({ token, provider }) {
                   <input
                     value={editForm.title}
                     onChange={e => setEditForm(form => ({ ...form, title: e.target.value }))}
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[16px] sm:text-[18px] font-semibold text-gray-950 outline-none transition-all placeholder:text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
+                    className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-[14px] font-semibold text-gray-950 outline-none transition-all placeholder:text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
                     placeholder="Tiêu đề bài viết"
                   />
                 </div>
@@ -315,7 +315,7 @@ export default function Wiki({ token, provider }) {
                   <input
                     value={editForm.summary}
                     onChange={e => setEditForm(form => ({ ...form, summary: e.target.value }))}
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-700 outline-none transition-all placeholder:text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
+                    className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-[13px] text-gray-700 outline-none transition-all placeholder:text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
                     placeholder="Tóm tắt ngắn"
                   />
                 </div>
@@ -324,7 +324,7 @@ export default function Wiki({ token, provider }) {
                   <input
                     value={editForm.topics}
                     onChange={e => setEditForm(form => ({ ...form, topics: e.target.value }))}
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[13px] font-medium text-gray-700 outline-none transition-all placeholder:text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
+                    className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 outline-none transition-all placeholder:text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
                     placeholder="cong-nghe, tai-chinh"
                   />
                 </div>
@@ -333,18 +333,18 @@ export default function Wiki({ token, provider }) {
                   <textarea
                     value={editForm.content}
                     onChange={e => setEditForm(form => ({ ...form, content: e.target.value }))}
-                    className="min-h-[320px] sm:min-h-[440px] w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-4 text-[14px] leading-[1.7] text-gray-800 outline-none transition-all focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
+                    className="min-h-[320px] sm:min-h-[420px] w-full resize-none rounded-md border border-gray-200 bg-white px-3 py-3 text-[13px] leading-6 text-gray-800 outline-none transition-all focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
                   />
                 </div>
               </div>
             ) : (
-              <article className="rounded-2xl border border-gray-100 bg-white px-5 py-6 shadow-sm sm:px-8 sm:py-8">
-                <div className="mb-6 border-b border-gray-100 pb-6">
-                  <h1 className="text-2xl font-semibold leading-tight tracking-tight text-gray-950 sm:text-3xl">{selectedEntry.title}</h1>
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
+              <article className="rounded-lg border border-gray-200 bg-white px-4 py-4 sm:px-5 sm:py-5">
+                <div className="mb-4 border-b border-gray-100 pb-4">
+                  <h1 className="text-lg font-semibold leading-tight tracking-tight text-gray-950">{selectedEntry.title}</h1>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
                     <div className="flex flex-wrap gap-2">
                       {(selectedEntry.topics || []).map(topic => (
-                        <span key={topic} className="rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">{topic}</span>
+                        <span key={topic} className="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">{topic}</span>
                       ))}
                     </div>
                     <div className="flex items-center gap-4 text-[11px] text-gray-400">
@@ -362,12 +362,12 @@ export default function Wiki({ token, provider }) {
                     </div>
                   </div>
                   {selectedEntry.summary && (
-                    <p className="mt-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-[14px] leading-6 text-gray-600">{selectedEntry.summary}</p>
+                    <p className="mt-4 rounded-md border border-gray-100 bg-gray-50 px-3 py-2 text-[12px] leading-5 text-gray-600">{selectedEntry.summary}</p>
                   )}
                 </div>
 
                 <div
-                  className="whitespace-pre-wrap text-[15px] leading-8 text-gray-800"
+                  className="whitespace-pre-wrap text-[13px] leading-6 text-gray-800"
                   onDoubleClick={() => setEditing(true)}
                 >
                   {selectedEntry.content}
@@ -382,7 +382,7 @@ export default function Wiki({ token, provider }) {
 
   return (
     <div className="relative flex h-full overflow-hidden bg-[#f6f6f2]">
-      <div className="hidden w-[280px] shrink-0 border-r border-gray-100 bg-white lg:flex">
+      <div className="hidden w-[248px] shrink-0 border-r border-gray-100 bg-white lg:flex">
         <SidebarContent />
       </div>
 
@@ -400,26 +400,26 @@ export default function Wiki({ token, provider }) {
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-100 bg-white/80 px-3 sm:px-4 backdrop-blur-md">
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-gray-100 bg-white/80 px-3 backdrop-blur-md">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <button onClick={() => setShowSidebar(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-gray-600 transition-all hover:bg-gray-100 active:scale-95">
+            <button onClick={() => setShowSidebar(true)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-600 transition-all hover:bg-gray-100 active:scale-95">
               <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0">
-              <h1 className="truncate text-[14px] sm:text-[15px] font-semibold leading-5 text-gray-950">{pageTitle}</h1>
+              <h1 className="truncate text-sm font-semibold leading-5 text-gray-950">{pageTitle}</h1>
               <p className="text-[11px] font-medium text-gray-400">{displayEntries.length} mục đang hiển thị</p>
             </div>
           </div>
           <button
             onClick={startNew}
-            className="flex h-10 items-center gap-1.5 rounded-2xl bg-gray-950 px-3 text-[12px] font-medium text-white transition-all hover:bg-black active:scale-95"
+            className="flex h-8 items-center gap-1.5 rounded-md bg-gray-950 px-3 text-[11px] font-medium text-white transition-all hover:bg-black active:scale-95"
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden xs:inline">Mới</span>
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 custom-scrollbar sm:p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar sm:p-4">
           {loading ? (
             <div className="flex h-full min-h-[320px] flex-col items-center justify-center">
               <Loader2 className="mb-3 h-8 w-8 animate-spin text-gray-900" />
@@ -436,7 +436,7 @@ export default function Wiki({ token, provider }) {
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm custom-scrollbar">
+            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white custom-scrollbar">
               <div className="hidden min-w-[700px] grid-cols-[minmax(200px,1.2fr)_minmax(240px,1.8fr)_110px_minmax(140px,1fr)_72px] border-b border-gray-100 bg-gray-50/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:grid">
                 <div>Tiêu đề</div>
                 <div>Tóm tắt</div>
@@ -450,14 +450,14 @@ export default function Wiki({ token, provider }) {
                   <div
                     key={entry.id}
                     onClick={() => openEntry(entry)}
-                    className="group cursor-pointer px-4 py-4 transition-colors hover:bg-gray-50/80 md:grid md:min-w-[700px] md:grid-cols-[minmax(200px,1.2fr)_minmax(240px,1.8fr)_110px_minmax(140px,1fr)_72px] md:items-center md:gap-4 md:py-3"
+                    className="group cursor-pointer px-4 py-3 transition-colors hover:bg-gray-50/80 md:grid md:min-w-[700px] md:grid-cols-[minmax(200px,1.2fr)_minmax(240px,1.8fr)_110px_minmax(140px,1fr)_72px] md:items-center md:gap-4 md:py-2.5"
                   >
                     <div className="flex min-w-0 items-start gap-3 md:items-center">
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 md:mt-0">
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-500 md:mt-0">
                         <FileText className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="line-clamp-2 text-[14px] font-semibold leading-5 text-gray-950 group-hover:text-gray-700 md:truncate">
+                        <h3 className="line-clamp-2 text-[13px] font-semibold leading-5 text-gray-950 group-hover:text-gray-700 md:truncate">
                           {entry.title}
                         </h3>
                         <div className="mt-2 flex flex-wrap gap-1.5 md:hidden">
@@ -470,7 +470,7 @@ export default function Wiki({ token, provider }) {
                       </div>
                     </div>
 
-                    <p className="mt-3 line-clamp-2 min-w-0 break-words text-[13px] leading-5 text-gray-500 md:mt-0 overflow-hidden">
+                    <p className="mt-3 line-clamp-2 min-w-0 break-words text-[12px] leading-5 text-gray-500 md:mt-0 overflow-hidden">
                       {entry.summary || 'Không có mô tả vắn tắt.'}
                     </p>
 

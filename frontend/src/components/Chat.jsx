@@ -706,7 +706,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     <div className="min-h-0 flex overflow-hidden bg-[#f7f7f4] relative" style={{ height: '100%' }}>
       <div className={`fixed inset-y-0 left-0 z-40 w-[76vw] max-w-64 sm:w-48 sm:max-w-none bg-[#fbfbf9]/95 border-r border-black/[0.06] backdrop-blur-xl transition-transform sm:relative sm:translate-x-0 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
         <div className="p-2 sm:p-3 border-b border-gray-100 flex items-center justify-between gap-2">
-          <button onClick={() => { createSession(); setShowSidebar(false) }} className="flex-1 bg-gray-950 text-white py-1.5 text-xs rounded-xl font-medium">Chat mới</button>
+          <button onClick={() => { createSession(); setShowSidebar(false) }} className="flex-1 bg-gray-950 text-white py-1.5 text-[13px] rounded-xl font-medium">Chat mới</button>
           <button onClick={() => setShowSidebar(false)} className="sm:hidden p-2 text-gray-400">×</button>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -727,23 +727,26 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
       {showSidebar && <div onClick={() => setShowSidebar(false)} className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 sm:hidden" />}
 
       <div className="flex-1 min-h-0 min-w-0 bg-white/80 sm:rounded-tl-[2rem] border-l border-black/[0.05] overflow-hidden relative">
-        <header className="absolute inset-x-0 top-0 h-14 sm:h-16 border-b border-black/[0.04] flex items-center justify-between px-4 sm:px-8 bg-white/70 backdrop-blur-xl z-10">
-          <button onClick={() => { setShowSidebar(true); setShowJournal(false); setShowWorkspace(false) }} className="sm:hidden p-2 text-gray-500">≡</button>
-          <div className="flex items-center gap-2 sm:gap-3 overflow-hidden min-w-0">
+        <header className="absolute inset-x-0 top-0 min-h-14 border-b border-black/[0.04] flex flex-wrap items-center gap-y-2 px-3 py-2 sm:h-16 sm:flex-nowrap sm:gap-y-0 sm:px-8 sm:py-0 bg-white/70 backdrop-blur-xl z-10">
+          <div className="order-1 flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <button onClick={() => { setShowSidebar(true); setShowJournal(false); setShowWorkspace(false) }} className="sm:hidden flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100">≡</button>
             <div className={`w-2 h-2 rounded-full shrink-0 transition-all duration-500 ${providerActive ? 'bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.3)]' : 'bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.3)]'}`} />
-            <h1 className="text-[11px] leading-5 font-semibold text-gray-900 truncate min-w-0">
+            <h1 className="min-w-0 truncate text-[10px] font-semibold leading-5 text-gray-900">
               {activeSession?.title || 'Cuộc trò chuyện'}
             </h1>
-            <span className="flex items-center justify-center h-8 px-3 shrink-0 rounded-full bg-gray-100 text-xs font-medium text-gray-600">
+          </div>
+
+          <div className="order-3 flex w-full min-w-0 items-center gap-1.5 pl-10 sm:order-2 sm:w-auto sm:flex-1 sm:gap-2 sm:pl-0">
+            <span className="flex h-7 max-w-[132px] shrink-0 items-center justify-center truncate rounded-full bg-gray-100 px-2.5 text-[10px] font-medium text-gray-600 sm:h-8 sm:max-w-none sm:px-3 sm:text-[11px]">
               {providerLabels[provider] || provider}
             </span>
-            <div className="flex items-center gap-1.5 ml-1">
+            <div className="min-w-0">
               {Array.isArray(agents) && agents.length > 0 ? (
                 <select
                   value={selectedAgentId || agents[0]?.id || ''}
                   onChange={(e) => setSelectedAgentId(e.target.value)}
                   disabled={loading}
-                  className="flex items-center h-8 max-w-[140px] rounded-full border border-black/[0.06] bg-white/50 px-3 text-xs font-medium text-gray-600 outline-none transition-all hover:bg-white hover:border-black/10 disabled:opacity-50 appearance-none cursor-pointer"
+                  className="flex h-7 max-w-[150px] items-center truncate rounded-full border border-black/[0.06] bg-white/50 px-2.5 text-[10px] font-medium text-gray-600 outline-none transition-all hover:border-black/10 hover:bg-white disabled:opacity-50 sm:h-8 sm:max-w-[180px] sm:px-3 sm:text-[11px]"
                   title="Chọn Agent"
                 >
                   {agents.map((agent) => (
@@ -751,19 +754,20 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                   ))}
                 </select>
               ) : (
-                <span className="flex items-center justify-center h-7 px-2.5 shrink-0 rounded-full bg-emerald-50 text-[9px] font-medium text-emerald-700">
+                <span className="flex h-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 px-2.5 text-[9px] font-medium text-emerald-700">
                   HAgent
                 </span>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex text-[9px] font-semibold items-center justify-center w-7 h-7 rounded-full border transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>AI</button>
-            <button onClick={() => { setShowJournal(!showJournal); setShowWorkspace(false); setShowSidebar(false) }} className={`flex text-[9px] font-semibold items-center justify-center w-7 h-7 rounded-full border transition-all ${showJournal ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>J</button>
+
+          <div className="order-2 ml-2 flex shrink-0 items-center gap-1.5 sm:order-3 sm:ml-3 sm:gap-2">
+            <button onClick={() => { setShowWorkspace(!showWorkspace); setShowJournal(false); setShowSidebar(false) }} className={`flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-semibold transition-all ${showWorkspace ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>AI</button>
+            <button onClick={() => { setShowJournal(!showJournal); setShowWorkspace(false); setShowSidebar(false) }} className={`flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-semibold transition-all ${showJournal ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white/80 border-black/[0.06] text-gray-600 hover:bg-white hover:text-gray-900'}`}>J</button>
           </div>
         </header>
 
-        <div className="absolute inset-x-0 top-14 bottom-24 sm:top-16 md:bottom-28 overflow-y-auto custom-scrollbar p-4 md:p-8">
+        <div className="absolute inset-x-0 top-[84px] bottom-24 sm:top-16 md:bottom-28 overflow-y-auto custom-scrollbar p-4 md:p-8">
           <div className="max-w-6xl mx-auto space-y-5 sm:space-y-8">
             {currentClarification && (
               <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 animate-fade-in">

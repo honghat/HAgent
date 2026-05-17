@@ -567,6 +567,26 @@ def delete_file(path: str = Query(...), request: Request = None):
         raise HTTPException(404, "Path not found")
     trash_dir = Path.home() / ".Trash"
     trash_dir.mkdir(exist_ok=True)
+
+    # Also delete associated .srt files for videos
+    deleted_srts = []
+    ext = Path(path).suffix.lower()
+    if ext in MEDIA_EXTS:
+        parent = Path(path).parent
+        stem = Path(path).stem
+        for srt_file in parent.glob(f"{stem}*.srt"):
+            if srt_file.is_file():
+                srt_dest = trash_dir / srt_file.name
+                counter = 1
+                while srt_dest.exists():
+                    srt_dest = trash_dir / f"{srt_file.stem} ({counter}).srt"
+                    counter += 1
+                try:
+                    shutil.move(str(srt_file), str(srt_dest))
+                    deleted_srts.append(srt_dest.name)
+                except OSError:
+                    pass
+
     dest_name = Path(path).name
     dest = trash_dir / dest_name
     counter = 1
@@ -577,9 +597,10 @@ def delete_file(path: str = Query(...), request: Request = None):
         counter += 1
     try:
         shutil.move(path, str(dest))
-        return OperationResponse(
-            ok=True, path=str(dest), message=f"Moved to Trash as {dest.name}"
-        )
+        msg = f"Moved to Trash as {dest.name}"
+        if deleted_srts:
+            msg += f" (+ {', '.join(deleted_srts)})"
+        return OperationResponse(ok=True, path=str(dest), message=msg)
     except OSError as e:
         raise HTTPException(500, f"Trash failed: {e}")
 

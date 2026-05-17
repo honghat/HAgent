@@ -4,10 +4,12 @@ import json
 import queue
 import re
 import threading
+from urllib import error, request as urlrequest
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from api.schemas import (
     AsyncMessageResponse,
@@ -30,6 +32,7 @@ from api.services.session_store import (
 from api.services.source_core_agent import run_source_agent
 from api.services.source_core_agent import analyze_with_js_heuristics
 from api.services.self_evolution import reflect_interaction
+from api.services.provider_config import get_provider_config
 from api.services.workspace_state import record_tool, record_tool_result
 from api.services.wiki_memory import extract_and_save_wiki, resolve_user_id
 
@@ -37,8 +40,57 @@ from api.services.wiki_memory import extract_and_save_wiki, resolve_user_id
 router = APIRouter(tags=["messages"])
 
 
+class ChatCompletionProxyRequest(BaseModel):
+    provider: str | None = None
+    model: str | None = None
+    messages: list[dict] = Field(default_factory=list)
+    temperature: float | None = 0.5
+
+
 def _provider_name(provider: str | None) -> str | None:
     return provider or None
+
+
+@router.post("/hagent-ai/chat/completions")
+def chat_completion_proxy(payload: ChatCompletionProxyRequest) -> dict:
+    """Small OpenAI-compatible proxy that follows HAgent's selected provider."""
+    if not payload.messages:
+        raise HTTPException(status_code=400, detail="Thiếu messages")
+
+    try:
+        cfg = get_provider_config(payload.provider, payload.model)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if cfg.type != "openai":
+        raise HTTPException(status_code=400, detail=f"Provider {cfg.name} chưa hỗ trợ tạo bài trong Learn")
+    if not cfg.base_url:
+        raise HTTPException(status_code=400, detail=f"Provider {cfg.name} chưa có Base URL")
+    if not cfg.api_key:
+        raise HTTPException(status_code=400, detail=f"Provider {cfg.name} chưa có API key")
+
+    body = {
+        "model": cfg.model,
+        "temperature": payload.temperature if payload.temperature is not None else 0.5,
+        "messages": payload.messages,
+    }
+    req = urlrequest.Request(
+        f"{cfg.base_url.rstrip('/')}/chat/completions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {cfg.api_key}",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=180) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        text = exc.read().decode("utf-8", errors="ignore")
+        raise HTTPException(status_code=502, detail=f"Lỗi provider {cfg.name}: HTTP {exc.code} - {text[:240]}") from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Không gọi được provider {cfg.name}: {exc}") from exc
 
 
 def _run_and_store_reply(

@@ -253,16 +253,23 @@ def event_stream(request: Request):
 
 @router.post("/sync/zalo/qr/start")
 def start_zalo_qr():
+    session_id = str(uuid.uuid4())
     return {
-        "session": str(uuid.uuid4()),
-        "qr": "data:image/png;base64,STUB_ZALO_QR",
-        "status": "pending",
+        "session": session_id,
+        "session_id": session_id,
+        "qr": None,
+        "status": "unavailable",
+        "detail": "OmniChat hiện chưa bật đăng nhập QR Zalo. Dùng cookie Facebook hoặc nối Zalo web session trước.",
     }
 
 
 @router.get("/sync/zalo/qr/{session}/status", response_model=OmniQRStatusResponse)
 def check_zalo_qr_status(session: str):
-    return OmniQRStatusResponse(session=session, status="pending")
+    return OmniQRStatusResponse(
+        session=session,
+        status="unavailable",
+        detail="OmniChat hiện chưa bật đăng nhập QR Zalo. Dùng cookie Facebook hoặc nối Zalo web session trước.",
+    )
 
 
 @router.post("/sync/zalo/messages")
@@ -271,13 +278,13 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest):
         "synced_contacts": 0,
         "synced_conversations": 0,
         "synced_messages": 0,
-        "status": "stub — Zalo SDK not installed",
+        "status": "Đồng bộ Zalo trong OmniChat chưa được nối với Zalo web session.",
     }
 
 
 @router.post("/connect/facebook")
 def connect_facebook(payload: OmniConnectFacebookRequest):
-    return {"connected": False, "status": "stub — Facebook SDK not installed"}
+    return {"connected": False, "status": "Kết nối Facebook trong OmniChat chưa được nối với SDK/web session."}
 
 
 @router.post("/sync/facebook/messages")
@@ -285,5 +292,5 @@ def sync_facebook_messages(payload: OmniSyncMessagesRequest):
     return {
         "synced_conversations": 0,
         "synced_messages": 0,
-        "status": "stub — Facebook SDK not installed",
+        "status": "Đồng bộ Facebook trong OmniChat chưa được nối với SDK/web session.",
     }

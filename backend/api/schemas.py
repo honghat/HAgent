@@ -64,3 +64,72 @@ class WorkspaceResponse(BaseModel):
     tools: list[dict] = []
     todos: list[dict] = []
     summary: dict = {}
+
+
+class OmniConversation(BaseModel):
+    id: str
+    sender: str
+    content: str = ""
+    channel: str
+    avatar: str = ""
+    is_pinned: bool = False
+    unread: bool = False
+    thread_type: str = "personal"
+    external_id: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class OmniMessage(BaseModel):
+    id: str
+    sender_type: str
+    content: str = ""
+    reply_to: dict | None = None
+    external_author_name: str | None = None
+    reactions: dict = {}
+    status: str = "sent"
+    created_at: str | None = None
+
+
+class OmniContact(BaseModel):
+    id: str
+    sender: str
+    external_id: str = ""
+    avatar: str = ""
+    has_conversation: bool = False
+    channel: str
+
+
+class OmniStats(BaseModel):
+    sent: int = 0
+    received: int = 0
+    total: int = 0
+    by_conversation: list[dict] = []
+
+
+class OmniSendMessageRequest(BaseModel):
+    content: str = Field(min_length=1)
+    reply_to_id: str | None = None
+
+
+class OmniRenameRequest(BaseModel):
+    custom_name: str = Field(min_length=1, max_length=200)
+
+
+class OmniReactionRequest(BaseModel):
+    emoji: str = Field(min_length=1, max_length=32)
+
+
+class OmniSyncMessagesRequest(BaseModel):
+    maxThreads: int = Field(default=12, ge=1, le=500)
+    maxMessages: int = Field(default=30, ge=1, le=500)
+
+
+class OmniConnectFacebookRequest(BaseModel):
+    cookie: str = Field(min_length=1)
+
+
+class OmniQRStatusResponse(BaseModel):
+    session: str
+    status: str
+    detail: str | None = None

@@ -762,11 +762,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if action == "on":
                 os.system("killall hbbs hbbr 2>/dev/null; kill -9 $(lsof -ti :8006 :8007) 2>/dev/null &")
                 await asyncio.sleep(0.5)
-                os.system("bash /Users/nguyenhat/Hạt Nguyễn/scripts/rustdesk-on.sh &")
+                os.system("bash /Users/nguyenhat/HAgent/scripts/rustdesk-on.sh &")
                 await query.edit_message_text("🖥 <b>RustDesk</b>\n🟢 Đã bật.", parse_mode="HTML")
             else:
                 os.system("killall hbbs hbbr RustDesk 2>/dev/null")
-                os.system("bash /Users/nguyenhat/Hạt Nguyễn/scripts/rustdesk-off.sh &")
+                os.system("bash /Users/nguyenhat/HAgent/scripts/rustdesk-off.sh &")
                 await query.edit_message_text("🖥 <b>RustDesk</b>\n🔴 Đã tắt.", parse_mode="HTML")
         except Exception as e:
             await query.edit_message_text(f"❌ Lỗi: {_esc(str(e))}", parse_mode="HTML")

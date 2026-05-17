@@ -36,15 +36,17 @@ Quy tắc:
 
 def resolve_user_id(authorization: str | None) -> str:
     token = (authorization or "").replace("Bearer ", "").strip() or DEFAULT_SESSION_TOKEN
-    if not HAGENT_DB_PATH.exists():
+    try:
+        from api.services.db import get_connection
+        with get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT user_id FROM sessions WHERE id = ?", (token,)).fetchone()
+            if row and row["user_id"]:
+                return str(row["user_id"])
+            user = conn.execute("SELECT id FROM users WHERE username = ?", (DEFAULT_USERNAME,)).fetchone()
+            return str(user["id"]) if user else DEFAULT_USERNAME
+    except Exception:
         return DEFAULT_USERNAME
-    with sqlite3.connect(HAGENT_DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT user_id FROM sessions WHERE id = ?", (token,)).fetchone()
-        if row and row["user_id"]:
-            return str(row["user_id"])
-        user = conn.execute("SELECT id FROM users WHERE username = ?", (DEFAULT_USERNAME,)).fetchone()
-        return str(user["id"]) if user else DEFAULT_USERNAME
 
 
 def _parse_json(raw: str) -> dict | None:

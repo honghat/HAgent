@@ -10,7 +10,7 @@ mkdir -p "$LOG_DIR"
 echo "Starting HAgent Services at $(date)" >> "$LOG_DIR/startup.log"
 
 # Clean up existing processes
-lsof -ti:8004,8010,3004 | xargs kill -9 2>/dev/null || true
+lsof -ti:8004,8006,8010,3004 | xargs kill -9 2>/dev/null || true
 
 # Start Backend
 echo "Starting Backend..." >> "$LOG_DIR/startup.log"

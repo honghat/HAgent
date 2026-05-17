@@ -156,7 +156,7 @@ registry.register(
         "required": ["query"]
     },
     handler=search_user_wiki,
-    description="Search your private HAgent Wiki memory for facts, snippets, and learned knowledge.",
+    description="Search your private HAgent Wiki memory for facts, snippets, and learned knowledge. This queries the real SQLite database (data/hagent.db) — it will return empty only if nothing matches the query. Use list_wiki first to see all entries.",
     emoji="📚"
 )
 
@@ -208,7 +208,7 @@ registry.register(
         "required": ["entry_id"]
     },
     handler=delete_user_wiki,
-    description="Delete a wiki entry by its ID.",
+    description="Delete a wiki entry by its ID. Use list_wiki first to find the entry ID — do NOT guess or assume IDs.",
     emoji="🗑️"
 )
 
@@ -221,6 +221,6 @@ registry.register(
         "required": []
     },
     handler=list_user_wiki,
-    description="List all wiki entries with their IDs and titles.",
+    description="List all wiki entries with their IDs and titles. ALWAYS call this first when asked about wiki — do NOT guess or assume what exists in the database. The wiki is stored in data/hagent.db and already contains real entries.",
     emoji="📋"
 )

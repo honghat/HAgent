@@ -16,10 +16,5 @@
     <string>/Users/nguyenhat/HAgent/logs/auto-shutdown-remote.log</string>
     <key>StandardErrorPath</key>
     <string>/Users/nguyenhat/HAgent/logs/auto-shutdown-remote.log</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>SSH_PASSWORD</key>
-        <string>NgocNhi@1811</string>
-    </dict>
 </dict>
 </plist>

@@ -294,6 +294,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  💻 /bat — Bật máy (WOL)\n"
         "  🔌 /tat — Tắt máy (SSH)\n"
         "  🟢 /rustdesk — Bật/tắt RustDesk\n"
+        "  💾 /smb — Mount ổ đĩa remote\n"
         "  🤖 /chuyenmohinh — Đổi AI\n\n"
         "<b>🛠 DỊCH VỤ REMOTE:</b>\n"
         "  🚀 /lmstudio — LM Studio Remote\n"
@@ -486,6 +487,20 @@ async def rustdesk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]]
     await update.message.reply_text(
         "🖥 <b>RustDesk Server</b>\nChọn hành động:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML",
+    )
+
+async def mount_smb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mount remote SMB disks — inline buttons."""
+    keyboard = [[
+        InlineKeyboardButton("💾 4TB (My4TBShare)", callback_data="smb:mount:4tb"),
+        InlineKeyboardButton("💿 1TB (WindowsShare)", callback_data="smb:mount:1tb"),
+        InlineKeyboardButton("💻 238GB SSD (SystemDisk)", callback_data="smb:mount:sys"),
+        InlineKeyboardButton("🖥 Pi PiShare (100.124.52.107)", callback_data="smb:mount:pi"),
+    ]]
+    await update.message.reply_text(
+        "💽 <b>Remote SMB Mount</b>\nChọn ổ để mount:",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML",
     )
@@ -771,6 +786,32 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await query.edit_message_text(f"❌ Lỗi: {_esc(str(e))}", parse_mode="HTML")
 
+    elif data.startswith("smb:mount:"):
+        disk = data.split(":", 2)[2]
+        if disk == "4tb":
+            ip, share, user = "100.69.50.64", "My4TBShare", "hatnguyen"
+        elif disk == "1tb":
+            ip, share, user = "100.69.50.64", "WindowsShare", "hatnguyen"
+        elif disk == "sys":
+            ip, share, user = "100.69.50.64", "SystemDisk", "hatnguyen"
+        elif disk == "pi":
+            ip, share, user = "100.124.52.107", "PiShare", "pi"
+        else:
+            await query.edit_message_text("❌ Unknown disk", parse_mode="HTML")
+            return
+        await query.edit_message_text(f"⏳ Đang mount {share} ({ip})...", parse_mode="HTML")
+        result = await asyncio.create_subprocess_exec(
+            "bash", "/Users/nguyenhat/HAgent/scripts/mount-smb.sh", ip, share, user,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await result.communicate()
+        out = (stdout + stderr).decode().strip()
+        if "✅" in out:
+            await query.edit_message_text(f"✅ <b>Mounted {share}</b>\n<code>{_esc(out[:200])}</code>", parse_mode="HTML")
+        else:
+            await query.edit_message_text(f"❌ <b>Mount {share} failed</b>\n<code>{_esc(out[:200])}</code>", parse_mode="HTML")
+
 
 # ── Main ────────────────────────────────────────────────────────────
 
@@ -792,6 +833,7 @@ def main():
     app.add_handler(CommandHandler("thoitiet", weather))
     app.add_handler(CommandHandler("tinmoi", news))
     app.add_handler(CommandHandler("rustdesk", rustdesk))
+    app.add_handler(CommandHandler("smb", mount_smb))
     app.add_handler(CommandHandler("chuyenmohinh", change_model))
     app.add_handler(CommandHandler("lmstudio", lmstudio_service))
     app.add_handler(CommandHandler("lmstudio_local", lmstudio_local))
@@ -827,6 +869,7 @@ def main():
                 BotCommand("bat", "💻 Bật máy (WOL)"),
                 BotCommand("tat", "🔌 Tắt máy (SSH)"),
                 BotCommand("rustdesk", "🟢 Bật/tắt RustDesk"),
+                BotCommand("smb", "💾 Mount 4TB remote"),
                 BotCommand("chuyenmohinh", "🤖 Đổi AI"),
                 BotCommand("lmstudio", "🚀 LM Studio Remote"),
                 BotCommand("lmstudio_local", "💻 LM Studio Local"),

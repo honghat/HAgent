@@ -636,8 +636,8 @@ export default function OmniChat({ token, provider }) {
       if (savedAttachments.length > 0) {
         setUploading(true)
         const formData = new FormData()
-        savedAttachments.forEach((file, idx) => {
-          formData.append(`file${idx}`, file)
+        savedAttachments.forEach(file => {
+          formData.append('files', file)
         })
         
         const uploadRes = await fetch('/api/omni/upload', {
@@ -731,6 +731,30 @@ export default function OmniChat({ token, provider }) {
 
   function removeAttachment(index) {
     setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function handlePaste(e) {
+    const items = e.clipboardData?.items
+    if (!items) return
+    
+    const imageFiles = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          imageFiles.push(file)
+        }
+      }
+    }
+    
+    if (imageFiles.length > 0) {
+      e.preventDefault()
+      // Limit to 5 total attachments
+      const newFiles = imageFiles.slice(0, 5 - attachments.length)
+      setAttachments(prev => [...prev, ...newFiles])
+      setStatus(`Đã dán ${newFiles.length} ảnh từ clipboard`)
+    }
   }
 
   async function deleteConversation(conv) {
@@ -1494,50 +1518,102 @@ export default function OmniChat({ token, provider }) {
                   </div>
                 </div>
               )}
-              <form onSubmit={sendMessage} className="relative flex gap-2 border-t border-black/[0.06] bg-white p-3 pb-safe">
-                {visibleTelegramCommands.length > 0 && (
-                  <div className="absolute bottom-[52px] left-3 right-14 z-20 overflow-hidden rounded-md border border-black/[0.08] bg-white shadow-lg">
-                    {visibleTelegramCommands.map(item => (
-                      <button
-                        key={item.command}
-                        type="button"
-                        onClick={() => setDraft(`/${item.command} `)}
-                        className="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-gray-50"
-                      >
-                        <span className="shrink-0 text-[13px] font-semibold text-gray-950">/{item.command}</span>
-                        <span className="min-w-0 text-[12px] text-gray-500">{item.description}</span>
-                      </button>
+              <form onSubmit={sendMessage} className="relative flex flex-col gap-2 border-t border-black/[0.06] bg-white p-3 pb-safe">
+                {replyTo && (
+                  <div className="flex items-center gap-2 rounded-lg border border-black/[0.06] bg-gray-50 px-3 py-2">
+                    <Reply className="h-4 w-4 shrink-0 text-gray-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold text-gray-500">Trả lời</p>
+                      <p className="truncate text-[12px] text-gray-700">{messagePreview(replyTo.content)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyTo(null)}
+                      className="h-6 w-6 shrink-0 rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 inline-flex items-center justify-center"
+                      title="Hủy reply"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+                {attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 rounded-lg border border-black/[0.06] bg-gray-50 p-2">
+                    {attachments.map((file, index) => (
+                      <div key={index} className="group relative">
+                        <div className="h-16 w-16 overflow-hidden rounded-lg border border-black/[0.06] bg-white">
+                          {file.type.startsWith('image/') ? (
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={file.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-gray-400">
+                              <Paperclip className="h-6 w-6" />
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 inline-flex items-center justify-center shadow-sm"
+                          title="Xóa"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        <p className="mt-1 truncate text-[9px] text-gray-500" style={{ maxWidth: '64px' }}>
+                          {file.name}
+                        </p>
+                      </div>
                     ))}
                   </div>
                 )}
-                <input
-                  type="file"
-                  id="file-upload"
-                  multiple
-                  accept="image/*,application/pdf,.doc,.docx,.txt,.zip,.rar"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50"
-                  title="Đính kèm file"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </label>
-                <input
-                  value={draft}
-                  onChange={e => setDraft(e.target.value)}
-                  placeholder="Nhập phản hồi"
-                  className="min-w-0 flex-1 rounded-md border border-black/[0.06] bg-gray-50 px-3 py-2 text-[13px] outline-none focus:border-gray-300"
-                />
-                <button
-                  disabled={sending || uploading || (!draft.trim() && attachments.length === 0)}
-                  className="inline-flex h-9 items-center gap-2 rounded-md bg-gray-950 px-3 text-[12px] font-semibold text-white disabled:opacity-40"
-                >
-                  <Send className="h-4 w-4" />
-                  {uploading ? 'Đang tải...' : 'Gửi'}
-                </button>
+                <div className="flex gap-2">
+                  {visibleTelegramCommands.length > 0 && (
+                    <div className="absolute bottom-[52px] left-3 right-14 z-20 overflow-hidden rounded-md border border-black/[0.08] bg-white shadow-lg">
+                      {visibleTelegramCommands.map(item => (
+                        <button
+                          key={item.command}
+                          type="button"
+                          onClick={() => setDraft(`/${item.command} `)}
+                          className="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-gray-50"
+                        >
+                          <span className="shrink-0 text-[13px] font-semibold text-gray-950">/{item.command}</span>
+                          <span className="min-w-0 text-[12px] text-gray-500">{item.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    id="file-upload"
+                    multiple
+                    accept="image/*,application/pdf,.doc,.docx,.txt,.zip,.rar"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50"
+                    title="Đính kèm file"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </label>
+                  <input
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onPaste={handlePaste}
+                    placeholder="Nhập phản hồi (hoặc dán ảnh Cmd+V)"
+                    className="min-w-0 flex-1 rounded-md border border-black/[0.06] bg-gray-50 px-3 py-2 text-[13px] outline-none focus:border-gray-300"
+                  />
+                  <button
+                    disabled={sending || uploading || (!draft.trim() && attachments.length === 0)}
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-gray-950 px-3 text-[12px] font-semibold text-white disabled:opacity-40"
+                  >
+                    <Send className="h-4 w-4" />
+                    {uploading ? 'Đang tải...' : 'Gửi'}
+                  </button>
+                </div>
               </form>
             </>
           ) : (

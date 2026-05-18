@@ -7,7 +7,9 @@ import queue
 import asyncio
 import base64
 import io
+import logging
 import re
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -16,8 +18,10 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi import APIRouter, HTTPException, Request, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import List
 from PIL import Image, ImageOps
 
 from api.schemas import (
@@ -52,6 +56,7 @@ from api.services.omni_store import (
 )
 from api.services.db import get_connection
 from api.services.user_store import resolve_user_id
+from api.services.agent_reply import generate_reply
 
 router = APIRouter(prefix="/omni", tags=["OmniChat"])
 
@@ -61,6 +66,17 @@ ZALO_SEND_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_br
 ZALO_LISTEN_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_listen_bridge.py"
 
 
+class OmniAgentReplyRequest(BaseModel):
+    provider: str | None = None
+    model: str | None = None
+
+
+class OmniAgentAutoReplyToggleRequest(BaseModel):
+    enabled: bool
+    provider: str | None = None
+    model: str | None = None
+
+
 def _get_user_id(request: Request) -> str:
     auth = request.headers.get("authorization", "")
     token = auth.replace("Bearer ", "").strip() or request.query_params.get("t", "hat")
@@ -68,6 +84,211 @@ def _get_user_id(request: Request) -> str:
     if not uid:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return uid
+
+
+def _resolve_omni_conversation(id: str, user_id: str) -> dict | None:
+    conv = get_conversation(id)
+    if conv:
+        return conv
+    with get_connection() as conn:
+        contact = conn.execute(
+            """SELECT platform, external_id, name, avatar_url
+               FROM omni_contacts
+               WHERE id = ? AND user_id = ?
+               LIMIT 1""",
+            (id, user_id),
+        ).fetchone()
+    if not contact or not contact["external_id"]:
+        return None
+    return ensure_conversation(
+        user_id,
+        contact["platform"],
+        contact["name"] or contact["external_id"],
+        contact["external_id"],
+        "user",
+        contact["avatar_url"] or "",
+    )
+
+
+def _agent_session_id(user_id: str, conversation_id: str) -> str:
+    return f"omni-agent-{user_id[:8]}-{conversation_id}"
+
+
+def _latest_incoming_message_id(conversation_id: str) -> str:
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT id FROM omni_messages
+               WHERE conversation_id = ? AND role != 'user'
+               ORDER BY created_at DESC LIMIT 1""",
+            (conversation_id,),
+        ).fetchone()
+    return str(row["id"] or "") if row else ""
+
+
+def _get_agent_auto_reply_state(user_id: str, conversation_id: str) -> dict:
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT * FROM omni_agent_auto_reply
+               WHERE user_id = ? AND conversation_id = ?""",
+            (user_id, conversation_id),
+        ).fetchone()
+    if row:
+        return {
+            "enabled": bool(row["enabled"]),
+            "session_id": row["session_id"] or _agent_session_id(user_id, conversation_id),
+            "provider": row["provider"] or "",
+            "model": row["model"] or "",
+            "last_processed_message_id": row["last_processed_message_id"] or "",
+            "last_error": row["last_error"] or "",
+        }
+    return {
+        "enabled": False,
+        "session_id": _agent_session_id(user_id, conversation_id),
+        "provider": "",
+        "model": "",
+        "last_processed_message_id": "",
+        "last_error": "",
+    }
+
+
+def _set_agent_auto_reply_state(
+    user_id: str,
+    conversation_id: str,
+    enabled: bool,
+    provider: str | None = None,
+    model: str | None = None,
+) -> dict:
+    session_id = _agent_session_id(user_id, conversation_id)
+    last_processed = _latest_incoming_message_id(conversation_id) if enabled else ""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO omni_agent_auto_reply
+               (user_id, conversation_id, enabled, session_id, provider, model,
+                last_processed_message_id, last_error, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, '', datetime('now', 'localtime'))
+               ON CONFLICT(user_id, conversation_id) DO UPDATE SET
+                 enabled = excluded.enabled,
+                 session_id = excluded.session_id,
+                 provider = COALESCE(excluded.provider, omni_agent_auto_reply.provider),
+                 model = COALESCE(excluded.model, omni_agent_auto_reply.model),
+                 last_processed_message_id = excluded.last_processed_message_id,
+                 last_error = '',
+                 updated_at = datetime('now', 'localtime')""",
+            (
+                user_id,
+                conversation_id,
+                1 if enabled else 0,
+                session_id,
+                provider,
+                model,
+                last_processed,
+            ),
+        )
+    return _get_agent_auto_reply_state(user_id, conversation_id)
+
+
+def _build_agent_reply_for_conversation(
+    uid: str,
+    conv: dict,
+    provider: str | None,
+    model: str | None,
+) -> tuple[str, dict, str]:
+    msgs = get_conversation_messages(conv["id"], limit=40)
+    incoming = None
+    incoming_index = -1
+    for idx in range(len(msgs) - 1, -1, -1):
+        msg = msgs[idx]
+        if msg.get("sender_type") == "assistant" and str(msg.get("content") or "").strip():
+            incoming = msg
+            incoming_index = idx
+            break
+    if not incoming:
+        raise HTTPException(status_code=400, detail="Chưa có tin nhắn đến để agent trả lời.")
+
+    history = []
+    for msg in msgs[:incoming_index]:
+        content = str(msg.get("content") or "").strip()
+        if not content:
+            continue
+        sender = msg.get("sender_type")
+        if sender == "assistant":
+            history.append({"role": "user", "content": content})
+        elif sender == "user":
+            history.append({"role": "assistant", "content": content})
+
+    state = _get_agent_auto_reply_state(uid, conv["id"])
+    try:
+        reply, usage = generate_reply(
+            history,
+            str(incoming.get("content") or ""),
+            provider or state.get("provider") or None,
+            model or state.get("model") or None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return reply, usage, str(incoming.get("id") or "")
+
+
+def _mark_agent_auto_reply_result(
+    user_id: str,
+    conversation_id: str,
+    message_id: str,
+    error_text: str = "",
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE omni_agent_auto_reply
+               SET last_processed_message_id = COALESCE(NULLIF(?, ''), last_processed_message_id),
+                   last_error = ?,
+                   updated_at = datetime('now', 'localtime')
+               WHERE user_id = ? AND conversation_id = ?""",
+            (message_id, error_text[:500], user_id, conversation_id),
+        )
+
+
+def _run_agent_auto_reply_for_incoming(
+    user_id: str,
+    conversation_id: str,
+    incoming_message_id: str,
+) -> None:
+    state = _get_agent_auto_reply_state(user_id, conversation_id)
+    if not state.get("enabled"):
+        return
+    if incoming_message_id and state.get("last_processed_message_id") == incoming_message_id:
+        return
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE omni_agent_auto_reply
+               SET last_processed_message_id = ?, last_error = '',
+                   updated_at = datetime('now', 'localtime')
+               WHERE user_id = ? AND conversation_id = ?""",
+            (incoming_message_id, user_id, conversation_id),
+        )
+    conv = get_conversation(conversation_id)
+    if not conv:
+        return
+    try:
+        reply, _usage, _incoming_id = _build_agent_reply_for_conversation(
+            user_id,
+            dict(conv),
+            state.get("provider") or None,
+            state.get("model") or None,
+        )
+        _send_omni_text(user_id, dict(conv), reply)
+        _mark_agent_auto_reply_result(user_id, conversation_id, incoming_message_id, "")
+    except Exception as exc:  # noqa: BLE001
+        detail = getattr(exc, "detail", None) or str(exc)
+        logging.exception("Agent auto reply failed for %s", conversation_id)
+        _mark_agent_auto_reply_result(user_id, conversation_id, incoming_message_id, str(detail))
+
+
+def _start_agent_auto_reply_for_incoming(user_id: str, conversation_id: str, incoming_message_id: str) -> None:
+    thread = threading.Thread(
+        target=_run_agent_auto_reply_for_incoming,
+        args=(user_id, conversation_id, incoming_message_id),
+        daemon=True,
+    )
+    thread.start()
 
 
 # ── SSE Event Bus ──────────────────────────────────────────────────────────
@@ -104,11 +325,11 @@ def get_conversation_messages_endpoint(
     limit: int = Query(100, le=500),
     before: str | None = Query(None),
 ):
-    _get_user_id(request)
-    conv = get_conversation(id)
+    uid = _get_user_id(request)
+    conv = _resolve_omni_conversation(id, uid)
     if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    msgs = get_conversation_messages(id, limit=limit, before_id=before)
+        raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
+    msgs = get_conversation_messages(conv["id"], limit=limit, before_id=before)
     return [
         OmniMessage(
             id=m["id"],
@@ -124,22 +345,22 @@ def get_conversation_messages_endpoint(
     ]
 
 
-@router.post("/conversations/{id}/messages")
-def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
-    uid = _get_user_id(request)
-    conv = get_conversation(id)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
+def _send_omni_text(
+    uid: str,
+    conv: dict,
+    content: str,
+    reply_to_id: str | None = None,
+) -> dict:
+    conversation_id = conv["id"]
     external_id = conv.get("external_id") or ""
-    platform = conv.get("platform") or ""
+    platform = conv.get("platform") or conv.get("channel") or ""
     send_meta = {}
     msg_id = create_message(
-        conversation_id=id,
+        conversation_id=conversation_id,
         user_id=uid,
         role="user",
-        content=payload.content,
-        reply_to_id=payload.reply_to_id or None,
+        content=content,
+        reply_to_id=reply_to_id or None,
         platform=platform,
     )
     try:
@@ -153,12 +374,12 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
                     "cookie": cookie,
                     "imei": imei,
                     "target": external_id,
-                    "text": payload.content,
+                    "text": content,
                     "thread_type": conv.get("thread_type") or "user",
-                    "action": "reply" if payload.reply_to_id else "send",
-                    "reply_to": _get_zalo_reply_meta(payload.reply_to_id, uid),
+                    "action": "reply" if reply_to_id else "send",
+                    "reply_to": _get_zalo_reply_meta(reply_to_id, uid),
                 },
-                timeout=45,
+                timeout=25,
             )
         elif platform == "telegram" and external_id:
             from api.routers.telegram import send_real_message
@@ -167,13 +388,15 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
                 send_real_message(
                     uid,
                     external_id,
-                    payload.content,
-                    _get_telegram_reply_external_id(payload.reply_to_id, uid),
+                    content,
+                    _get_telegram_reply_external_id(reply_to_id, uid),
                 )
             )
-    except Exception:
+    except Exception as e:
         delete_message(msg_id)
+        logging.error("Failed to send message to %s: %s", platform, e)
         raise
+
     external_msg_id = send_meta.get("msg_id") or send_meta.get("cli_msg_id") or ""
     external_cli_msg_id = send_meta.get("cli_msg_id") or ""
     external_msg_type = send_meta.get("msg_type") or "webchat"
@@ -191,12 +414,12 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
 
     _broadcast({
         "type": "message",
-        "conversationId": id,
+        "conversationId": conversation_id,
         "message": {
             "id": msg_id,
             "sender_type": "user",
-            "content": payload.content,
-            "reply_to_id": payload.reply_to_id,
+            "content": content,
+            "reply_to_id": reply_to_id or "",
             "status": "sent",
         },
     })
@@ -204,11 +427,80 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
     return {"id": msg_id, "status": "sent"}
 
 
+@router.post("/conversations/{id}/messages")
+def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
+    uid = _get_user_id(request)
+    conv = _resolve_omni_conversation(id, uid)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
+    return _send_omni_text(uid, conv, payload.content, payload.reply_to_id or None)
+
+
+@router.post("/conversations/{id}/agent-reply")
+def generate_agent_auto_reply(id: str, payload: OmniAgentReplyRequest, request: Request):
+    uid = _get_user_id(request)
+    conv = _resolve_omni_conversation(id, uid)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
+
+    reply, usage, _incoming_id = _build_agent_reply_for_conversation(
+        uid,
+        conv,
+        payload.provider,
+        payload.model,
+    )
+    return {"content": reply, "usage": usage, "conversation_id": conv["id"]}
+
+
+@router.get("/conversations/{id}/agent-auto-reply")
+def get_agent_auto_reply(id: str, request: Request):
+    uid = _get_user_id(request)
+    conv = _resolve_omni_conversation(id, uid)
+    if not conv:
+        return {
+            "conversation_id": id,
+            "enabled": False,
+            "session_id": _agent_session_id(uid, id),
+            "provider": "",
+            "model": "",
+            "last_processed_message_id": "",
+            "last_error": "",
+        }
+    state = _get_agent_auto_reply_state(uid, conv["id"])
+    return {"conversation_id": conv["id"], **state}
+
+
+@router.post("/conversations/{id}/agent-auto-reply")
+def toggle_agent_auto_reply(id: str, payload: OmniAgentAutoReplyToggleRequest, request: Request):
+    uid = _get_user_id(request)
+    conv = _resolve_omni_conversation(id, uid)
+    if not conv:
+        return {
+            "conversation_id": id,
+            "enabled": False,
+            "session_id": _agent_session_id(uid, id),
+            "provider": payload.provider or "",
+            "model": payload.model or "",
+            "last_processed_message_id": "",
+            "last_error": "Không tìm thấy hội thoại.",
+        }
+    if conv.get("platform") not in {"zalo", "telegram"} and conv.get("channel") not in {"zalo", "telegram"}:
+        raise HTTPException(status_code=400, detail="Agent Auto Reply chỉ hỗ trợ Zalo/Telegram.")
+    state = _set_agent_auto_reply_state(
+        uid,
+        conv["id"],
+        payload.enabled,
+        payload.provider,
+        payload.model,
+    )
+    return {"conversation_id": conv["id"], **state}
+
+
 @router.delete("/conversations/{id}")
 def delete_conversation_endpoint(id: str, request: Request):
     _get_user_id(request)
     if not delete_conversation(id):
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
     return {"deleted": True}
 
 
@@ -225,7 +517,7 @@ def toggle_pin(id: str, request: Request):
     _get_user_id(request)
     new_state = toggle_pin_conversation(id)
     if new_state is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
     return {"pinned": new_state}
 
 
@@ -233,7 +525,7 @@ def toggle_pin(id: str, request: Request):
 def rename(id: str, payload: OmniRenameRequest, request: Request):
     _get_user_id(request)
     if not rename_conversation(id, payload.custom_name):
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
     return {"customName": payload.custom_name}
 
 
@@ -324,6 +616,67 @@ def get_contacts(
     return [OmniContact(**c) for c in list_contacts(uid, platform)]
 
 
+# ── File Upload ────────────────────────────────────────────────────────────
+
+
+@router.post("/upload")
+async def upload_files(request: Request, files: List[UploadFile] = File(...)):
+    """Upload files and return URLs for embedding in messages."""
+    uid = _get_user_id(request)
+    
+    # Use existing data directory
+    upload_dir = BACKEND_ROOT / "data" / "omni_uploads" / uid
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    urls = []
+    for file in files[:5]:  # Limit to 5 files
+        # Generate unique filename
+        ext = Path(file.filename or "file").suffix
+        filename = f"{uuid.uuid4().hex}{ext}"
+        filepath = upload_dir / filename
+        
+        # Save file
+        content = await file.read()
+        with open(filepath, "wb") as f:
+            f.write(content)
+        
+        # Generate URL (relative to API)
+        url = f"/api/omni/files/{uid}/{filename}"
+        urls.append(url)
+    
+    return {"urls": urls, "count": len(urls)}
+
+
+@router.get("/files/{user_id}/{filename}")
+async def get_uploaded_file(user_id: str, filename: str):
+    """Serve uploaded files."""
+    filepath = BACKEND_ROOT / "data" / "omni_uploads" / user_id / filename
+    
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Determine content type
+    ext = filepath.suffix.lower()
+    content_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".pdf": "application/pdf",
+        ".txt": "text/plain",
+        ".doc": "application/msword",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    content_type = content_types.get(ext, "application/octet-stream")
+    
+    with open(filepath, "rb") as f:
+        content = f.read()
+    
+    from fastapi.responses import Response
+    return Response(content=content, media_type=content_type)
+
+
 # ── Stats ──────────────────────────────────────────────────────────────────
 
 
@@ -352,17 +705,20 @@ def event_stream(request: Request):
                 _omni_listeners.remove(events)
 
     def event_stream_gen():
+        last_keepalive = time.time()
         try:
             yield f"data: {json.dumps({'type': 'connected'}, ensure_ascii=False)}\n\n".encode("utf-8")
             while True:
-                event = events.get(timeout=30)
-                if event is None:
-                    break
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode("utf-8")
-                # Also emit 'omni' event type that frontend listens for
-                yield f"event: omni\ndata: {json.dumps(event, ensure_ascii=False)}\n\n".encode("utf-8")
-        except queue.Empty:
-            yield ": keepalive\n\n".encode("utf-8")
+                try:
+                    event = events.get(timeout=15)
+                    if event is None:
+                        break
+                    yield f"event: omni\ndata: {json.dumps(event, ensure_ascii=False)}\n\n".encode("utf-8")
+                    last_keepalive = time.time()
+                except queue.Empty:
+                    if time.time() - last_keepalive > 15:
+                        yield ": keepalive\n\n".encode("utf-8")
+                        last_keepalive = time.time()
         except GeneratorExit:
             _cleanup()
             raise
@@ -453,15 +809,18 @@ async def _find_zalo_qr_data(page) -> str:
 def _normalize_qr_data_uri(data_uri: str) -> str:
     if not data_uri.startswith("data:image/") or "," not in data_uri:
         return data_uri
-    header, encoded = data_uri.split(",", 1)
+    _header, encoded = data_uri.split(",", 1)
     try:
         raw = base64.b64decode(encoded)
-        image = Image.open(io.BytesIO(raw)).convert("RGB")
-        image = ImageOps.expand(image, border=max(24, image.width // 10), fill="white")
+        source = Image.open(io.BytesIO(raw)).convert("RGBA")
+        image = Image.new("RGBA", source.size, "white")
+        image.alpha_composite(source)
+        image = image.convert("RGB")
+        image = ImageOps.expand(image, border=max(32, image.width // 8), fill="white")
         image = image.resize((image.width * 2, image.height * 2), Image.Resampling.NEAREST)
         out = io.BytesIO()
         image.save(out, format="PNG")
-        return f"{header},{base64.b64encode(out.getvalue()).decode('utf-8')}"
+        return f"data:image/png;base64,{base64.b64encode(out.getvalue()).decode('utf-8')}"
     except Exception:
         return data_uri
 
@@ -594,12 +953,16 @@ def _validate_zalo_session(cookie: str, imei: str) -> tuple[bool, str]:
 def _run_zalo_bridge(script: Path, payload: dict, timeout: int = 90) -> dict:
     if not script.exists():
         raise HTTPException(status_code=500, detail=f"Không tìm thấy Python Zalo bridge: {script.name}")
+    
+    # Reduce timeout for faster response
+    actual_timeout = min(timeout, 30)
+    
     proc = subprocess.run(
         [sys.executable, str(script)],
         input=json.dumps(payload, ensure_ascii=False),
         text=True,
         capture_output=True,
-        timeout=timeout,
+        timeout=actual_timeout,
     )
     try:
         data = _parse_bridge_json(proc.stdout)
@@ -802,18 +1165,22 @@ def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
         "author_name": str(message_object.get("dName") or ""),
         "content": _zalo_event_content(event),
     }
-    if _insert_zalo_message_once(user_id, conv["id"], msg, own_id=str(state.get("own_id") or "")):
+    inserted_message_id = _insert_zalo_message_once(user_id, conv["id"], msg, own_id=str(state.get("own_id") or ""))
+    if inserted_message_id:
         sender_type = "user" if str(state.get("own_id") or "") and msg["author_id"] == str(state.get("own_id") or "") else "assistant"
         _broadcast({
             "type": "message",
             "platform": "zalo",
             "conversationId": conv["id"],
             "message": {
+                "id": inserted_message_id,
                 "sender_type": sender_type,
                 "content": msg["content"],
                 "status": "received",
             },
         })
+        if sender_type == "assistant":
+            _start_agent_auto_reply_for_incoming(user_id, conv["id"], inserted_message_id)
 
 
 def _zalo_listener_reader(user_id: str, proc: subprocess.Popen, state: dict) -> None:
@@ -830,7 +1197,14 @@ def _zalo_listener_reader(user_id: str, proc: subprocess.Popen, state: dict) -> 
             if event.get("event") == "error":
                 state["error"] = event.get("error") or "Zalo listener lỗi."
                 break
-            _handle_zalo_listener_event(user_id, state, event)
+            try:
+                _handle_zalo_listener_event(user_id, state, event)
+            except sqlite3.OperationalError as exc:
+                state["error"] = f"Zalo listener DB bận: {exc}"
+                logging.warning("Zalo listener skipped one event due to sqlite error: %s", exc)
+            except Exception as exc:
+                state["error"] = f"Zalo listener event lỗi: {exc}"
+                logging.exception("Zalo listener failed to handle an event")
     finally:
         with _zalo_listeners_lock:
             current = _zalo_listeners.get(user_id)
@@ -900,10 +1274,10 @@ def _parse_bridge_json(output: str) -> dict:
     return {}
 
 
-def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own_id: str = "") -> bool:
+def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own_id: str = "") -> str:
     external_id = str(msg.get("external_id") or "")
     if not external_id:
-        return False
+        return ""
     with get_connection() as conn:
         exists = conn.execute(
             """SELECT 1 FROM omni_messages
@@ -911,7 +1285,7 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
             (conversation_id, external_id),
         ).fetchone()
         if exists:
-            return False
+            return ""
         author_id = str(msg.get("author_id") or "")
         role = "user" if own_id and author_id == own_id else "assistant"
         content = str(msg.get("content") or "")
@@ -943,9 +1317,17 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
                         pending["id"],
                     ),
                 )
-                update_conversation_preview(conversation_id, content[:200], role)
-                return False
+                conn.execute(
+                    """UPDATE omni_conversations
+                       SET last_message_preview = ?, last_message_sender = ?,
+                           last_message_at = datetime('now', 'localtime'),
+                           updated_at = datetime('now', 'localtime')
+                       WHERE id = ?""",
+                    (content[:200], role, conversation_id),
+                )
+                return ""
         created_at = datetime.now().isoformat()
+        message_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO omni_messages
                (id, conversation_id, user_id, role, content, platform, external_id,
@@ -953,7 +1335,7 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
                 external_author_name, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                str(uuid.uuid4()),
+                message_id,
                 conversation_id,
                 user_id,
                 role,
@@ -968,7 +1350,7 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
             ),
         )
     update_conversation_preview(conversation_id, str(msg.get("content") or "")[:200], role)
-    return True
+    return message_id
 
 
 def _cleanup_stale_zalo_group_conversations(user_id: str, active_thread_ids: set[str]) -> int:

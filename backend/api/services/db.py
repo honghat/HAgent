@@ -11,8 +11,9 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
@@ -229,6 +230,21 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (user_id, platform, external_id)
             );
+
+            CREATE TABLE IF NOT EXISTS omni_agent_auto_reply (
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                session_id TEXT NOT NULL,
+                provider TEXT,
+                model TEXT,
+                last_processed_message_id TEXT,
+                last_error TEXT DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, conversation_id),
+                FOREIGN KEY (conversation_id) REFERENCES omni_conversations(id) ON DELETE CASCADE
+            );
             """
         )
         _ensure_column(conn, "chat_sessions", "agent_id", "TEXT")
@@ -271,6 +287,8 @@ def init_db() -> None:
                 ON omni_messages(conversation_id, external_id);
             CREATE INDEX IF NOT EXISTS idx_omni_contacts_user_platform_external
                 ON omni_contacts(user_id, platform, external_id);
+            CREATE INDEX IF NOT EXISTS idx_omni_agent_auto_reply_enabled
+                ON omni_agent_auto_reply(user_id, conversation_id, enabled);
             """
         )
 

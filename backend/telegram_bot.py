@@ -200,6 +200,12 @@ async def _call_api(method: str, path: str, body: dict = None) -> Optional[dict]
 
 async def _mirror_omni_bot_message(update: Update, *, role: str, content: str, external_id: str) -> None:
     bot = update.get_bot()
+    if role == "user" and update.effective_user:
+        author_id = str(update.effective_user.id)
+        author_name = update.effective_user.full_name
+    else:
+        author_id = str(bot.id)
+        author_name = bot.first_name or "Telegram Bot"
     await _call_api(
         "post",
         "/api/telegram/bot/messages",
@@ -209,8 +215,8 @@ async def _mirror_omni_bot_message(update: Update, *, role: str, content: str, e
             "external_id": str(external_id),
             "role": role,
             "content": content,
-            "author_id": str(update.effective_user.id if role == "user" and update.effective_user else bot.id),
-            "author_name": update.effective_user.full_name if role == "user" and update.effective_user else (bot.first_name or "Telegram Bot"),
+            "author_id": author_id,
+            "author_name": author_name,
         },
     )
 

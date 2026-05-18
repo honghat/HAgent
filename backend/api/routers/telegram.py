@@ -35,6 +35,16 @@ _listeners: dict[str, dict] = {}
 _listeners_lock = threading.Lock()
 
 
+def _bot_account_id() -> str:
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    return token.split(":", 1)[0] if ":" in token else ""
+
+
+def _is_self_bot_thread(external_id: str) -> bool:
+    bot_id = _bot_account_id()
+    return bool(bot_id and str(external_id) == bot_id)
+
+
 def _get_user_id(request: Request) -> str:
     auth = request.headers.get("authorization", "")
     token = auth.replace("Bearer ", "").strip() or request.query_params.get("t", "hat")
@@ -131,9 +141,9 @@ def _insert_message_once(
     author_id: str = "",
     author_name: str = "",
     reply_to_id: str | None = None,
-) -> bool:
+) -> str:
     if not external_id:
-        return False
+        return ""
     with get_connection() as conn:
         exists = conn.execute(
             """SELECT 1 FROM omni_messages
@@ -141,7 +151,7 @@ def _insert_message_once(
             (conversation_id, external_id),
         ).fetchone()
         if exists:
-            return False
+            return ""
         if role == "user":
             pending = conn.execute(
                 """SELECT id FROM omni_messages
@@ -164,14 +174,15 @@ def _insert_message_once(
                     (external_id, author_id, author_name, reply_to_id, pending["id"]),
                 )
                 update_conversation_preview(conversation_id, content[:200], role)
-                return False
+                return ""
+        message_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO omni_messages
                (id, conversation_id, user_id, role, content, platform, external_id,
                 external_msg_type, external_author_id, external_author_name, reply_to_id, created_at)
                VALUES (?, ?, ?, ?, ?, 'telegram', ?, 'message', ?, ?, ?, ?)""",
             (
-                str(uuid.uuid4()),
+                message_id,
                 conversation_id,
                 user_id,
                 role,
@@ -184,7 +195,7 @@ def _insert_message_once(
             ),
         )
     update_conversation_preview(conversation_id, content[:200], role)
-    return True
+    return message_id
 
 
 async def _dialog_profile(dialog) -> tuple[str, str, str, str]:
@@ -216,6 +227,8 @@ async def _sync_client(user_id: str, client: TelegramClient, payload: OmniSyncMe
     async for dialog in client.iter_dialogs(limit=payload.maxThreads):
         external_id, title, thread_type, avatar = await _dialog_profile(dialog)
         if not external_id:
+            continue
+        if _is_self_bot_thread(external_id):
             continue
         active_thread_ids.add(external_id)
         upsert_contact(user_id, "telegram", external_id, title, avatar)
@@ -278,6 +291,8 @@ async def _listener_loop(user_id: str, session_string: str) -> None:
                 state["last_event_at"] = datetime.now().isoformat()
         chat = await event.get_chat()
         external_id = str(event.chat_id)
+        if _is_self_bot_thread(external_id):
+            return
         title = getattr(chat, "title", None) or " ".join(
             part for part in [getattr(chat, "first_name", ""), getattr(chat, "last_name", "")] if part
         ) or str(event.chat_id)
@@ -286,7 +301,7 @@ async def _listener_loop(user_id: str, session_string: str) -> None:
         conv = ensure_conversation(user_id, "telegram", title, external_id, thread_type, "")
         role = "user" if str(event.sender_id or "") == own_id or event.out else "assistant"
         reply_to_id = _find_local_reply_id(conv["id"], str(event.message.reply_to_msg_id or ""))
-        inserted = _insert_message_once(
+        inserted_message_id = _insert_message_once(
             user_id,
             conv["id"],
             external_id=str(event.message.id),
@@ -295,8 +310,8 @@ async def _listener_loop(user_id: str, session_string: str) -> None:
             author_id=str(event.sender_id or ""),
             reply_to_id=reply_to_id,
         )
-        if inserted:
-            from api.routers.omni import _broadcast
+        if inserted_message_id:
+            from api.routers.omni import _broadcast, _start_agent_auto_reply_for_incoming
 
             _broadcast(
                 {
@@ -305,11 +320,14 @@ async def _listener_loop(user_id: str, session_string: str) -> None:
                     "conversationId": conv["id"],
                     "message": {
                         "sender_type": role,
+                        "id": inserted_message_id,
                         "content": event.raw_text or "",
                         "status": "received",
                     },
                 }
             )
+            if role == "assistant":
+                _start_agent_auto_reply_for_incoming(user_id, conv["id"], inserted_message_id)
 
     @client.on(events.MessageDeleted)
     async def on_message_deleted(event):
@@ -571,7 +589,20 @@ async def ingest_bot_message(request: Request):
             ).fetchone()
         if recent:
             return {"inserted": False, "conversation_id": conv["id"]}
-    inserted = _insert_message_once(
+    elif role == "assistant":
+        with get_connection() as conn:
+            recent = conn.execute(
+                """SELECT id FROM omni_messages
+                   WHERE conversation_id = ?
+                     AND role = 'user'
+                     AND content = ?
+                     AND julianday(replace(created_at, 'T', ' ')) >= julianday('now', 'localtime', '-2 minutes')
+                   ORDER BY created_at DESC LIMIT 1""",
+                (conv["id"], content),
+            ).fetchone()
+        if recent:
+            return {"inserted": False, "conversation_id": conv["id"]}
+    inserted_message_id = _insert_message_once(
         user_id,
         conv["id"],
         external_id=external_id,
@@ -581,7 +612,7 @@ async def ingest_bot_message(request: Request):
         author_name=str(payload.get("author_name") or ""),
         reply_to_id=_find_local_reply_id(conv["id"], str(payload.get("reply_to_external_id") or "")),
     )
-    if inserted:
+    if inserted_message_id:
         from api.routers.omni import _broadcast
 
         _broadcast(
@@ -590,10 +621,19 @@ async def ingest_bot_message(request: Request):
                 "platform": "telegram",
                 "conversationId": conv["id"],
                 "message": {
+                    "id": inserted_message_id,
                     "sender_type": role,
                     "content": content,
                     "status": "received",
                 },
             }
         )
-    return {"inserted": inserted, "conversation_id": conv["id"]}
+    from api.routers.omni import _get_agent_auto_reply_state
+
+    state = _get_agent_auto_reply_state(user_id, conv["id"])
+    return {
+        "inserted": bool(inserted_message_id),
+        "conversation_id": conv["id"],
+        "agent_auto_reply_enabled": bool(state.get("enabled")),
+        "agent_session_id": state.get("session_id") or "",
+    }

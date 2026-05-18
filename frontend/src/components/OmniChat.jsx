@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Pencil, Pin, PinOff, QrCode, RefreshCw, Reply, Send, Settings, Smile, Trash2, UserRound, X } from 'lucide-react'
+import { ArrowLeft, Check, Pencil, Pin, PinOff, QrCode, RefreshCw, Reply, Send, Settings, Smile, Trash2, UserRound, X, Paperclip, Image as ImageIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 const AUTO_REFRESH_MS = 5000
@@ -18,9 +18,16 @@ async function omniApi(path, token, options = {}) {
       ...(options.headers || {}),
     },
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || data.error || data.message || 'OmniChat request failed')
-  return data
+  const data = await res.json().catch(() => null)
+  const message = data?.detail || data?.error || data?.message || `${res.status} ${res.statusText || 'OmniChat lỗi'}`
+  if (!res.ok) throw new Error(message)
+  return data || {}
+}
+
+function displayErrorMessage(err, fallback = '') {
+  const message = typeof err === 'string' ? err : (err?.message || '')
+  if (message === 'OmniChat request failed') return fallback || 'Không gọi được OmniChat.'
+  return message === 'Không tìm thấy hội thoại.' ? fallback : (message || fallback)
 }
 
 async function telegramApi(path, token, options = {}) {
@@ -93,6 +100,44 @@ function zaloJsonMediaFromRawText(text = '') {
   }
 }
 
+function formatMessageText(text) {
+  if (!text) return [{ type: 'text', content: '' }]
+  
+  const parts = []
+  let lastIndex = 0
+  
+  // Match **bold**, *italic*, `code`, ~~strikethrough~~, including bold text across lines.
+  const regex = /(\*\*([\s\S]+?)\*\*|\*([^*\n]+?)\*|`([^`\n]+?)`|~~([\s\S]+?)~~)/g
+  let match
+  
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before match
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) })
+    }
+    
+    // Add formatted text
+    if (match[2]) {
+      parts.push({ type: 'bold', content: match[2] })
+    } else if (match[3]) {
+      parts.push({ type: 'italic', content: match[3] })
+    } else if (match[4]) {
+      parts.push({ type: 'code', content: match[4] })
+    } else if (match[5]) {
+      parts.push({ type: 'strike', content: match[5] })
+    }
+    
+    lastIndex = regex.lastIndex
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.slice(lastIndex) })
+  }
+  
+  return parts.length > 0 ? parts : [{ type: 'text', content: text }]
+}
+
 function MessageBody({ content = '' }) {
   const markerMedia = String(content)
     .split('\n')
@@ -128,7 +173,23 @@ function MessageBody({ content = '' }) {
 
   return (
     <div className="space-y-2">
-      {visibleCleanText && !rawSticker && <p className="whitespace-pre-wrap break-words">{visibleCleanText}</p>}
+      {visibleCleanText && !rawSticker && (
+        <p className="whitespace-pre-wrap break-words">
+          {formatMessageText(visibleCleanText).map((part, partIdx) => {
+            if (part.type === 'bold') {
+              return <strong key={partIdx} className="font-semibold">{part.content}</strong>
+            } else if (part.type === 'italic') {
+              return <em key={partIdx} className="italic">{part.content}</em>
+            } else if (part.type === 'code') {
+              return <code key={partIdx} className="rounded bg-black/10 px-1 py-0.5 text-[0.9em] font-mono">{part.content}</code>
+            } else if (part.type === 'strike') {
+              return <del key={partIdx} className="line-through opacity-70">{part.content}</del>
+            } else {
+              return <span key={partIdx}>{part.content}</span>
+            }
+          })}
+        </p>
+      )}
       {media.map((item, index) => (
         item.type === 'image' ? (
           <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl">
@@ -169,6 +230,10 @@ function messagePreview(content = '') {
     .split('\n')
     .filter(line => !line.startsWith('__OMNI_MEDIA__'))
     .join(' ')
+    .replace(/\*\*([\s\S]+?)\*\*/g, '$1')
+    .replace(/\*([^*\n]+?)\*/g, '$1')
+    .replace(/~~([\s\S]+?)~~/g, '$1')
+    .replace(/`([^`\n]+?)`/g, '$1')
     .replace(IMAGE_URL_RE, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -226,7 +291,7 @@ function hasUsableQr(value) {
   return raw.startsWith('data:image/') && raw.length > 'data:image/png;base64,'.length + 24 && !raw.includes('STUB_')
 }
 
-export default function OmniChat({ token }) {
+export default function OmniChat({ token, provider }) {
   const [conversations, setConversations] = useState([])
   const [contacts, setContacts] = useState([])
   const [selectedId, setSelectedId] = useState('')
@@ -248,6 +313,8 @@ export default function OmniChat({ token }) {
   const [syncingTelegram, setSyncingTelegram] = useState(false)
   const [syncingZalo, setSyncingZalo] = useState(false)
   const [syncingFacebook, setSyncingFacebook] = useState(false)
+  const [agentAutoState, setAgentAutoState] = useState({ enabled: false, session_id: '', last_error: '' })
+  const [agentAutoSaving, setAgentAutoSaving] = useState(false)
   const [savingFacebook, setSavingFacebook] = useState(false)
   const [showFacebookConnect, setShowFacebookConnect] = useState(false)
   const [facebookCookie, setFacebookCookie] = useState('')
@@ -257,6 +324,8 @@ export default function OmniChat({ token }) {
   const [telegramCommands, setTelegramCommands] = useState([])
   const [renaming, setRenaming] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')
+  const [attachments, setAttachments] = useState([])
+  const [uploading, setUploading] = useState(false)
   const messagesPaneRef = useRef(null)
   const bottomRef = useRef(null)
   const selectedIdRef = useRef('')
@@ -311,6 +380,19 @@ export default function OmniChat({ token }) {
     setTodayStats(data || { sent: 0, received: 0, total: 0 })
   }
 
+  async function loadAgentAutoReply(id) {
+    if (!id) {
+      setAgentAutoState({ enabled: false, session_id: '', last_error: '' })
+      return
+    }
+    const data = await omniApi(`/conversations/${id}/agent-auto-reply`, token)
+    setAgentAutoState({
+      enabled: Boolean(data.enabled),
+      session_id: data.session_id || '',
+      last_error: data.last_error || '',
+    })
+  }
+
   function messagesAreNearBottom() {
     const el = messagesPaneRef.current
     if (!el) return true
@@ -335,7 +417,7 @@ export default function OmniChat({ token }) {
   useEffect(() => {
     loadConversations().catch(err => {
       setLoading(false)
-      setStatus(err.message)
+      setStatus(displayErrorMessage(err))
     })
     loadContacts().catch(() => { })
     loadTodayStats().catch(() => { })
@@ -343,7 +425,8 @@ export default function OmniChat({ token }) {
 
   useEffect(() => {
     selectedIdRef.current = selectedId
-    loadMessages(selectedId, { stickToBottom: true }).catch(err => setStatus(err.message))
+    loadMessages(selectedId, { stickToBottom: true }).catch(err => setStatus(displayErrorMessage(err)))
+    loadAgentAutoReply(selectedId).catch(() => setAgentAutoState({ enabled: false, session_id: '', last_error: '' }))
     setReplyTo(null)
     setReactionMenuId('')
     setRenaming(false)
@@ -362,41 +445,97 @@ export default function OmniChat({ token }) {
   useEffect(() => {
     if (!token) return undefined
     const events = new EventSource(`/api/omni/events?t=${encodeURIComponent(token)}`)
+    let lastEventTime = Date.now()
+    
     events.onopen = () => {
       setStatus(current => current === 'Mất kết nối realtime, đang tự nối lại...' || current === 'OmniChat request failed' ? '' : current)
     }
 
-    const scheduleReload = () => {
-      window.clearTimeout(reloadTimerRef.current)
-      reloadTimerRef.current = window.setTimeout(() => {
-        loadConversations({ quiet: true }).catch(err => setStatus(err.message))
-        loadContacts().catch(() => { })
-        loadTodayStats().catch(() => { })
-        const currentId = selectedIdRef.current
-        if (currentId) loadMessages(currentId).catch(err => setStatus(err.message))
-      }, 150)
-    }
-
-    events.addEventListener('omni', scheduleReload)
+    events.addEventListener('omni', (e) => {
+      lastEventTime = Date.now()
+      window.dispatchEvent(new CustomEvent('omni-sse-alive', { detail: { time: lastEventTime } }))
+      
+      try {
+        const event = JSON.parse(e.data)
+        
+        if (event.type === 'message') {
+          const currentId = selectedIdRef.current
+          if (currentId === event.conversationId) {
+            loadMessages(currentId, { stickToBottom: true }).catch(() => {})
+          }
+          loadConversations({ quiet: true }).catch(() => {})
+          loadTodayStats().catch(() => {})
+        } else if (event.type === 'message_deleted') {
+          const currentId = selectedIdRef.current
+          if (currentId) loadMessages(currentId).catch(() => {})
+          loadConversations({ quiet: true }).catch(() => {})
+        } else {
+          loadConversations({ quiet: true }).catch(() => {})
+          loadContacts().catch(() => {})
+          loadTodayStats().catch(() => {})
+          const currentId = selectedIdRef.current
+          if (currentId) loadMessages(currentId).catch(() => {})
+        }
+      } catch (err) {
+        console.error('SSE parse error:', err)
+      }
+    })
+    
     events.onerror = () => setStatus('Mất kết nối realtime, đang tự nối lại...')
 
     return () => {
-      window.clearTimeout(reloadTimerRef.current)
       events.close()
     }
   }, [token])
 
   useEffect(() => {
     if (!token) return undefined
+    let lastSseTime = Date.now()
+    
+    const handleSseAlive = (e) => {
+      lastSseTime = e.detail?.time || Date.now()
+    }
+    
+    window.addEventListener('omni-sse-alive', handleSseAlive)
+    
     const timer = window.setInterval(() => {
-      loadConversations({ quiet: true }).catch(() => { })
-      loadContacts().catch(() => { })
-      loadTodayStats().catch(() => { })
-      const currentId = selectedIdRef.current
-      if (currentId) loadMessages(currentId).catch(() => { })
+      const timeSinceLastSse = Date.now() - lastSseTime
+      if (timeSinceLastSse > 15000) {
+        loadConversations({ quiet: true }).catch(() => { })
+        loadContacts().catch(() => { })
+        loadTodayStats().catch(() => { })
+        const currentId = selectedIdRef.current
+        if (currentId) loadMessages(currentId).catch(() => { })
+      }
     }, AUTO_REFRESH_MS)
-    return () => window.clearInterval(timer)
+    
+    return () => {
+      window.removeEventListener('omni-sse-alive', handleSseAlive)
+      window.clearInterval(timer)
+    }
   }, [token])
+
+  useEffect(() => {
+    if (!token) return undefined
+    const timer = window.setInterval(async () => {
+      const shouldPollZalo = selected?.channel === 'zalo' || conversations.some(item => item.channel === 'zalo')
+      if (!shouldPollZalo || syncingZalo) return
+      try {
+        const data = await omniApi('/sync/zalo/messages', token, {
+          method: 'POST',
+          body: JSON.stringify({ maxThreads: 120, maxMessages: 20 }),
+        })
+        if ((data.synced_messages || 0) > 0) {
+          await Promise.all([loadConversations({ quiet: true }), loadContacts()])
+          const currentId = selectedIdRef.current
+          if (currentId) await loadMessages(currentId)
+        }
+      } catch {
+        // Realtime is primary; this is only a quiet safety net for missed Zalo events.
+      }
+    }, 30000)
+    return () => window.clearInterval(timer)
+  }, [token, selected?.channel, conversations, syncingZalo])
 
   useEffect(() => {
     if (!qrSession) return
@@ -416,7 +555,7 @@ export default function OmniChat({ token }) {
           setChannelStatus('Đang chờ quét QR Zalo...')
         }
       } catch (err) {
-        setChannelStatus(err.message)
+        setChannelStatus(displayErrorMessage(err))
       }
     }, 2500)
     return () => clearInterval(timer)
@@ -444,7 +583,7 @@ export default function OmniChat({ token }) {
           setChannelStatus('Đang chờ quét QR Telegram...')
         }
       } catch (err) {
-        setChannelStatus(err.message)
+        setChannelStatus(displayErrorMessage(err))
       }
     }, 2500)
     return () => clearInterval(timer)
@@ -458,33 +597,140 @@ export default function OmniChat({ token }) {
       if (selectedId) await loadMessages(selectedId)
       setStatus('Đã làm mới.')
     } catch (err) {
-      setStatus(err.message)
+      setStatus(displayErrorMessage(err))
     }
   }
 
   async function sendMessage(e) {
     e.preventDefault()
     const text = draft.trim()
-    if (!text || !selected || sendingRef.current) return
+    if ((!text && attachments.length === 0) || !selected || sendingRef.current) return
 
     sendingRef.current = true
     setSending(true)
     setStatus('')
+    
+    const optimisticMsg = {
+      id: `temp-${Date.now()}`,
+      role: 'user',
+      content: text || (attachments.length > 0 ? `📎 ${attachments.length} file(s)` : ''),
+      created_at: new Date().toISOString(),
+      status: 'sending',
+      reply_to_id: replyTo?.id || null,
+    }
+    setMessages(prev => [...prev, optimisticMsg])
+    
+    const savedReplyTo = replyTo
+    const savedAttachments = [...attachments]
+    
+    // Clear immediately for better UX
+    setDraft('')
+    setReplyTo(null)
+    setAttachments([])
+    
+    setTimeout(() => scrollMessagesToBottom(), 50)
+    
     try {
+      // Upload attachments first if any
+      let uploadedUrls = []
+      if (savedAttachments.length > 0) {
+        setUploading(true)
+        const formData = new FormData()
+        savedAttachments.forEach((file, idx) => {
+          formData.append(`file${idx}`, file)
+        })
+        
+        const uploadRes = await fetch('/api/omni/upload', {
+          method: 'POST',
+          headers: authHeaders(token),
+          body: formData,
+        })
+        
+        if (!uploadRes.ok) throw new Error('Upload failed')
+        const uploadData = await uploadRes.json()
+        uploadedUrls = uploadData.urls || []
+        setUploading(false)
+      }
+      
+      // Build message content with uploaded files
+      let finalContent = text
+      if (uploadedUrls.length > 0) {
+        const mediaMarkers = uploadedUrls.map(url => {
+          const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(url)
+          return `__OMNI_MEDIA__${JSON.stringify({ type: isImage ? 'image' : 'file', url, label: isImage ? 'Ảnh' : 'File' })}`
+        }).join('\n')
+        finalContent = finalContent ? `${finalContent}\n${mediaMarkers}` : mediaMarkers
+      }
+      
       await omniApi(`/conversations/${selected.id}/messages`, token, {
         method: 'POST',
-        body: JSON.stringify({ content: text, reply_to_id: replyTo?.id || '' }),
+        body: JSON.stringify({ content: finalContent, reply_to_id: savedReplyTo?.id || '' }),
       })
+      
+      await Promise.all([
+        loadMessages(selected.id, { stickToBottom: true }),
+        loadConversations({ quiet: true }),
+        loadTodayStats()
+      ])
+      
+      // Ensure draft stays cleared after reload
       setDraft('')
       setReplyTo(null)
-      await Promise.all([loadMessages(selected.id, { stickToBottom: true }), loadConversations({ quiet: true }), loadContacts()])
-      await loadTodayStats()
+      setAttachments([])
     } catch (err) {
-      setStatus(err.message)
+      setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
+      if (!['zalo', 'telegram'].includes(selected?.channel)) {
+        setDraft(text)
+        setReplyTo(savedReplyTo)
+        setAttachments(savedAttachments)
+      }
+      setStatus(displayErrorMessage(err))
     } finally {
       sendingRef.current = false
       setSending(false)
+      setUploading(false)
     }
+  }
+
+  async function toggleAgentAutoReply() {
+    if (!selected || agentAutoSaving) return
+    if (!['zalo', 'telegram'].includes(selected.channel)) {
+      setStatus('Agent Auto Reply chỉ hỗ trợ Zalo/Telegram.')
+      return
+    }
+    const nextEnabled = !agentAutoState.enabled
+    setAgentAutoSaving(true)
+    setStatus(nextEnabled ? 'Agent sẽ tự trả lời khi có tin nhắn mới.' : 'Đã chuyển về chế độ tự trả lời.')
+    try {
+      const data = await omniApi(`/conversations/${selected.id}/agent-auto-reply`, token, {
+        method: 'POST',
+        body: JSON.stringify({ enabled: nextEnabled, provider }),
+      })
+      setAgentAutoState({
+        enabled: Boolean(data.enabled),
+        session_id: data.session_id || '',
+        last_error: data.last_error || '',
+      })
+      setStatus(data.enabled ? 'Agent Auto Reply đã bật. Tin nhắn mới tới sẽ tự kích hoạt.' : 'Agent Auto Reply đã tắt.')
+    } catch (err) {
+      setStatus(displayErrorMessage(err, 'Không đổi được chế độ Agent Auto Reply.'))
+    } finally {
+      setAgentAutoSaving(false)
+    }
+  }
+
+  function handleFileSelect(e) {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    
+    // Limit to 5 files
+    const newFiles = files.slice(0, 5 - attachments.length)
+    setAttachments(prev => [...prev, ...newFiles])
+    e.target.value = '' // Reset input
+  }
+
+  function removeAttachment(index) {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
   }
 
   async function deleteConversation(conv) {
@@ -504,7 +750,7 @@ export default function OmniChat({ token }) {
       })
       await Promise.all([loadConversations({ quiet: true }), loadContacts()])
     } catch (err) {
-      setStatus(err.message)
+      setStatus(displayErrorMessage(err))
     }
   }
 
@@ -517,7 +763,7 @@ export default function OmniChat({ token }) {
       setContacts(current => current.filter(item => item.id !== contact.id))
       setSelectedId(current => current === contact.id ? '' : current)
     } catch (err) {
-      setStatus(err.message)
+      setStatus(displayErrorMessage(err))
     }
   }
 
@@ -531,7 +777,7 @@ export default function OmniChat({ token }) {
       await Promise.all([loadMessages(selected.id), loadConversations({ quiet: true }), loadContacts()])
       await loadTodayStats()
     } catch (err) {
-      setStatus(err.message)
+      setStatus(displayErrorMessage(err))
     }
   }
 
@@ -542,7 +788,7 @@ export default function OmniChat({ token }) {
       await omniApi(`/conversations/${conv.id}/toggle-pin`, token, { method: 'POST' })
       await Promise.all([loadConversations({ quiet: true }), loadContacts()])
     } catch (err) {
-      setStatus(err.message)
+      setStatus(displayErrorMessage(err))
     }
   }
 
@@ -565,7 +811,7 @@ export default function OmniChat({ token }) {
       setRenaming(false)
       await Promise.all([loadConversations({ quiet: true }), loadContacts()])
     } catch (err) {
-      setStatus(err.message)
+      setStatus(displayErrorMessage(err))
     }
   }
 
@@ -580,7 +826,7 @@ export default function OmniChat({ token }) {
       })
       await loadMessages(selected.id)
     } catch (err) {
-      setStatus(err.message)
+      setStatus(displayErrorMessage(err))
     }
   }
 
@@ -607,7 +853,7 @@ export default function OmniChat({ token }) {
       setTelegramQrSession(usable ? data.session_id : '')
       setChannelStatus(usable ? 'Quét QR bằng Telegram.' : (data.detail || 'Telegram chưa có QR thực trên backend.'))
     } catch (err) {
-      setChannelStatus(err.message)
+      setChannelStatus(displayErrorMessage(err))
     }
   }
 
@@ -622,7 +868,7 @@ export default function OmniChat({ token }) {
       setChannelStatus(`Telegram: ${data.synced_conversations || 0} hội thoại, ${data.synced_messages || 0} tin.`)
       await loadConversations({ quiet: true })
     } catch (err) {
-      setChannelStatus(err.message)
+      setChannelStatus(displayErrorMessage(err))
     } finally {
       setSyncingTelegram(false)
     }
@@ -642,7 +888,7 @@ export default function OmniChat({ token }) {
       setQrSession(usable ? data.session_id : '')
       setChannelStatus(usable ? 'Quét QR bằng Zalo trên điện thoại.' : (data.detail || 'Zalo chưa có QR thực trên backend.'))
     } catch (err) {
-      setChannelStatus(err.message)
+      setChannelStatus(displayErrorMessage(err))
     }
   }
 
@@ -657,7 +903,7 @@ export default function OmniChat({ token }) {
       setChannelStatus(`Zalo: ${data.synced_contacts || 0} bạn bè, ${data.synced_conversations || 0} hội thoại, ${data.synced_messages || 0} tin.`)
       await Promise.all([loadConversations({ quiet: true }), loadContacts()])
     } catch (err) {
-      setChannelStatus(err.message)
+      setChannelStatus(displayErrorMessage(err))
     } finally {
       setSyncingZalo(false)
     }
@@ -679,7 +925,7 @@ export default function OmniChat({ token }) {
       setFacebookCookie('')
       setChannelStatus('Đã kết nối Facebook.')
     } catch (err) {
-      setChannelStatus(err.message)
+      setChannelStatus(displayErrorMessage(err))
     } finally {
       setSavingFacebook(false)
     }
@@ -696,7 +942,7 @@ export default function OmniChat({ token }) {
       setChannelStatus(`Facebook: ${data.synced_conversations || 0} hội thoại, ${data.synced_messages || 0} tin.`)
       await loadConversations({ quiet: true })
     } catch (err) {
-      setChannelStatus(err.message)
+      setChannelStatus(displayErrorMessage(err))
     } finally {
       setSyncingFacebook(false)
     }
@@ -791,12 +1037,24 @@ export default function OmniChat({ token }) {
                 </button>
               </div>
             </div>
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={sidebarMode === 'contacts' ? 'Tìm danh bạ' : 'Tìm hội thoại'}
-              className="w-full rounded-md border border-black/[0.06] bg-gray-50 px-2.5 py-1.5 text-[11px] outline-none focus:border-gray-300"
-            />
+            <div className="relative">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={sidebarMode === 'contacts' ? 'Tìm danh bạ' : 'Tìm hội thoại'}
+                className="w-full rounded-md border border-black/[0.06] bg-gray-50 py-1.5 pl-2.5 pr-8 text-[11px] outline-none focus:border-gray-300"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-1.5 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                  title="Xóa tìm kiếm"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <div className="mt-1.5 grid grid-cols-2 gap-1 rounded-md bg-gray-100 p-0.5">
               {[
                 ['chats', 'Hội thoại'],
@@ -923,31 +1181,6 @@ export default function OmniChat({ token }) {
                     >
                       {savingFacebook ? 'Đang lưu...' : 'Lưu Facebook'}
                     </button>
-                  </div>
-                )}
-
-                {(telegramQr || qr) && (
-                  <div className={`mt-2 grid gap-2 ${telegramQr && qr ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    {telegramQr && (
-                      <div className="rounded-xl bg-white p-4 text-center shadow-md">
-                        <img src={telegramQr.qr} alt="Telegram QR" className="mx-auto h-56 w-56 rounded-lg" />
-                        <span className="mt-2 block text-sm font-semibold text-gray-600">Telegram</span>
-                      </div>
-                    )}
-                    {qr && (
-                      <div className="rounded-xl bg-white p-4 text-center shadow-lg border border-black/[0.05]">
-                        <img src={qr} alt="Zalo QR" className="mx-auto h-64 w-64 rounded-lg object-contain bg-white p-2 [image-rendering:pixelated]" />
-                        <div className="mt-3 flex flex-col items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-700">Zalo</span>
-                          <button
-                            onClick={startZaloQr}
-                            className="text-[11px] text-blue-600 font-medium hover:underline"
-                          >
-                            Làm mới QR
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -1114,6 +1347,15 @@ export default function OmniChat({ token }) {
                 </div>
                 <button
                   type="button"
+                  onClick={toggleAgentAutoReply}
+                  disabled={agentAutoSaving || !['zalo', 'telegram'].includes(selected.channel)}
+                  className={`h-9 w-9 shrink-0 rounded-xl inline-flex items-center justify-center disabled:opacity-40 ${agentAutoState.enabled ? 'bg-gray-950 text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
+                  title={agentAutoState.enabled ? `Agent đang trực (${agentAutoState.session_id})` : 'Tôi tự trả lời'}
+                >
+                  <Reply className={`h-4 w-4 ${agentAutoSaving || agentAutoState.enabled ? 'animate-pulse' : ''}`} />
+                </button>
+                <button
+                  type="button"
                   onClick={() => toggleConversationPin(selected)}
                   className={`h-9 w-9 rounded-xl inline-flex items-center justify-center ${selected.is_pinned ? 'bg-gray-100 text-gray-950' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
                   title={selected.is_pinned ? 'Bỏ ghim' : 'Ghim hội thoại'}
@@ -1214,6 +1456,44 @@ export default function OmniChat({ token }) {
                   </div>
                 </div>
               )}
+              {attachments.length > 0 && (
+                <div className="border-t border-black/[0.06] bg-gray-50 p-2">
+                  <div className="flex flex-wrap gap-2">
+                    {attachments.map((file, idx) => (
+                      <div key={idx} className="relative group">
+                        {file.type.startsWith('image/') ? (
+                          <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-black/[0.06]">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={file.name}
+                              className="h-full w-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeAttachment(idx)}
+                              className="absolute right-1 top-1 h-5 w-5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 inline-flex items-center justify-center"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="relative flex h-16 w-32 items-center gap-2 rounded-lg border border-black/[0.06] bg-white px-2">
+                            <Paperclip className="h-4 w-4 shrink-0 text-gray-400" />
+                            <span className="min-w-0 flex-1 truncate text-[11px] text-gray-600">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAttachment(idx)}
+                              className="h-5 w-5 shrink-0 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 inline-flex items-center justify-center"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <form onSubmit={sendMessage} className="relative flex gap-2 border-t border-black/[0.06] bg-white p-3 pb-safe">
                 {visibleTelegramCommands.length > 0 && (
                   <div className="absolute bottom-[52px] left-3 right-14 z-20 overflow-hidden rounded-md border border-black/[0.08] bg-white shadow-lg">
@@ -1231,17 +1511,32 @@ export default function OmniChat({ token }) {
                   </div>
                 )}
                 <input
+                  type="file"
+                  id="file-upload"
+                  multiple
+                  accept="image/*,application/pdf,.doc,.docx,.txt,.zip,.rar"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50"
+                  title="Đính kèm file"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </label>
+                <input
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
                   placeholder="Nhập phản hồi"
                   className="min-w-0 flex-1 rounded-md border border-black/[0.06] bg-gray-50 px-3 py-2 text-[13px] outline-none focus:border-gray-300"
                 />
                 <button
-                  disabled={sending || !draft.trim()}
+                  disabled={sending || uploading || (!draft.trim() && attachments.length === 0)}
                   className="inline-flex h-9 items-center gap-2 rounded-md bg-gray-950 px-3 text-[12px] font-semibold text-white disabled:opacity-40"
                 >
                   <Send className="h-4 w-4" />
-                  Gửi
+                  {uploading ? 'Đang tải...' : 'Gửi'}
                 </button>
               </form>
             </>
@@ -1252,6 +1547,43 @@ export default function OmniChat({ token }) {
           )}
         </section>
       </div>
+      {(telegramQr || qr) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="max-h-[calc(100vh-2rem)] overflow-auto rounded-md bg-white p-5 text-center shadow-2xl">
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <span className="text-sm font-semibold text-gray-800">{qr ? 'Zalo' : 'Telegram'}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setQr(null)
+                  setQrSession('')
+                  setTelegramQr(null)
+                  setTelegramQrSession('')
+                }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-black/[0.06] text-gray-500 hover:bg-gray-50"
+                title="Đóng"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {telegramQr && !qr && (
+              <img src={telegramQr.qr} alt="Telegram QR" className="h-[min(76vw,520px)] w-[min(76vw,520px)] object-contain" />
+            )}
+            {qr && (
+              <img src={qr} alt="Zalo QR" className="h-[min(76vw,520px)] w-[min(76vw,520px)] bg-white object-contain [image-rendering:pixelated]" />
+            )}
+            {qr && (
+              <button
+                type="button"
+                onClick={startZaloQr}
+                className="mt-3 h-8 rounded-md border border-black/[0.08] px-3 text-xs font-semibold text-blue-600 hover:bg-blue-50"
+              >
+                Làm mới QR
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import uuid
+import hashlib
 from datetime import datetime
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from api.schemas import (
     OmniContact,
     OmniStats,
     OmniSendMessageRequest,
+    OmniSendMediaRequest,
     OmniRenameRequest,
     OmniReactionRequest,
     OmniSyncMessagesRequest,
@@ -64,6 +66,8 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 ZALO_SYNC_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_sync_bridge.py"
 ZALO_SEND_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_send_bridge.py"
 ZALO_LISTEN_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_listen_bridge.py"
+FACEBOOK_SEND_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/facebook_bridges/facebook_send_bridge.py"
+FACEBOOK_SYNC_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/facebook_bridges/facebook_sync_bridge.py"
 
 
 class OmniAgentReplyRequest(BaseModel):
@@ -392,6 +396,20 @@ def _send_omni_text(
                     _get_telegram_reply_external_id(reply_to_id, uid),
                 )
             )
+        elif platform == "facebook" and external_id:
+            cookie = _load_facebook_channel(uid)
+            if not cookie:
+                raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
+            send_meta = _run_facebook_bridge(
+                FACEBOOK_SEND_BRIDGE,
+                {
+                    "cookie": cookie,
+                    "target": external_id,
+                    "text": content,
+                    "action": "send",
+                },
+                timeout=60,
+            )
     except Exception as e:
         delete_message(msg_id)
         logging.error("Failed to send message to %s: %s", platform, e)
@@ -425,6 +443,55 @@ def _send_omni_text(
     })
 
     return {"id": msg_id, "status": "sent"}
+
+
+def _build_omni_media_content(caption: str, media_urls: list[str] | None) -> str:
+    lines = []
+    if caption:
+        lines.append(caption)
+    for url in media_urls or []:
+        suffix = Path(url).suffix.lower()
+        is_image = suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".avif"}
+        media_type = "image" if is_image else "file"
+        label = "Ảnh" if is_image else "File"
+        lines.append(
+            f'__OMNI_MEDIA__{json.dumps({"type": media_type, "url": url, "label": label}, ensure_ascii=False)}'
+        )
+    return "\n".join(lines)
+
+
+def _upsert_sent_media_message(
+    conversation_id: str,
+    user_id: str,
+    platform: str,
+    content: str,
+    *,
+    external_id: str = "",
+    external_cli_msg_id: str = "",
+    external_msg_type: str = "webchat",
+) -> str:
+    if external_id:
+        with get_connection() as conn:
+            row = conn.execute(
+                """SELECT id FROM omni_messages
+                   WHERE conversation_id = ? AND platform = ? AND external_id = ?
+                   ORDER BY created_at DESC LIMIT 1""",
+                (conversation_id, platform, external_id),
+            ).fetchone()
+            if row:
+                conn.execute(
+                    """UPDATE omni_messages
+                       SET role = 'user',
+                           content = ?,
+                           external_cli_msg_id = COALESCE(NULLIF(?, ''), external_cli_msg_id),
+                           external_msg_type = COALESCE(NULLIF(?, ''), external_msg_type),
+                           external_author_id = ?
+                       WHERE id = ?""",
+                    (content, external_cli_msg_id, external_msg_type, user_id, row["id"]),
+                )
+                refresh_conversation_preview(conversation_id)
+                return row["id"]
+    return create_message(conversation_id, user_id, "user", content, platform=platform)
 
 
 @router.post("/conversations/{id}/messages")
@@ -616,6 +683,438 @@ def get_contacts(
     return [OmniContact(**c) for c in list_contacts(uid, platform)]
 
 
+# ── Send Media (Images/Files) ──────────────────────────────────────────────
+
+
+@router.post("/conversations/{id}/send-media")
+async def send_media_to_conversation(
+    id: str, 
+    payload: OmniSendMediaRequest, 
+    request: Request
+):
+    """
+    Send image or file to a conversation.
+    Supports single image, multiple images, or remote file URL.
+    Auto-optimizes images for the target platform.
+    """
+    uid = _get_user_id(request)
+    conv = _resolve_omni_conversation(id, uid)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
+    
+    platform = conv.get("platform") or conv.get("channel")
+    external_id = conv.get("external_id")
+    thread_type = conv.get("thread_type", "user")
+    
+    if not platform or not external_id:
+        raise HTTPException(status_code=400, detail="Thiếu thông tin platform hoặc external_id.")
+    
+    # Import image processor
+    try:
+        from utils.image_processor import ImageProcessor
+        processor_available = ImageProcessor.is_available()
+    except ImportError:
+        processor_available = False
+    
+    # Handle different media types
+    if platform == "zalo":
+        cookie, imei = _load_zalo_channel(uid)
+        if not cookie or not imei:
+            raise HTTPException(status_code=400, detail="Chưa có phiên Zalo. Hãy quét QR trước.")
+        
+        # Prepare paths for optimization
+        paths_to_send = []
+        temp_files = []
+        
+        if payload.image_path:
+            paths_to_send = [payload.image_path]
+        elif payload.image_paths:
+            paths_to_send = payload.image_paths
+        
+        # Optimize images if requested and processor available
+        if payload.optimize and processor_available and paths_to_send:
+            optimized_paths = []
+            for img_path in paths_to_send:
+                if Path(img_path).exists():
+                    optimized = ImageProcessor.auto_optimize_for_platform(img_path, "zalo")
+                    if optimized and optimized != img_path:
+                        temp_files.append(optimized)
+                        optimized_paths.append(optimized)
+                    else:
+                        optimized_paths.append(img_path)
+                else:
+                    optimized_paths.append(img_path)
+            paths_to_send = optimized_paths
+        
+        # Send via Zalo bridge
+        try:
+            if len(paths_to_send) > 1:
+                # Multiple images
+                result = _run_zalo_bridge(
+                    ZALO_SEND_BRIDGE,
+                    {
+                        "cookie": cookie,
+                        "imei": imei,
+                        "action": "send_images",
+                        "target": external_id,
+                        "thread_type": thread_type,
+                        "image_paths": paths_to_send,
+                        "text": payload.caption,
+                    },
+                    timeout=60,
+                )
+            elif len(paths_to_send) == 1:
+                # Single image
+                result = _run_zalo_bridge(
+                    ZALO_SEND_BRIDGE,
+                    {
+                        "cookie": cookie,
+                        "imei": imei,
+                        "action": "send_image",
+                        "target": external_id,
+                        "thread_type": thread_type,
+                        "image_path": paths_to_send[0],
+                        "text": payload.caption,
+                    },
+                    timeout=60,
+                )
+            elif payload.file_url:
+                # Remote file
+                result = _run_zalo_bridge(
+                    ZALO_SEND_BRIDGE,
+                    {
+                        "cookie": cookie,
+                        "imei": imei,
+                        "action": "send_file",
+                        "target": external_id,
+                        "thread_type": thread_type,
+                        "file_url": payload.file_url,
+                        "text": payload.caption,
+                    },
+                    timeout=60,
+                )
+            else:
+                raise HTTPException(status_code=400, detail="Phải cung cấp image_path, image_paths hoặc file_url.")
+            
+            # Cleanup temp files
+            for temp_file in temp_files:
+                Path(temp_file).unlink(missing_ok=True)
+            
+            if not result.get("ok"):
+                raise HTTPException(status_code=500, detail=result.get("error", "Lỗi gửi media qua Zalo."))
+            
+            display_content = _build_omni_media_content(payload.caption, payload.media_urls)
+            if not display_content:
+                display_content = payload.caption or "[Đã gửi ảnh]"
+
+            external_msg_id = result.get("msg_id") or result.get("cli_msg_id") or ""
+            msg_id = _upsert_sent_media_message(
+                conv["id"],
+                uid,
+                "zalo",
+                display_content,
+                external_id=external_msg_id,
+                external_cli_msg_id=result.get("cli_msg_id") or "",
+                external_msg_type=result.get("msg_type") or "webchat",
+            )
+            if external_msg_id:
+                with get_connection() as conn:
+                    conn.execute(
+                        """UPDATE omni_messages
+                           SET external_id = ?,
+                               external_cli_msg_id = ?,
+                               external_msg_type = ?,
+                               external_author_id = ?
+                           WHERE id = ?""",
+                        (
+                            external_msg_id,
+                            result.get("cli_msg_id") or "",
+                            result.get("msg_type") or "webchat",
+                            uid,
+                            msg_id,
+                        ),
+                    )
+            
+            refresh_conversation_preview(conv["id"])
+            
+            _broadcast({
+                "type": "message",
+                "conversationId": conv["id"],
+                "message": {
+                    "id": msg_id,
+                    "sender_type": "user",
+                    "content": display_content,
+                    "status": "sent",
+                },
+            })
+            
+            return {"success": True, "message_id": msg_id, "platform": "zalo"}
+            
+        except Exception as e:
+            # Cleanup temp files on error
+            for temp_file in temp_files:
+                Path(temp_file).unlink(missing_ok=True)
+            raise
+    
+    elif platform == "telegram":
+        # Send via Telegram
+        from api.routers.telegram import send_real_media
+        
+        # Optimize if requested
+        path_to_send = payload.image_path
+        temp_file = None
+        
+        if payload.optimize and processor_available and path_to_send and Path(path_to_send).exists():
+            optimized = ImageProcessor.auto_optimize_for_platform(path_to_send, "telegram")
+            if optimized and optimized != path_to_send:
+                temp_file = optimized
+                path_to_send = optimized
+        
+        try:
+            result = await send_real_media(
+                uid,
+                external_id,
+                path_to_send,
+                payload.caption,
+            )
+            
+            # Cleanup temp file
+            if temp_file:
+                Path(temp_file).unlink(missing_ok=True)
+            
+            if not result.get("success"):
+                raise HTTPException(status_code=500, detail=result.get("error", "Lỗi gửi media qua Telegram."))
+            
+            display_content = _build_omni_media_content(payload.caption, payload.media_urls)
+            if not display_content:
+                display_content = payload.caption or "[Đã gửi ảnh]"
+
+            external_msg_id = str(result.get("message_id") or "")
+            msg_id = _upsert_sent_media_message(
+                conv["id"],
+                uid,
+                "telegram",
+                display_content,
+                external_id=external_msg_id,
+                external_msg_type="message",
+            )
+            if external_msg_id:
+                with get_connection() as conn:
+                    conn.execute(
+                        """UPDATE omni_messages
+                           SET external_id = ?,
+                               external_msg_type = 'message',
+                               external_author_id = ?
+                           WHERE id = ?""",
+                        (external_msg_id, uid, msg_id),
+                    )
+            
+            refresh_conversation_preview(conv["id"])
+            
+            _broadcast({
+                "type": "message",
+                "conversationId": conv["id"],
+                "message": {
+                    "id": msg_id,
+                    "sender_type": "user",
+                    "content": display_content,
+                    "status": "sent",
+                },
+            })
+            
+            return {"success": True, "message_id": msg_id, "platform": "telegram"}
+            
+        except Exception as e:
+            # Cleanup temp file on error
+            if temp_file:
+                Path(temp_file).unlink(missing_ok=True)
+            raise
+    
+    elif platform == "facebook":
+        cookie = _load_facebook_channel(uid)
+        if not cookie:
+            raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
+
+        paths_to_send = []
+        if payload.image_path:
+            paths_to_send = [payload.image_path]
+        elif payload.image_paths:
+            paths_to_send = payload.image_paths
+
+        if payload.file_url:
+            raise HTTPException(status_code=400, detail="Facebook hiện chưa hỗ trợ file URL từ xa.")
+
+        result = _run_facebook_bridge(
+            FACEBOOK_SEND_BRIDGE,
+            {
+                "cookie": cookie,
+                "action": "send_images" if len(paths_to_send) > 1 else "send_image",
+                "target": external_id,
+                "image_path": paths_to_send[0] if len(paths_to_send) == 1 else "",
+                "image_paths": paths_to_send if len(paths_to_send) > 1 else [],
+                "text": payload.caption,
+            },
+            timeout=90,
+        )
+        if not result.get("ok"):
+            raise HTTPException(status_code=500, detail=result.get("error", "Lỗi gửi media qua Facebook."))
+
+        display_content = _build_omni_media_content(payload.caption, payload.media_urls)
+        if not display_content:
+            display_content = payload.caption or "[Đã gửi ảnh]"
+        msg_id = _upsert_sent_media_message(
+            conv["id"],
+            uid,
+            "facebook",
+            display_content,
+        )
+        refresh_conversation_preview(conv["id"])
+        _broadcast({
+            "type": "message",
+            "conversationId": conv["id"],
+            "message": {
+                "id": msg_id,
+                "sender_type": "user",
+                "content": display_content,
+                "status": "sent",
+            },
+        })
+        return {"success": True, "message_id": msg_id, "platform": "facebook"}
+    
+    else:
+        raise HTTPException(status_code=400, detail=f"Platform {platform} chưa hỗ trợ gửi media.")
+
+
+@router.post("/conversations/{id}/paste-clipboard")
+async def paste_clipboard_to_conversation(id: str, request: Request):
+    """
+    Paste image from clipboard and send to conversation.
+    Only works on macOS with clipboard image data.
+    """
+    uid = _get_user_id(request)
+    conv = _resolve_omni_conversation(id, uid)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
+    
+    platform = conv.get("platform") or conv.get("channel")
+    external_id = conv.get("external_id")
+    thread_type = conv.get("thread_type", "user")
+    
+    if not platform or not external_id:
+        raise HTTPException(status_code=400, detail="Thiếu thông tin platform hoặc external_id.")
+    
+    # Get caption from request body if provided
+    try:
+        body = await request.json()
+        caption = body.get("caption", "")
+    except Exception:
+        caption = ""
+    
+    if platform == "zalo":
+        # Use clipboard_to_zalo.py
+        script_path = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/clipboard_to_zalo.py"
+        
+        cookie, imei = _load_zalo_channel(uid)
+        if not cookie or not imei:
+            raise HTTPException(status_code=400, detail="Chưa có phiên Zalo. Hãy quét QR trước.")
+        
+        env = os.environ.copy()
+        env["ZALO_COOKIE_STRING"] = cookie
+        env["ZALO_IMEI"] = imei
+        
+        try:
+            result = subprocess.run(
+                ["python3", str(script_path), external_id, caption],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=env
+            )
+            
+            if result.returncode == 0:
+                response_data = json.loads(result.stdout)
+                if response_data.get("ok"):
+                    # Create message record
+                    msg_id = create_message(
+                        conv["id"],
+                        uid,
+                        "user",
+                        caption or "[Đã gửi ảnh từ clipboard]",
+                        platform="zalo",
+                    )
+                    
+                    refresh_conversation_preview(conv["id"])
+                    
+                    _broadcast({
+                        "type": "message",
+                        "conversationId": conv["id"],
+                        "message": {
+                            "id": msg_id,
+                            "sender_type": "user",
+                            "content": caption or "[Đã gửi ảnh từ clipboard]",
+                            "status": "sent",
+                        },
+                    })
+                    
+                    return {"success": True, "message_id": msg_id, "platform": "zalo"}
+                else:
+                    raise HTTPException(status_code=400, detail=response_data.get("error", "Lỗi paste clipboard."))
+            else:
+                raise HTTPException(status_code=500, detail=result.stderr or "Lỗi paste clipboard.")
+                
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=504, detail="Timeout khi paste clipboard.")
+    
+    elif platform == "telegram":
+        # Use clipboard_to_telegram.py
+        script_path = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/clipboard_to_telegram.py"
+        
+        try:
+            result = subprocess.run(
+                ["python3", str(script_path), external_id, caption],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                response_data = json.loads(result.stdout)
+                if response_data.get("ok"):
+                    # Create message record
+                    msg_id = create_message(
+                        conv["id"],
+                        uid,
+                        "user",
+                        caption or "[Đã gửi ảnh từ clipboard]",
+                        platform="telegram",
+                    )
+                    
+                    refresh_conversation_preview(conv["id"])
+                    
+                    _broadcast({
+                        "type": "message",
+                        "conversationId": conv["id"],
+                        "message": {
+                            "id": msg_id,
+                            "sender_type": "user",
+                            "content": caption or "[Đã gửi ảnh từ clipboard]",
+                            "status": "sent",
+                        },
+                    })
+                    
+                    return {"success": True, "message_id": msg_id, "platform": "telegram"}
+                else:
+                    raise HTTPException(status_code=400, detail=response_data.get("error", "Lỗi paste clipboard."))
+            else:
+                raise HTTPException(status_code=500, detail=result.stderr or "Lỗi paste clipboard.")
+                
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=504, detail="Timeout khi paste clipboard.")
+    
+    else:
+        raise HTTPException(status_code=400, detail=f"Platform {platform} chưa hỗ trợ paste clipboard.")
+
+
 # ── File Upload ────────────────────────────────────────────────────────────
 
 
@@ -629,6 +1128,7 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
     upload_dir.mkdir(parents=True, exist_ok=True)
     
     urls = []
+    file_paths = []
     for file in files[:5]:  # Limit to 5 files
         # Generate unique filename
         ext = Path(file.filename or "file").suffix
@@ -643,8 +1143,9 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
         # Generate URL (relative to API)
         url = f"/api/omni/files/{uid}/{filename}"
         urls.append(url)
+        file_paths.append(str(filepath))
     
-    return {"urls": urls, "count": len(urls)}
+    return {"urls": urls, "paths": file_paths, "count": len(urls)}
 
 
 @router.get("/files/{user_id}/{filename}")
@@ -741,6 +1242,10 @@ def event_stream(request: Request):
 _zalo_qr_sessions: dict[str, dict] = {}
 _zalo_listeners: dict[str, dict] = {}
 _zalo_listeners_lock = threading.Lock()
+_facebook_browser_sessions: dict[str, dict] = {}
+_facebook_live_sessions: dict[str, dict] = {}
+_facebook_sync_tasks: dict[str, asyncio.Task] = {}
+FACEBOOK_PROFILE_ROOT = BACKEND_ROOT / "data" / "facebook_profiles"
 
 
 async def _close_zalo_qr_session(session_id: str) -> None:
@@ -849,6 +1354,385 @@ async def _read_zalo_imei(page) -> str:
         return ""
 
 
+async def _get_facebook_cookie_header(context) -> str:
+    cookies = await context.cookies()
+    return "; ".join(f"{c['name']}={c['value']}" for c in cookies if c.get("name"))
+
+
+async def _facebook_page_is_connected(page, context) -> bool:
+    try:
+        cookies = {item["name"]: item["value"] for item in await context.cookies()}
+        if not cookies.get("c_user") or not cookies.get("xs"):
+            return False
+        body = await page.locator("body").inner_text()
+        if "đăng nhập" in body.lower() or "log in" in body.lower():
+            return False
+        return True
+    except Exception:
+        return False
+
+
+async def _facebook_page_needs_security_unlock(page) -> bool:
+    try:
+        body = (await page.locator("body").inner_text()).lower()
+    except Exception:
+        return False
+    markers = (
+        "mã pin",
+        "pin",
+        "mã bảo mật",
+        "secure storage",
+        "end-to-end encrypted",
+        "tin nhắn được mã hóa",
+    )
+    return any(marker in body for marker in markers)
+
+
+async def _close_facebook_browser_session(session_id: str) -> None:
+    sess = _facebook_browser_sessions.pop(session_id, None)
+    if not sess:
+        return
+    for key in ("context", "browser"):
+        try:
+            await sess[key].close()
+        except Exception:
+            pass
+    try:
+        await sess["playwright"].stop()
+    except Exception:
+        pass
+
+
+async def _launch_facebook_persistent_session(user_id: str, *, headless: bool = False) -> dict:
+    from playwright.async_api import async_playwright
+
+    profile_dir = FACEBOOK_PROFILE_ROOT / user_id
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    playwright = await async_playwright().start()
+    context = await playwright.chromium.launch_persistent_context(
+        str(profile_dir),
+        headless=headless,
+        args=["--disable-blink-features=AutomationControlled"],
+        viewport={"width": 1280, "height": 900},
+        user_agent=(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        ),
+    )
+    page = context.pages[0] if context.pages else await context.new_page()
+    return {
+        "user_id": user_id,
+        "playwright": playwright,
+        "context": context,
+        "browser": context.browser,
+        "page": page,
+    }
+
+
+async def restore_facebook_live_session(user_id: str) -> dict | None:
+    existing = _facebook_live_sessions.get(user_id)
+    if existing:
+        return existing
+    profile_dir = FACEBOOK_PROFILE_ROOT / user_id
+    if not profile_dir.exists():
+        return None
+    sess = await _launch_facebook_persistent_session(user_id, headless=True)
+    page = sess["page"]
+    await page.goto("https://www.facebook.com/messages/", wait_until="domcontentloaded", timeout=60000)
+    await page.wait_for_timeout(2500)
+    if await _facebook_page_is_connected(page, sess["context"]):
+        _facebook_live_sessions[user_id] = sess
+        return sess
+    try:
+        await sess["context"].close()
+        await sess["playwright"].stop()
+    except Exception:
+        pass
+    return None
+
+
+async def _sync_facebook_live_session(user_id: str, max_threads: int) -> dict | None:
+    sess = _facebook_live_sessions.get(user_id) or await restore_facebook_live_session(user_id)
+    if not sess:
+        return None
+    page = sess["page"]
+    if not await _facebook_page_is_connected(page, sess["context"]):
+        return None
+
+    rows = await page.locator('a[href*="/messages/t/"], a[href*="/messages/e2ee/t/"]').evaluate_all(
+        """(anchors, limit) => anchors.slice(0, limit).map(anchor => ({
+            href: anchor.getAttribute('href') || '',
+            text: (anchor.innerText || '').trim()
+        }))""",
+        max_threads,
+    )
+    threads = []
+    seen = set()
+    for row in rows:
+        href = str(row.get("href") or "")
+        match = re.search(r"/messages/(?:e2ee/)?t/([^/?#]+)", href)
+        if not match:
+            continue
+        external_id = match.group(1)
+        if external_id in seen:
+            continue
+        seen.add(external_id)
+        text = str(row.get("text") or "").strip()
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        threads.append({
+            "external_id": external_id,
+            "title": lines[0] if lines else external_id,
+            "preview": lines[1] if len(lines) > 1 else "",
+            "href": href,
+        })
+    if not threads:
+        with get_connection() as conn:
+            saved_threads = conn.execute(
+                """SELECT external_id, title
+                   FROM omni_conversations
+                   WHERE user_id = ? AND platform = 'facebook'
+                     AND COALESCE(external_id, '') <> ''
+                   ORDER BY COALESCE(last_message_at, updated_at, created_at) DESC
+                   LIMIT ?""",
+                (user_id, max_threads),
+            ).fetchall()
+        threads = [
+            {
+                "external_id": str(row["external_id"]),
+                "title": str(row["title"]),
+                "preview": "",
+                "href": f"/messages/e2ee/t/{row['external_id']}/",
+            }
+            for row in saved_threads
+        ]
+    thread_messages = {}
+    for thread in threads[: min(max_threads, 8)]:
+        href = thread["href"]
+        if href.startswith("/"):
+            href = f"https://www.facebook.com{href}"
+        await page.goto(href, wait_until="domcontentloaded", timeout=60000)
+        await page.wait_for_timeout(1800)
+        items = await page.locator('div[dir="auto"]').evaluate_all(
+            """nodes => nodes.map(node => {
+                const rect = node.getBoundingClientRect();
+                const text = (node.innerText || '').trim();
+                let align = '';
+                let timestampText = '';
+                let el = node;
+                for (let depth = 0; el && depth < 8; depth += 1, el = el.parentElement) {
+                    const currentAlign = getComputedStyle(el).alignItems;
+                    if (currentAlign === 'flex-start' || currentAlign === 'flex-end') {
+                        align = currentAlign;
+                    }
+                    timestampText ||= el.getAttribute('data-tooltip-content') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+                }
+                return {
+                    text,
+                    align,
+                    timestampText,
+                    x: rect.x,
+                    right: rect.right,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height
+                };
+            }).filter(item =>
+                item.text &&
+                item.x > 300 &&
+                item.y > 120 &&
+                item.width > 10 &&
+                item.width < 700 &&
+                item.height > 10 &&
+                item.height < 220
+            )"""
+        )
+        if not items and "/messages/e2ee/t/" in href:
+            regular_href = href.replace("/messages/e2ee/t/", "/messages/t/")
+            await page.goto(regular_href, wait_until="domcontentloaded", timeout=60000)
+            await page.wait_for_timeout(1800)
+            items = await page.locator('div[dir="auto"]').evaluate_all(
+                """nodes => nodes.map(node => {
+                    const rect = node.getBoundingClientRect();
+                    const text = (node.innerText || '').trim();
+                    let align = '';
+                    let timestampText = '';
+                    let el = node;
+                    for (let depth = 0; el && depth < 8; depth += 1, el = el.parentElement) {
+                        const currentAlign = getComputedStyle(el).alignItems;
+                        if (currentAlign === 'flex-start' || currentAlign === 'flex-end') {
+                            align = currentAlign;
+                        }
+                        timestampText ||= el.getAttribute('data-tooltip-content') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+                    }
+                    return {
+                        text,
+                        align,
+                        timestampText,
+                        x: rect.x,
+                        right: rect.right,
+                        y: rect.y,
+                        width: rect.width,
+                        height: rect.height
+                    };
+                }).filter(item =>
+                    item.text &&
+                    item.x > 300 &&
+                    item.y > 120 &&
+                    item.width > 10 &&
+                    item.width < 700 &&
+                    item.height > 10 &&
+                    item.height < 220
+                )"""
+            )
+        seen_messages = set()
+        active_messages = []
+        for item in items:
+            text = str(item.get("text") or "").strip()
+            if not text or text in seen_messages:
+                continue
+            seen_messages.add(text)
+            role = "user" if str(item.get("align") or "") == "flex-end" else "assistant"
+            active_messages.append({
+                "content": text,
+                "role": role,
+                "timestamp_text": str(item.get("timestampText") or "").strip(),
+            })
+        thread_messages[thread["external_id"]] = active_messages[-30:]
+    return {"ok": True, "threads": threads, "thread_messages": thread_messages}
+
+
+def _insert_facebook_message_once(
+    user_id: str,
+    conversation_id: str,
+    external_thread_id: str,
+    role: str,
+    content: str,
+    created_at: str | None = None,
+) -> str:
+    normalized = content.strip()
+    if not normalized:
+        return ""
+    fingerprint = hashlib.sha1(
+        f"facebook:{external_thread_id}:{role}:{normalized}".encode("utf-8")
+    ).hexdigest()
+    external_id = f"fb_{fingerprint}"
+    with get_connection() as conn:
+        exists = conn.execute(
+            """SELECT 1 FROM omni_messages
+               WHERE conversation_id = ? AND external_id = ? LIMIT 1""",
+            (conversation_id, external_id),
+        ).fetchone()
+        if exists:
+            return ""
+        message_id = str(uuid.uuid4())
+        conn.execute(
+            """INSERT INTO omni_messages
+               (id, conversation_id, user_id, role, content, platform, external_id,
+                external_msg_type, created_at)
+               VALUES (?, ?, ?, ?, ?, 'facebook', ?, 'message', ?)""",
+            (
+                message_id,
+                conversation_id,
+                user_id,
+                role,
+                normalized,
+                external_id,
+                created_at or datetime.now().isoformat(),
+            ),
+        )
+    update_conversation_preview(conversation_id, normalized[:200], role)
+    return message_id
+
+
+async def _sync_facebook_for_user(user_id: str, max_threads: int) -> dict:
+    cookie = _load_facebook_channel(user_id)
+    if not cookie:
+        return {"ok": False, "synced_conversations": 0, "synced_messages": 0}
+    data = await _sync_facebook_live_session(user_id, max_threads)
+    if data is None:
+        data = _run_facebook_bridge(
+            FACEBOOK_SYNC_BRIDGE,
+            {"cookie": cookie, "max_threads": max_threads},
+            timeout=90,
+        )
+    synced_conversations = 0
+    synced_messages = 0
+    touched_conversations = set()
+    conv_by_external_id = {}
+    for thread in data.get("threads") or []:
+        external_id = str(thread.get("external_id") or "").strip()
+        if not external_id:
+            continue
+        conv = ensure_conversation(
+            user_id,
+            "facebook",
+            str(thread.get("title") or external_id),
+            external_id,
+            "user",
+            "",
+        )
+        conv_by_external_id[external_id] = conv
+        synced_conversations += 1
+    for thread_id, messages in (data.get("thread_messages") or {}).items():
+        active_conv = conv_by_external_id.get(str(thread_id))
+        if not active_conv:
+            continue
+        for msg in messages or []:
+            message_id = _insert_facebook_message_once(
+                user_id,
+                active_conv["id"],
+                str(thread_id),
+                str(msg.get("role") or "assistant"),
+                str(msg.get("content") or ""),
+            )
+            if message_id:
+                touched_conversations.add(active_conv["id"])
+                synced_messages += 1
+                if str(msg.get("role") or "") != "user":
+                    _broadcast({
+                        "type": "message",
+                        "conversationId": active_conv["id"],
+                        "message": {
+                            "id": message_id,
+                            "sender_type": "assistant",
+                            "content": str(msg.get("content") or ""),
+                            "status": "received",
+                        },
+                    })
+    if touched_conversations:
+        _broadcast({
+            "type": "sync",
+            "platform": "facebook",
+            "conversationIds": list(touched_conversations),
+            "messages": synced_messages,
+        })
+    return {
+        "ok": True,
+        "synced_conversations": synced_conversations,
+        "synced_messages": synced_messages,
+        "threads": data.get("threads") or [],
+    }
+
+
+async def _facebook_sync_loop(user_id: str) -> None:
+    try:
+        while user_id in _facebook_live_sessions:
+            try:
+                await _sync_facebook_for_user(user_id, 20)
+            except Exception:
+                logging.exception("Facebook realtime sync failed for user %s", user_id)
+            await asyncio.sleep(8)
+    finally:
+        _facebook_sync_tasks.pop(user_id, None)
+
+
+def _ensure_facebook_sync_task(user_id: str) -> None:
+    task = _facebook_sync_tasks.get(user_id)
+    if task and not task.done():
+        return
+    _facebook_sync_tasks[user_id] = asyncio.create_task(_facebook_sync_loop(user_id))
+
+
 def _save_zalo_channel(user_id: str, cookie: str, imei: str) -> None:
     token = json.dumps({"cookie": cookie, "imei": imei}, ensure_ascii=False)
     now = datetime.now().isoformat()
@@ -870,6 +1754,29 @@ def _save_zalo_channel(user_id: str, cookie: str, imei: str) -> None:
                    (id, user_id, name, platform, access_token, is_active, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, 1, ?, ?)""",
                 (str(uuid.uuid4()), user_id, "Zalo", "zalo", token, now, now),
+            )
+
+
+def _save_facebook_channel(user_id: str, cookie: str) -> None:
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id FROM omni_channels WHERE user_id = ? AND platform = ?",
+            (user_id, "facebook"),
+        ).fetchone()
+        if row:
+            conn.execute(
+                """UPDATE omni_channels
+                   SET name = ?, access_token = ?, is_active = 1, updated_at = ?
+                   WHERE id = ?""",
+                ("Facebook", cookie, now, row["id"]),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO omni_channels
+                   (id, user_id, name, platform, access_token, is_active, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, 1, ?, ?)""",
+                (str(uuid.uuid4()), user_id, "Facebook", "facebook", cookie, now, now),
             )
 
 
@@ -915,6 +1822,17 @@ def _load_zalo_channel(user_id: str) -> tuple[str, str]:
     except json.JSONDecodeError:
         return row["access_token"], ""
     return data.get("cookie", ""), data.get("imei", "")
+
+
+def _load_facebook_channel(user_id: str) -> str:
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT access_token FROM omni_channels
+               WHERE user_id = ? AND platform = ? AND is_active = 1
+               ORDER BY updated_at DESC LIMIT 1""",
+            (user_id, "facebook"),
+        ).fetchone()
+    return str(row["access_token"] or "") if row else ""
 
 
 def restore_active_zalo_listeners() -> None:
@@ -970,6 +1888,26 @@ def _run_zalo_bridge(script: Path, payload: dict, timeout: int = 90) -> dict:
         data = {}
     if proc.returncode != 0 or data.get("error") or data.get("ok") is False:
         detail = data.get("error") or proc.stderr.strip() or "Zalo bridge lỗi."
+        raise HTTPException(status_code=502, detail=detail[:500])
+    return data
+
+
+def _run_facebook_bridge(script: Path, payload: dict, timeout: int = 90) -> dict:
+    if not script.exists():
+        raise HTTPException(status_code=500, detail=f"Không tìm thấy Python Facebook bridge: {script.name}")
+    proc = subprocess.run(
+        [sys.executable, str(script)],
+        input=json.dumps(payload, ensure_ascii=False),
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+    )
+    try:
+        data = _parse_bridge_json(proc.stdout)
+    except Exception:
+        data = {}
+    if proc.returncode != 0 or data.get("error") or data.get("ok") is False:
+        detail = data.get("error") or proc.stderr.strip() or "Facebook bridge lỗi."
         raise HTTPException(status_code=502, detail=detail[:500])
     return data
 
@@ -1463,6 +2401,44 @@ def _cleanup_zalo_reaction_messages(user_id: str) -> int:
     return result.rowcount
 
 
+def _cleanup_duplicate_zalo_sent_media(user_id: str) -> int:
+    removed = 0
+    touched_conversations = set()
+    with get_connection() as conn:
+        groups = conn.execute(
+            """SELECT conversation_id, external_id
+               FROM omni_messages
+               WHERE user_id = ?
+                 AND platform = 'zalo'
+                 AND role = 'user'
+                 AND COALESCE(external_id, '') != ''
+               GROUP BY conversation_id, external_id
+               HAVING COUNT(*) > 1""",
+            (user_id,),
+        ).fetchall()
+        for group in groups:
+            rows = conn.execute(
+                """SELECT id, content, created_at
+                   FROM omni_messages
+                   WHERE conversation_id = ?
+                     AND platform = 'zalo'
+                     AND role = 'user'
+                     AND external_id = ?
+                   ORDER BY created_at DESC""",
+                (group["conversation_id"], group["external_id"]),
+            ).fetchall()
+            keep = next((row for row in rows if "__OMNI_MEDIA__" in (row["content"] or "")), rows[0])
+            for row in rows:
+                if row["id"] == keep["id"]:
+                    continue
+                conn.execute("DELETE FROM omni_messages WHERE id = ?", (row["id"],))
+                removed += 1
+            touched_conversations.add(group["conversation_id"])
+    for conversation_id in touched_conversations:
+        refresh_conversation_preview(conversation_id)
+    return removed
+
+
 @router.post("/sync/zalo/qr/start")
 async def start_zalo_qr(request: Request):
     user_id = _get_user_id(request)
@@ -1680,6 +2656,7 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
     _cleanup_stale_zalo_group_conversations(user_id, active_thread_ids)
     _cleanup_empty_unpinned_zalo_conversations(user_id)
     _cleanup_zalo_reaction_messages(user_id)
+    _cleanup_duplicate_zalo_sent_media(user_id)
     _normalize_zalo_self_conversations(user_id)
     _refresh_empty_zalo_previews(user_id)
     _ensure_zalo_listener(user_id, cookie, imei)
@@ -1693,14 +2670,118 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
 
 
 @router.post("/connect/facebook")
-def connect_facebook(payload: OmniConnectFacebookRequest):
-    return {"connected": False, "status": "Kết nối Facebook trong OmniChat chưa được nối với SDK/web session."}
+def connect_facebook(payload: OmniConnectFacebookRequest, request: Request):
+    user_id = _get_user_id(request)
+    _run_facebook_bridge(
+        FACEBOOK_SYNC_BRIDGE,
+        {"cookie": payload.cookie, "max_threads": 1},
+        timeout=90,
+    )
+    _save_facebook_channel(user_id, payload.cookie)
+    return {"connected": True, "status": "Đã lưu phiên Facebook."}
+
+
+@router.post("/connect/facebook/browser/start")
+async def start_facebook_browser_login(request: Request):
+    user_id = _get_user_id(request)
+    session_id = str(uuid.uuid4())
+    existing = _facebook_live_sessions.pop(user_id, None)
+    if existing:
+        try:
+            await existing["context"].close()
+            await existing["playwright"].stop()
+        except Exception:
+            pass
+    sess = await _launch_facebook_persistent_session(user_id, headless=False)
+    page = sess["page"]
+    _facebook_browser_sessions[session_id] = sess
+    await page.goto("https://www.facebook.com/messages/", wait_until="domcontentloaded", timeout=60000)
+    return {"session_id": session_id, "status": "pending"}
+
+
+@router.get("/connect/facebook/browser/{session_id}/status")
+async def facebook_browser_login_status(session_id: str, request: Request):
+    user_id = _get_user_id(request)
+    sess = _facebook_browser_sessions.get(session_id)
+    if not sess or sess["user_id"] != user_id:
+        return {"session_id": session_id, "status": "expired", "detail": "Phiên Facebook đã hết hạn."}
+    page = sess["page"]
+    if await _facebook_page_is_connected(page, sess["context"]):
+        cookie = await _get_facebook_cookie_header(sess["context"])
+        _save_facebook_channel(user_id, cookie)
+        _facebook_live_sessions[user_id] = sess
+        _facebook_browser_sessions.pop(session_id, None)
+        return {"session_id": session_id, "status": "connected", "detail": "Facebook đã kết nối."}
+    if await _facebook_page_needs_security_unlock(page):
+        return {
+            "session_id": session_id,
+            "status": "pending",
+            "detail": "Facebook đang yêu cầu mã bảo mật/PIN. Nhập trực tiếp trong cửa sổ Facebook đang mở.",
+        }
+    return {
+        "session_id": session_id,
+        "status": "pending",
+        "detail": "Hoàn tất đăng nhập hoặc xác minh trong cửa sổ Facebook đang mở.",
+    }
 
 
 @router.post("/sync/facebook/messages")
-def sync_facebook_messages(payload: OmniSyncMessagesRequest):
+async def sync_facebook_messages(payload: OmniSyncMessagesRequest, request: Request):
+    user_id = _get_user_id(request)
+    cookie = _load_facebook_channel(user_id)
+    if not cookie:
+        raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
+    data = await _sync_facebook_live_session(user_id, payload.maxThreads)
+    if data is None:
+        data = _run_facebook_bridge(
+            FACEBOOK_SYNC_BRIDGE,
+            {"cookie": cookie, "max_threads": payload.maxThreads},
+            timeout=90,
+        )
+    synced_conversations = 0
+    synced_messages = 0
+    conv_by_external_id = {}
+    for thread in data.get("threads") or []:
+        external_id = str(thread.get("external_id") or "").strip()
+        if not external_id:
+            continue
+        conv = ensure_conversation(
+            user_id,
+            "facebook",
+            str(thread.get("title") or external_id),
+            external_id,
+            "user",
+            "",
+        )
+        conv_by_external_id[external_id] = conv
+        synced_conversations += 1
+    for thread_id, messages in (data.get("thread_messages") or {}).items():
+        active_conv = conv_by_external_id.get(str(thread_id))
+        if not active_conv:
+            continue
+        for msg in messages or []:
+            message_id = _insert_facebook_message_once(
+                user_id,
+                active_conv["id"],
+                str(thread_id),
+                str(msg.get("role") or "assistant"),
+                str(msg.get("content") or ""),
+            )
+            if message_id:
+                synced_messages += 1
+                if str(msg.get("role") or "") != "user":
+                    _broadcast({
+                        "type": "message",
+                        "conversationId": active_conv["id"],
+                        "message": {
+                            "id": message_id,
+                            "sender_type": "assistant",
+                            "content": str(msg.get("content") or ""),
+                            "status": "received",
+                        },
+                    })
     return {
-        "synced_conversations": 0,
-        "synced_messages": 0,
-        "status": "Đồng bộ Facebook trong OmniChat chưa được nối với SDK/web session.",
+        "synced_conversations": synced_conversations,
+        "synced_messages": synced_messages,
+        "status": "Đồng bộ Facebook xong danh sách hội thoại gần đây.",
     }

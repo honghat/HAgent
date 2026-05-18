@@ -429,6 +429,41 @@ async def react_real_message(user_id: str, thread_id: str, external_msg_id: str,
     await _with_client(user_id, action)
 
 
+async def send_real_media(user_id: str, thread_id: str, file_path: str, caption: str = "") -> dict:
+    """
+    Send media (image/file) to Telegram conversation.
+    
+    Args:
+        user_id: User ID
+        thread_id: Telegram chat ID
+        file_path: Path to file to send
+        caption: Optional caption
+    
+    Returns:
+        dict with success status and message_id
+    """
+    if not Path(file_path).exists():
+        return {"success": False, "error": f"File không tồn tại: {file_path}"}
+    
+    async def action(client: TelegramClient):
+        entity = await _resolve_entity(client, thread_id)
+        message = await client.send_file(
+            entity,
+            file_path,
+            caption=caption if caption else None
+        )
+        return {
+            "success": True,
+            "message_id": str(message.id),
+            "chat_id": thread_id
+        }
+    
+    try:
+        return await _with_client(user_id, action)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 async def list_bot_commands(user_id: str, thread_id: str) -> list[dict]:
     async def action(client: TelegramClient):
         entity = await _resolve_entity(client, thread_id)

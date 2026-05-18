@@ -53,8 +53,9 @@ def _row_to_message(row) -> dict:
         "reply_to": reply_to,
         "external_author_name": row["external_author_name"] or None,
         "reactions": reactions,
-        "status": "sent",
+        "status": "sent" if row["role"] == "user" else "received",
         "created_at": row["created_at"],
+        "time_is_estimated": row["platform"] == "facebook" and str(row["external_id"] or "").startswith("fb_"),
         "conversation_id": row["conversation_id"],
     }
 

@@ -87,21 +87,39 @@ def main():
     bot = ZaloAPI("</>", "</>", imei, parse_cookie(cookie))
     t_type = ThreadType.GROUP if thread_type == "group" else ThreadType.USER
     
+    # Prepare message object if text is provided
+    msg = Message(text=text) if text else None
+    
     if action == "send_image":
         # Send single image
         if not image_path:
             raise RuntimeError("Missing image_path for send_image action")
-        result = bot.sendLocalImage(image_path, thread_id=target, thread_type=t_type, message=Message(text=text) if text else None)
+        result = bot.sendLocalImage(
+            image_path, 
+            thread_id=target, 
+            thread_type=t_type, 
+            message=msg
+        )
     elif action == "send_images":
         # Send multiple images
         if not image_paths or not isinstance(image_paths, list):
             raise RuntimeError("Missing or invalid image_paths for send_images action")
-        result = bot.sendMultiLocalImage(image_paths, thread_id=target, thread_type=t_type, message=Message(text=text) if text else None)
+        result = bot.sendMultiLocalImage(
+            image_paths, 
+            thread_id=target, 
+            thread_type=t_type, 
+            message=msg
+        )
     elif action == "send_file":
         # Send file from URL
         if not file_url:
             raise RuntimeError("Missing file_url for send_file action")
-        result = bot.sendRemoteFile(file_url, thread_id=target, thread_type=t_type, message=Message(text=text) if text else None)
+        result = bot.sendRemoteFile(
+            file_url, 
+            thread_id=target, 
+            thread_type=t_type, 
+            message=msg
+        )
     elif action == "react":
         reaction = str(payload.get("emoji", "")).strip()
         message_object = message_object_from_payload(payload.get("message") or {})
@@ -116,11 +134,13 @@ def main():
             raise RuntimeError("Thiếu metadata Zalo của tin nhắn nên chưa thu hồi được.")
         result = bot.undoMessage(message_object.msgId, message_object.cliMsgId, thread_id=target, thread_type=t_type)
     else:
+        # Default send or reply
         reply_object = message_object_from_payload(payload.get("reply_to") or {})
         if action == "reply" and reply_object:
             result = bot.replyTo(reply_object, Message(text=text), thread_id=target, thread_type=t_type)
         else:
             result = bot.send(Message(text=text), thread_id=target, thread_type=t_type)
+    
     data = plain(result)
     print(json.dumps({
         "ok": True,

@@ -133,3 +133,29 @@ class OmniQRStatusResponse(BaseModel):
     session: str
     status: str
     detail: str | None = None
+
+
+# New schemas for media handling
+class OmniSendMediaRequest(BaseModel):
+    """Request to send media (image/file) to a conversation."""
+    image_path: str | None = None
+    image_paths: list[str] | None = None
+    media_urls: list[str] | None = None
+    file_url: str | None = None
+    caption: str = ""
+    optimize: bool = True  # Auto-optimize images for platform
+
+
+class OmniPasteClipboardRequest(BaseModel):
+    """Request to paste image from clipboard."""
+    caption: str = ""
+
+
+class OmniImageInfoResponse(BaseModel):
+    """Response with image information."""
+    format: str
+    mode: str
+    width: int
+    height: int
+    size_bytes: int
+    size_mb: float

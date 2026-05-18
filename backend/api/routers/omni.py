@@ -151,6 +151,17 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
             },
             timeout=45,
         )
+    elif platform == "telegram" and external_id:
+        from api.routers.telegram import send_real_message
+
+        send_meta = asyncio.run(
+            send_real_message(
+                uid,
+                external_id,
+                payload.content,
+                _get_telegram_reply_external_id(payload.reply_to_id, uid),
+            )
+        )
 
     msg_id = create_message(
         conversation_id=id,
@@ -246,6 +257,16 @@ def delete_message_endpoint(id: str, request: Request):
             },
             timeout=45,
         )
+    elif row.get("platform") == "telegram" and row.get("external_id"):
+        from api.routers.telegram import delete_real_message
+
+        asyncio.run(
+            delete_real_message(
+                uid,
+                row.get("thread_id") or "",
+                row.get("external_id") or "",
+            )
+        )
     if not delete_message(id):
         raise HTTPException(status_code=404, detail="Message not found")
     return {"deleted": True}
@@ -254,7 +275,7 @@ def delete_message_endpoint(id: str, request: Request):
 @router.post("/messages/{id}/reaction")
 def react_to_message(id: str, payload: OmniReactionRequest, request: Request):
     uid = _get_user_id(request)
-    _row, meta = _get_zalo_message_context(id, uid)
+    row, meta = _get_zalo_message_context(id, uid)
     if meta:
         cookie, imei = _load_zalo_channel(uid)
         if not cookie or not imei:
@@ -271,6 +292,17 @@ def react_to_message(id: str, payload: OmniReactionRequest, request: Request):
                 "emoji": payload.emoji,
             },
             timeout=45,
+        )
+    elif row.get("platform") == "telegram" and row.get("external_id"):
+        from api.routers.telegram import react_real_message
+
+        asyncio.run(
+            react_real_message(
+                uid,
+                row.get("thread_id") or "",
+                row.get("external_id") or "",
+                payload.emoji,
+            )
         )
     if not add_reaction(id, payload.emoji, uid):
         raise HTTPException(status_code=404, detail="Message not found")
@@ -605,6 +637,15 @@ def _get_zalo_message_context(message_id: str, user_id: str) -> tuple[dict, dict
         "message": message,
     }
     return dict(row), meta
+
+
+def _get_telegram_reply_external_id(reply_to_id: str | None, user_id: str) -> str:
+    if not reply_to_id:
+        return ""
+    row, _meta = _get_zalo_message_context(reply_to_id, user_id)
+    if row.get("platform") != "telegram":
+        return ""
+    return str(row.get("external_id") or "")
 
 
 def _get_zalo_reply_meta(reply_to_id: str | None, user_id: str) -> dict:

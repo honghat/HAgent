@@ -50,6 +50,11 @@ def create_app() -> FastAPI:
     app.include_router(skills.router)
     app.include_router(web.router)
     app.include_router(wiki.router)
+
+    @app.on_event("startup")
+    async def restore_telegram_listeners():
+        telegram.restore_active_listeners()
+
     return app
 
 

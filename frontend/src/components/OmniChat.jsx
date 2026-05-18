@@ -254,6 +254,7 @@ export default function OmniChat({ token }) {
   const [todayStats, setTodayStats] = useState({ sent: 0, received: 0, total: 0 })
   const [replyTo, setReplyTo] = useState(null)
   const [reactionMenuId, setReactionMenuId] = useState('')
+  const [telegramCommands, setTelegramCommands] = useState([])
   const [renaming, setRenaming] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')
   const messagesPaneRef = useRef(null)
@@ -347,6 +348,16 @@ export default function OmniChat({ token }) {
     setReactionMenuId('')
     setRenaming(false)
   }, [selectedId])
+
+  useEffect(() => {
+    if (!selected || selected.channel !== 'telegram' || !selected.external_id) {
+      setTelegramCommands([])
+      return
+    }
+    telegramApi(`/conversations/${selected.external_id}/commands`, token)
+      .then(data => setTelegramCommands(Array.isArray(data.commands) ? data.commands : []))
+      .catch(() => setTelegramCommands([]))
+  }, [selected?.id, selected?.channel, selected?.external_id, token])
 
   useEffect(() => {
     if (!token) return undefined
@@ -572,6 +583,15 @@ export default function OmniChat({ token }) {
       setStatus(err.message)
     }
   }
+
+  const visibleTelegramCommands = useMemo(() => {
+    if (selected?.channel !== 'telegram' || !draft.startsWith('/')) return []
+    const needle = draft.slice(1).trim().toLowerCase()
+    return telegramCommands.filter(item => {
+      const command = String(item.command || '').toLowerCase()
+      return !needle || command.startsWith(needle)
+    })
+  }, [draft, selected?.channel, telegramCommands])
 
   async function startTelegramQr() {
     setTelegramQr(null)
@@ -1194,7 +1214,22 @@ export default function OmniChat({ token }) {
                   </div>
                 </div>
               )}
-              <form onSubmit={sendMessage} className="flex gap-2 border-t border-black/[0.06] bg-white p-3 pb-safe">
+              <form onSubmit={sendMessage} className="relative flex gap-2 border-t border-black/[0.06] bg-white p-3 pb-safe">
+                {visibleTelegramCommands.length > 0 && (
+                  <div className="absolute bottom-[52px] left-3 right-14 z-20 overflow-hidden rounded-md border border-black/[0.08] bg-white shadow-lg">
+                    {visibleTelegramCommands.map(item => (
+                      <button
+                        key={item.command}
+                        type="button"
+                        onClick={() => setDraft(`/${item.command} `)}
+                        className="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-gray-50"
+                      >
+                        <span className="shrink-0 text-[13px] font-semibold text-gray-950">/{item.command}</span>
+                        <span className="min-w-0 text-[12px] text-gray-500">{item.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <input
                   value={draft}
                   onChange={e => setDraft(e.target.value)}

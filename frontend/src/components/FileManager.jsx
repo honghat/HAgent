@@ -355,6 +355,7 @@ function DriveFilesPanel({ token }) {
 export default function FileManager({ token }) {
   const [activeTab, setActiveTab] = useState('local')
   const [volumes, setVolumes] = useState([])
+  const [remoteShares, setRemoteShares] = useState([])
   const [activeVolume, setActiveVolume] = useState(null)
   const [currentPath, setCurrentPath] = useState('')
   const [parentPath, setParentPath] = useState(null)
@@ -365,6 +366,7 @@ export default function FileManager({ token }) {
   const [pinnedFolders, setPinnedFolders] = useState(loadPinnedFolders)
   const [loadingVolumes, setLoadingVolumes] = useState(true)
   const [loadingDir, setLoadingDir] = useState(false)
+  const [mountingShare, setMountingShare] = useState('')
   const [error, setError] = useState(null)
 
   // File preview / edit state
@@ -420,7 +422,7 @@ export default function FileManager({ token }) {
     return result.filter(e => e.name.toLowerCase().includes(q))
   }, [entries, searchQuery, filterMode, showHidden])
 
-  useEffect(() => { loadVolumes() }, [])
+  useEffect(() => { loadVolumes(); loadRemoteShares() }, [])
   useEffect(() => { if (currentPath) loadDirectory(currentPath) }, [currentPath, showHidden])
 
   // Load pinned folders from backend
@@ -466,6 +468,39 @@ export default function FileManager({ token }) {
       setError(err.message)
     } finally {
       setLoadingVolumes(false)
+    }
+  }
+
+  async function loadRemoteShares() {
+    try {
+      const r = await fetch('/api/files/files/remote-shares', { headers: authHeaders(token) })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.detail || 'Cannot load remote shares')
+      setRemoteShares(data || [])
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  async function mountRemoteShare(share) {
+    if (!share?.id || mountingShare) return
+    setMountingShare(share.id)
+    try {
+      const r = await fetch('/api/files/files/mount', {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: share.id }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.detail || 'Mount failed')
+      showToast(data.message || `Đã mount ${share.name}`, 'ok')
+      await loadRemoteShares()
+      await loadVolumes()
+      if (data.path) navigateTo(data.path)
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setMountingShare('')
     }
   }
 
@@ -948,6 +983,58 @@ export default function FileManager({ token }) {
                   </div>
                 </button>
               ))}
+
+              {remoteShares.length > 0 && (
+                <div className="mt-4 border-t border-slate-800 pt-3">
+                  <div className="mb-1.5 flex items-center justify-between px-2">
+                    <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+                      <Server className="h-3 w-3" />
+                      Kết nối
+                    </div>
+                    <button
+                      onClick={loadRemoteShares}
+                      className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+                      title="Làm mới trạng thái mount"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    {remoteShares.map(share => (
+                      <button
+                        key={share.id}
+                        onClick={() => share.mounted ? navigateTo(share.mount_path) : mountRemoteShare(share)}
+                        disabled={!!mountingShare && mountingShare !== share.id}
+                        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[11px] leading-4 transition-all disabled:opacity-50 ${
+                          currentPath === share.mount_path || currentPath.startsWith(`${share.mount_path}/`)
+                            ? 'bg-cyan-500/15 text-cyan-200'
+                            : share.mounted
+                              ? 'text-emerald-200 hover:bg-slate-800/70'
+                              : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100'
+                        }`}
+                        title={`${share.host}/${share.share}`}
+                      >
+                        {mountingShare === share.id ? (
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-cyan-300" />
+                        ) : (
+                          <Server className={`h-4 w-4 shrink-0 ${share.mounted ? 'text-emerald-400' : 'text-purple-400'}`} />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{share.name}</div>
+                          <div className="mt-0.5 truncate text-[9px] text-slate-500">
+                            {share.mounted ? share.mount_path : 'Bấm để mount'}
+                          </div>
+                        </div>
+                        {share.mounted ? (
+                          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                        ) : (
+                          <Plus className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {pinnedFolders.length > 0 && (
                 <div className="mt-4 border-t border-slate-800 pt-3">

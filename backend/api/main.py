@@ -54,6 +54,7 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def restore_telegram_listeners():
         omni.restore_active_zalo_listeners()
+        omni.restore_active_facebook_sync_tasks()
         telegram.restore_active_listeners()
 
     return app

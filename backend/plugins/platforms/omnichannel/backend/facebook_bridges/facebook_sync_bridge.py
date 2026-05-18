@@ -8,14 +8,24 @@ from playwright.async_api import async_playwright
 
 
 def parse_cookie(cookie: str) -> list[dict]:
-    cookies = []
+    cookies_by_name = {}
+    valid_name_chars = set("!#$%&'*+-.^_`|~")
     for item in (cookie or "").split(";"):
         if "=" not in item:
             continue
         name, value = item.strip().split("=", 1)
-        if name:
-            cookies.append({"name": name, "value": value, "domain": ".facebook.com", "path": "/"})
-    return cookies
+        name = name.strip()
+        value = value.strip()
+        if (
+            not name
+            or any(ch.isspace() for ch in name)
+            or name.startswith("$")
+            or any((not ch.isalnum() and ch not in valid_name_chars) for ch in name)
+            or any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
+        ):
+            continue
+        cookies_by_name[name] = {"name": name, "value": value, "url": "https://www.facebook.com/"}
+    return list(cookies_by_name.values())
 
 
 async def main():

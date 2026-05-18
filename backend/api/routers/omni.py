@@ -1307,7 +1307,9 @@ def _default_browser_cdp_required_message() -> str:
 
 
 def _cookie_header_to_playwright(cookie: str, domain: str) -> list[dict]:
-    cookies = []
+    cookie_url = "https://www.facebook.com/" if "facebook.com" in domain else f"https://{domain.lstrip('.')}/"
+    cookies_by_name: dict[str, dict] = {}
+    valid_name_chars = set("!#$%&'*+-.^_`|~")
     for item in (cookie or "").split(";"):
         if "=" not in item:
             continue
@@ -1316,17 +1318,18 @@ def _cookie_header_to_playwright(cookie: str, domain: str) -> list[dict]:
         value = value.strip()
         if (
             not name
-            or not value
             or any(ch.isspace() for ch in name)
-            or name.startswith(("$", "__Host-"))
+            or name.startswith("$")
+            or any((not ch.isalnum() and ch not in valid_name_chars) for ch in name)
+            or any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
         ):
             continue
-        cookies.append({
+        cookies_by_name[name] = {
             "name": name,
             "value": value,
-            "url": "https://www.facebook.com/" if "facebook.com" in domain else f"https://{domain.lstrip('.')}/",
-        })
-    return cookies
+            "url": cookie_url,
+        }
+    return list(cookies_by_name.values())
 
 
 async def _close_omni_browser_session(user_id: str) -> None:
@@ -2305,7 +2308,11 @@ def _facebook_created_at_from_label(label: str) -> str | None:
 
 
 async def _sync_facebook_for_user(user_id: str, max_threads: int, max_messages: int = 1) -> dict:
-    lock = _facebook_sync_locks.setdefault(user_id, asyncio.Lock())
+    loop = asyncio.get_running_loop()
+    lock = _facebook_sync_locks.get(user_id)
+    if lock is None or getattr(lock, "_loop", None) not in (None, loop):
+        lock = asyncio.Lock()
+        _facebook_sync_locks[user_id] = lock
     async with lock:
         cookie = _load_facebook_channel(user_id)
         if not cookie:
@@ -2365,7 +2372,7 @@ async def _sync_facebook_for_user(user_id: str, max_threads: int, max_messages: 
 
 async def _facebook_sync_loop(user_id: str) -> None:
     try:
-        while user_id in _facebook_live_sessions:
+        while _load_facebook_channel(user_id):
             try:
                 await _sync_facebook_for_user(user_id, 4, 1)
             except Exception:
@@ -2380,6 +2387,20 @@ def _ensure_facebook_sync_task(user_id: str) -> None:
     if task and not task.done():
         return
     _facebook_sync_tasks[user_id] = asyncio.create_task(_facebook_sync_loop(user_id))
+
+
+def restore_active_facebook_sync_tasks() -> None:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT user_id
+               FROM omni_channels
+               WHERE platform = 'facebook' AND is_active = 1 AND access_token != ''"""
+        ).fetchall()
+    for row in rows:
+        try:
+            _ensure_facebook_sync_task(str(row["user_id"]))
+        except RuntimeError:
+            logging.warning("Facebook sync restore skipped; no running event loop for user %s", row["user_id"])
 
 
 def _save_zalo_channel(user_id: str, cookie: str, imei: str) -> None:

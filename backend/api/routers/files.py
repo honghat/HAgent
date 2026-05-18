@@ -11,12 +11,15 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
+from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from api.routers.auth import _get_user_id
 from api.services.user_store import get_user_by_id, update_user
 
 router = APIRouter(prefix="/api/files", tags=["files"])
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+load_dotenv(PROJECT_ROOT / ".env")
 
 # ── Path Safety ──
 
@@ -237,6 +240,64 @@ class OperationResponse(BaseModel):
     path: str = ""
 
 
+class RemoteShareInfo(BaseModel):
+    id: str
+    name: str
+    host: str
+    user: str
+    share: str
+    mount_path: str
+    mounted: bool = False
+
+
+class RemoteShareMountRequest(BaseModel):
+    id: str
+
+
+REMOTE_SHARES = [
+    {
+        "id": "hat-pi-pishare",
+        "name": "hat-pi PiShare",
+        "host": "100.124.52.107",
+        "user": "pi",
+        "share": "PiShare",
+        "password_env": "HAT_PI_SMB_PASSWORD",
+    },
+    {
+        "id": "hat-pi-hatai",
+        "name": "hat-pi HatAI",
+        "host": "100.124.52.107",
+        "user": "pi",
+        "share": "HatAI",
+        "password_env": "HAT_PI_SMB_PASSWORD",
+    },
+    {
+        "id": "hat-linux-my4tbshare",
+        "name": "hat-linux My4TBShare",
+        "host": "100.69.50.64",
+        "user": "hatnguyen",
+        "share": "My4TBShare",
+        "password_env": "HAT_LINUX_SMB_PASSWORD",
+    },
+    {
+        "id": "hat-linux-windowsshare",
+        "name": "hat-linux WindowsShare",
+        "host": "100.69.50.64",
+        "user": "hatnguyen",
+        "share": "WindowsShare",
+        "password_env": "HAT_LINUX_SMB_PASSWORD",
+    },
+    {
+        "id": "hat-linux-systemdisk",
+        "name": "hat-linux SystemDisk",
+        "host": "100.69.50.64",
+        "user": "hatnguyen",
+        "share": "SystemDisk",
+        "password_env": "HAT_LINUX_SMB_PASSWORD",
+    },
+]
+
+
 # ── Endpoints ──
 
 
@@ -247,6 +308,48 @@ def _disk_info(vpath: str) -> tuple:
         return round(st.total / (1024**3), 1), round(st.free / (1024**3), 1)
     except OSError:
         return None, None
+
+
+def _remote_mount_path(share: dict) -> str:
+    return str(Path.home() / "mnt" / share["share"])
+
+
+def _is_mounted(path: str) -> bool:
+    if os.path.ismount(path):
+        return True
+    try:
+        out = subprocess.check_output(["mount"], text=True, timeout=5)
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return any(f" on {path} " in line for line in out.splitlines())
+
+
+def _remote_share_info(share: dict) -> RemoteShareInfo:
+    mount_path = _remote_mount_path(share)
+    return RemoteShareInfo(
+        id=share["id"],
+        name=share["name"],
+        host=share["host"],
+        user=share["user"],
+        share=share["share"],
+        mount_path=mount_path,
+        mounted=_is_mounted(mount_path),
+    )
+
+
+def _password_for_share(share: dict) -> str:
+    for env_name in (
+        share.get("password_env"),
+        f"SMB_PASSWORD_{share['host'].replace('.', '_')}",
+        "SMB_PASSWORD",
+        "SSH_PASSWORD",
+    ):
+        if not env_name:
+            continue
+        value = os.getenv(env_name, "").strip()
+        if value:
+            return value
+    return ""
 
 
 def _detect_remote_mounts() -> list[VolumeInfo]:
@@ -308,6 +411,52 @@ def _detect_remote_mounts() -> list[VolumeInfo]:
             )
         )
     return volumes
+
+
+@router.get("/files/remote-shares", response_model=List[RemoteShareInfo])
+def list_remote_shares(request: Request):
+    _get_user_id(request)
+    return [_remote_share_info(share) for share in REMOTE_SHARES]
+
+
+@router.post("/files/mount", response_model=OperationResponse)
+def mount_remote_share(req: RemoteShareMountRequest, request: Request):
+    _get_user_id(request)
+    share = next((item for item in REMOTE_SHARES if item["id"] == req.id), None)
+    if not share:
+        raise HTTPException(404, "Remote share not found")
+
+    mount_path = _remote_mount_path(share)
+    if _is_mounted(mount_path):
+        return OperationResponse(ok=True, path=mount_path, message="Already mounted")
+
+    password = _password_for_share(share)
+    if not password:
+        raise HTTPException(
+            400,
+            f"Missing password env for {share['name']}. Set {share.get('password_env')} or SMB_PASSWORD or SSH_PASSWORD.",
+        )
+
+    if platform.system() != "Darwin":
+        raise HTTPException(400, "SMB mount from this UI is currently supported on macOS only")
+
+    Path(mount_path).mkdir(parents=True, exist_ok=True)
+    user = urllib.parse.quote(share["user"], safe="")
+    encoded_password = urllib.parse.quote(password, safe="")
+    host = share["host"]
+    share_name = urllib.parse.quote(share["share"], safe="")
+    url = f"smb://{user}:{encoded_password}@{host}/{share_name}"
+
+    result = subprocess.run(
+        ["mount", "-t", "smbfs", "-o", "noowners", url, mount_path],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "Mount failed").strip()
+        raise HTTPException(500, message)
+    return OperationResponse(ok=True, path=mount_path, message=f"Mounted {share['name']}")
 
 
 @router.get("/files/volumes", response_model=List[VolumeInfo])

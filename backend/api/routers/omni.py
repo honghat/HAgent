@@ -744,6 +744,20 @@ def _apply_zalo_undo_event(user_id: str, message_object: dict) -> bool:
     return True
 
 
+def _zalo_profile_for_thread(user_id: str, thread_id: str) -> tuple[str, str]:
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT name, avatar_url
+               FROM omni_contacts
+               WHERE user_id = ? AND platform = 'zalo' AND external_id = ?
+               LIMIT 1""",
+            (user_id, thread_id),
+        ).fetchone()
+    if row:
+        return str(row["name"] or thread_id), str(row["avatar_url"] or "")
+    return thread_id, ""
+
+
 def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
     if event.get("event") == "ready":
         state["own_id"] = str(event.get("own_id") or "")
@@ -775,7 +789,8 @@ def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
         _apply_zalo_undo_event(user_id, message_object)
         return
 
-    conv = ensure_conversation(user_id, "zalo", thread_id, thread_id, thread_type)
+    title, avatar = _zalo_profile_for_thread(user_id, thread_id)
+    conv = ensure_conversation(user_id, "zalo", title, thread_id, thread_type, avatar)
     msg = {
         "external_id": str(event.get("mid") or f"{thread_id}:{time.time()}"),
         "cli_msg_id": str(message_object.get("cliMsgId") or ""),

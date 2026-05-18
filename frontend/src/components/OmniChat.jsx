@@ -597,7 +597,7 @@ export default function OmniChat({ token }) {
     try {
       const data = await telegramApi('/sync/messages', token, {
         method: 'POST',
-        body: JSON.stringify({ maxThreads: 12, maxMessages: 30 }),
+        body: JSON.stringify({ maxThreads: 500, maxMessages: 80 }),
       })
       setChannelStatus(`Telegram: ${data.synced_conversations || 0} hội thoại, ${data.synced_messages || 0} tin.`)
       await loadConversations({ quiet: true })

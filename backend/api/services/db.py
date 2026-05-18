@@ -181,6 +181,7 @@ def init_db() -> None:
                 platform TEXT NOT NULL,
                 external_id TEXT,
                 title TEXT NOT NULL,
+                thread_type TEXT DEFAULT 'user',
                 custom_name TEXT,
                 last_message_preview TEXT DEFAULT '',
                 last_message_sender TEXT DEFAULT '',
@@ -225,6 +226,7 @@ def init_db() -> None:
         _ensure_column(conn, "messages", "usage_json", "TEXT")
         _ensure_column(conn, "self_evolution", "metadata_json", "TEXT")
         _ensure_column(conn, "omni_channels", "access_token", "TEXT")
+        _ensure_column(conn, "omni_conversations", "thread_type", "TEXT DEFAULT 'user'")
         _ensure_column(conn, "omni_messages", "external_id", "TEXT")
         _ensure_column(conn, "omni_messages", "reactions_json", "TEXT")
         conn.executescript(

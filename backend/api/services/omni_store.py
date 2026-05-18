@@ -20,7 +20,7 @@ def _row_to_conversation(row) -> dict:
         "avatar": "",
         "is_pinned": bool(row["pinned"]),
         "unread": bool(row["unread_count"] > 0),
-        "thread_type": "personal",
+        "thread_type": row["thread_type"] or "user",
         "external_id": row["external_id"] or "",
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -111,6 +111,7 @@ def ensure_conversation(
     platform: str,
     title: str,
     external_id: str | None = None,
+    thread_type: str = "user",
 ) -> dict:
     """Find existing conversation by platform+external_id, or create new one."""
     if external_id:
@@ -120,8 +121,22 @@ def ensure_conversation(
                 (user_id, platform, external_id),
             ).fetchone()
         if row:
+            with get_connection() as conn:
+                conn.execute(
+                    """UPDATE omni_conversations
+                       SET title = ?, thread_type = ?, updated_at = datetime('now', 'localtime')
+                       WHERE id = ?""",
+                    (title, thread_type, row["id"]),
+                )
             return _row_to_conversation(dict(row))
-    return create_conversation(user_id, platform, title, external_id)
+    conv = create_conversation(user_id, platform, title, external_id)
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE omni_conversations SET thread_type = ? WHERE id = ?",
+            (thread_type, conv["id"]),
+        )
+    conv["thread_type"] = thread_type
+    return conv
 
 
 def delete_conversation(conversation_id: str) -> bool:

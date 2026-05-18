@@ -52,6 +52,8 @@ router = APIRouter(prefix="/omni", tags=["OmniChat"])
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 ZALO_SYNC_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_sync_bridge.py"
+ZALO_SEND_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_send_bridge.py"
+ZALO_LISTEN_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_listen_bridge.py"
 
 
 def _get_user_id(request: Request) -> str:
@@ -124,14 +126,40 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    external_id = conv.get("external_id") or ""
+    platform = conv.get("platform") or ""
+    send_meta = {}
+    if platform == "zalo" and external_id:
+        cookie, imei = _load_zalo_channel(uid)
+        if not cookie or not imei:
+            raise HTTPException(status_code=400, detail="Chưa có phiên Zalo. Hãy quét QR trước.")
+        send_meta = _run_zalo_bridge(
+            ZALO_SEND_BRIDGE,
+            {
+                "cookie": cookie,
+                "imei": imei,
+                "target": external_id,
+                "text": payload.content,
+                "thread_type": conv.get("thread_type") or "user",
+            },
+            timeout=45,
+        )
+
     msg_id = create_message(
         conversation_id=id,
         user_id=uid,
         role="user",
         content=payload.content,
         reply_to_id=payload.reply_to_id or None,
-        platform=conv.get("platform"),
+        platform=platform,
     )
+    external_msg_id = send_meta.get("msg_id") or send_meta.get("cli_msg_id") or ""
+    if external_msg_id:
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE omni_messages SET external_id = ? WHERE id = ?",
+                (external_msg_id, msg_id),
+            )
 
     _broadcast({
         "type": "message",
@@ -263,6 +291,8 @@ def event_stream(request: Request):
 # ── Sync / Connect ─────────────────────────────────────────────────────────
 
 _zalo_qr_sessions: dict[str, dict] = {}
+_zalo_listeners: dict[str, dict] = {}
+_zalo_listeners_lock = threading.Lock()
 
 
 async def _close_zalo_qr_session(session_id: str) -> None:
@@ -393,6 +423,130 @@ def _load_zalo_channel(user_id: str) -> tuple[str, str]:
     return data.get("cookie", ""), data.get("imei", "")
 
 
+def _run_zalo_bridge(script: Path, payload: dict, timeout: int = 90) -> dict:
+    if not script.exists():
+        raise HTTPException(status_code=500, detail=f"Không tìm thấy Python Zalo bridge: {script.name}")
+    proc = subprocess.run(
+        [sys.executable, str(script)],
+        input=json.dumps(payload, ensure_ascii=False),
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+    )
+    try:
+        data = _parse_bridge_json(proc.stdout)
+    except Exception:
+        data = {}
+    if proc.returncode != 0 or data.get("error") or data.get("ok") is False:
+        detail = data.get("error") or proc.stderr.strip() or "Zalo bridge lỗi."
+        raise HTTPException(status_code=502, detail=detail[:500])
+    return data
+
+
+def _zalo_event_content(event: dict) -> str:
+    content = event.get("content")
+    if isinstance(content, str):
+        return content
+    obj = event.get("message_object")
+    if isinstance(obj, dict):
+        for key in ("content", "text", "message", "body", "href", "url"):
+            value = obj.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+    return json.dumps(content or obj or "", ensure_ascii=False)
+
+
+def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
+    if event.get("event") == "ready":
+        state["own_id"] = str(event.get("own_id") or "")
+        return
+    if event.get("event") != "message":
+        return
+
+    thread_id = str(event.get("thread_id") or "")
+    if not thread_id:
+        return
+    thread_type = str(event.get("thread_type") or "user").lower()
+    if "group" in thread_type:
+        thread_type = "group"
+    else:
+        thread_type = "user"
+
+    conv = ensure_conversation(user_id, "zalo", thread_id, thread_id, thread_type)
+    msg = {
+        "external_id": str(event.get("mid") or f"{thread_id}:{time.time()}"),
+        "author_id": str(event.get("author_id") or ""),
+        "content": _zalo_event_content(event),
+    }
+    if _insert_zalo_message_once(user_id, conv["id"], msg, own_id=str(state.get("own_id") or "")):
+        sender_type = "user" if str(state.get("own_id") or "") and msg["author_id"] == str(state.get("own_id") or "") else "assistant"
+        _broadcast({
+            "type": "message",
+            "platform": "zalo",
+            "conversationId": conv["id"],
+            "message": {
+                "sender_type": sender_type,
+                "content": msg["content"],
+                "status": "received",
+            },
+        })
+
+
+def _zalo_listener_reader(user_id: str, proc: subprocess.Popen, state: dict) -> None:
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("event") == "error":
+                state["error"] = event.get("error") or "Zalo listener lỗi."
+                break
+            _handle_zalo_listener_event(user_id, state, event)
+    finally:
+        with _zalo_listeners_lock:
+            current = _zalo_listeners.get(user_id)
+            if current and current.get("proc") is proc:
+                _zalo_listeners.pop(user_id, None)
+
+
+def _ensure_zalo_listener(user_id: str, cookie: str, imei: str) -> bool:
+    if not cookie or not imei or not ZALO_LISTEN_BRIDGE.exists():
+        return False
+    with _zalo_listeners_lock:
+        current = _zalo_listeners.get(user_id)
+        proc = current.get("proc") if current else None
+        if proc and proc.poll() is None:
+            return True
+
+        proc = subprocess.Popen(
+            [sys.executable, str(ZALO_LISTEN_BRIDGE)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        payload = json.dumps({"cookie": cookie, "imei": imei}, ensure_ascii=False)
+        assert proc.stdin is not None
+        proc.stdin.write(payload)
+        proc.stdin.close()
+        state = {"proc": proc, "own_id": "", "error": ""}
+        _zalo_listeners[user_id] = state
+        thread = threading.Thread(
+            target=_zalo_listener_reader,
+            args=(user_id, proc, state),
+            daemon=True,
+        )
+        state["thread"] = thread
+        thread.start()
+        return True
+
+
 def _parse_bridge_json(output: str) -> dict:
     clean = re.sub(r"\x1b\[[0-9;:]*[A-Za-z]", "", output or "").strip()
     try:
@@ -404,7 +558,7 @@ def _parse_bridge_json(output: str) -> dict:
         raise
 
 
-def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict) -> bool:
+def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own_id: str = "") -> bool:
     external_id = str(msg.get("external_id") or "")
     if not external_id:
         return False
@@ -416,7 +570,8 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict) -> 
         ).fetchone()
         if exists:
             return False
-        role = "user" if not msg.get("author_id") else "assistant"
+        author_id = str(msg.get("author_id") or "")
+        role = "user" if own_id and author_id == own_id else "assistant"
         created_at = datetime.now().isoformat()
         conn.execute(
             """INSERT INTO omni_messages
@@ -534,6 +689,7 @@ async def check_zalo_qr_status(session: str, request: Request):
     if not imei:
         imei = str(uuid.uuid4())
     _save_zalo_channel(user_id, cookie, imei)
+    _ensure_zalo_listener(user_id, cookie, imei)
     await _close_zalo_qr_session(session)
     return OmniQRStatusResponse(
         session=session,
@@ -579,22 +735,44 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
     synced_contacts = 0
     synced_conversations = 0
     synced_messages = 0
+    touched_conversations: set[str] = set()
+    own_id = str(data.get("own_id") or "")
     for friend in data.get("friends") or []:
         if not friend.get("friend_id"):
             continue
         upsert_contact(user_id, "zalo", str(friend["friend_id"]), str(friend.get("name") or friend["friend_id"]), friend.get("avatar") or "")
         synced_contacts += 1
 
-    for thread in data.get("threads") or []:
+    for thread in (data.get("threads") or [])[: payload.maxThreads]:
         thread_id = str(thread.get("thread_id") or "")
         if not thread_id:
             continue
-        conv = ensure_conversation(user_id, "zalo", str(thread.get("name") or thread_id), thread_id)
+        thread_type = str(thread.get("thread_type") or "user")
+        conv = ensure_conversation(user_id, "zalo", str(thread.get("name") or thread_id), thread_id, thread_type)
         conv_id = conv["id"]
+        touched_conversations.add(conv_id)
         synced_conversations += 1
-        for msg in thread.get("messages") or []:
-            if _insert_zalo_message_once(user_id, conv_id, msg):
+        for msg in (thread.get("messages") or [])[-payload.maxMessages:]:
+            if _insert_zalo_message_once(user_id, conv_id, msg, own_id=own_id):
                 synced_messages += 1
+                _broadcast({
+                    "type": "message",
+                    "conversationId": conv_id,
+                    "message": {
+                        "sender_type": "assistant",
+                        "content": str(msg.get("content") or ""),
+                        "status": "received",
+                    },
+                })
+
+    if touched_conversations:
+        _broadcast({
+            "type": "sync",
+            "platform": "zalo",
+            "conversationIds": list(touched_conversations),
+            "messages": synced_messages,
+        })
+    _ensure_zalo_listener(user_id, cookie, imei)
 
     return {
         "synced_contacts": synced_contacts,

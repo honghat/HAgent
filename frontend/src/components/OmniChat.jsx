@@ -158,7 +158,7 @@ function MessageBody({ content = '' }) {
     .filter(url => !markerUrls.has(url))
     .map(url => ({ type: 'image', url, label: 'Ảnh' }))
   const rawSticker = stickerFromRawText(visibleText)
-  const rawJsonMedia = rawSticker ? null : zaloJsonMediaFromRawText(visibleText)
+  const rawJsonMedia = rawSticker || markerMedia.length > 0 ? null : zaloJsonMediaFromRawText(visibleText)
   const textWithoutInlineImages = visibleText
     .replace(IMAGE_URL_RE, ' ')
     .replace(/[ \t]+\n/g, '\n')
@@ -252,6 +252,52 @@ function formatMessageTime(value) {
   return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 }
 
+function statusLabel(status, outgoing) {
+  if (status === 'sending') return 'Đang gửi'
+  if (status === 'received') return ''
+  if (status === 'synced') return ''
+  if (status === 'sent') return ''
+  return status || ''
+}
+
+function playIncomingChime(audioContextRef) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if (!AudioContextClass) return
+  const audioContext = audioContextRef.current || new AudioContextClass()
+  audioContextRef.current = audioContext
+  if (audioContext.state === 'suspended') {
+    audioContext.resume().catch(() => {})
+  }
+
+  const now = audioContext.currentTime
+  ;[
+    { at: 0, frequency: 880 },
+    { at: 0.16, frequency: 1174.66 },
+  ].forEach(({ at, frequency }) => {
+    const oscillator = audioContext.createOscillator()
+    const gain = audioContext.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.value = frequency
+    gain.gain.setValueAtTime(0.0001, now + at)
+    gain.gain.exponentialRampToValueAtTime(0.08, now + at + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.14)
+    oscillator.connect(gain)
+    gain.connect(audioContext.destination)
+    oscillator.start(now + at)
+    oscillator.stop(now + at + 0.16)
+  })
+}
+
+function prepareAudio(audioContextRef) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if (!AudioContextClass) return
+  const audioContext = audioContextRef.current || new AudioContextClass()
+  audioContextRef.current = audioContext
+  if (audioContext.state === 'suspended') {
+    audioContext.resume().catch(() => {})
+  }
+}
+
 function isDefaultAvatar(src = '') {
   const value = String(src || '').trim().toLowerCase()
   return !value || value.includes('default_avatar') || value.endsWith('/default')
@@ -316,8 +362,7 @@ export default function OmniChat({ token, provider }) {
   const [agentAutoState, setAgentAutoState] = useState({ enabled: false, session_id: '', last_error: '' })
   const [agentAutoSaving, setAgentAutoSaving] = useState(false)
   const [savingFacebook, setSavingFacebook] = useState(false)
-  const [showFacebookConnect, setShowFacebookConnect] = useState(false)
-  const [facebookCookie, setFacebookCookie] = useState('')
+  const [facebookBrowserSession, setFacebookBrowserSession] = useState('')
   const [todayStats, setTodayStats] = useState({ sent: 0, received: 0, total: 0 })
   const [replyTo, setReplyTo] = useState(null)
   const [reactionMenuId, setReactionMenuId] = useState('')
@@ -330,8 +375,15 @@ export default function OmniChat({ token, provider }) {
   const bottomRef = useRef(null)
   const selectedIdRef = useRef('')
   const reloadTimerRef = useRef(null)
+  const conversationsRef = useRef([])
+  const audioContextRef = useRef(null)
+  const notificationsReadyRef = useRef(false)
 
   const selected = conversations.find(item => item.id === selectedId) || contacts.find(item => item.id === selectedId) || null
+
+  useEffect(() => {
+    conversationsRef.current = conversations
+  }, [conversations])
 
   const conversationStats = useMemo(() => {
     const rows = Array.isArray(todayStats.by_conversation) ? todayStats.by_conversation : []
@@ -443,6 +495,24 @@ export default function OmniChat({ token, provider }) {
   }, [selected?.id, selected?.channel, selected?.external_id, token])
 
   useEffect(() => {
+    function prepareNotifications() {
+      if (notificationsReadyRef.current) return
+      notificationsReadyRef.current = true
+      prepareAudio(audioContextRef)
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {})
+      }
+    }
+
+    window.addEventListener('pointerdown', prepareNotifications, { once: true })
+    window.addEventListener('keydown', prepareNotifications, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', prepareNotifications)
+      window.removeEventListener('keydown', prepareNotifications)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!token) return undefined
     const events = new EventSource(`/api/omni/events?t=${encodeURIComponent(token)}`)
     let lastEventTime = Date.now()
@@ -459,6 +529,16 @@ export default function OmniChat({ token, provider }) {
         const event = JSON.parse(e.data)
         
         if (event.type === 'message') {
+          const incoming = event.message?.status === 'received' || event.message?.sender_type !== 'user'
+          if (incoming) {
+            playIncomingChime(audioContextRef)
+            if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+              const conv = conversationsRef.current.find(item => item.id === event.conversationId)
+              const title = conv?.sender || 'Tin nhắn mới'
+              const body = messagePreview(event.message?.content || '') || 'Bạn có tin nhắn mới'
+              new Notification(title, { body, tag: `omni-${event.conversationId}` })
+            }
+          }
           const currentId = selectedIdRef.current
           if (currentId === event.conversationId) {
             loadMessages(currentId, { stickToBottom: true }).catch(() => {})
@@ -633,6 +713,7 @@ export default function OmniChat({ token, provider }) {
     try {
       // Upload attachments first if any
       let uploadedUrls = []
+      let uploadedPaths = []
       if (savedAttachments.length > 0) {
         setUploading(true)
         const formData = new FormData()
@@ -649,23 +730,67 @@ export default function OmniChat({ token, provider }) {
         if (!uploadRes.ok) throw new Error('Upload failed')
         const uploadData = await uploadRes.json()
         uploadedUrls = uploadData.urls || []
+        uploadedPaths = uploadData.paths || []
         setUploading(false)
       }
       
-      // Build message content with uploaded files
-      let finalContent = text
-      if (uploadedUrls.length > 0) {
-        const mediaMarkers = uploadedUrls.map(url => {
-          const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(url)
-          return `__OMNI_MEDIA__${JSON.stringify({ type: isImage ? 'image' : 'file', url, label: isImage ? 'Ảnh' : 'File' })}`
-        }).join('\n')
-        finalContent = finalContent ? `${finalContent}\n${mediaMarkers}` : mediaMarkers
+      if (uploadedUrls.length > 0 && ['zalo', 'telegram', 'facebook'].includes(selected.channel)) {
+        const imagePaths = uploadedPaths.filter((path, index) => {
+          const url = uploadedUrls[index] || ''
+          return /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(url)
+        })
+        const nonImageUrls = uploadedUrls.filter(url => !/\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(url))
+
+        if (imagePaths.length > 0 && nonImageUrls.length > 0) {
+          throw new Error('Không gửi lẫn ảnh và file trong cùng một tin nhắn qua kênh này.')
+        }
+
+        if (selected.channel === 'telegram' && uploadedUrls.length > 1) {
+          throw new Error('Telegram hiện chỉ hỗ trợ một file mỗi lần gửi.')
+        }
+
+        if (selected.channel === 'facebook' && nonImageUrls.length > 0) {
+          throw new Error('Facebook hiện chỉ hỗ trợ gửi ảnh từ Omni Chat.')
+        }
+
+        if (imagePaths.length > 0) {
+          await omniApi(`/conversations/${selected.id}/send-media`, token, {
+            method: 'POST',
+            body: JSON.stringify({
+              image_path: imagePaths.length === 1 ? imagePaths[0] : null,
+              image_paths: imagePaths.length > 1 ? imagePaths : null,
+              media_urls: uploadedUrls,
+              caption: text,
+            }),
+          })
+        } else if (nonImageUrls.length === 1) {
+          await omniApi(`/conversations/${selected.id}/send-media`, token, {
+            method: 'POST',
+            body: JSON.stringify({
+              file_url: nonImageUrls[0],
+              media_urls: uploadedUrls,
+              caption: text,
+            }),
+          })
+        } else {
+          throw new Error('Hiện chỉ hỗ trợ gửi nhiều ảnh hoặc một file qua kênh này.')
+        }
+      } else {
+        // Build message content with uploaded files for channels that store media inline.
+        let finalContent = text
+        if (uploadedUrls.length > 0) {
+          const mediaMarkers = uploadedUrls.map(url => {
+            const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(url)
+            return `__OMNI_MEDIA__${JSON.stringify({ type: isImage ? 'image' : 'file', url, label: isImage ? 'Ảnh' : 'File' })}`
+          }).join('\n')
+          finalContent = finalContent ? `${finalContent}\n${mediaMarkers}` : mediaMarkers
+        }
+        
+        await omniApi(`/conversations/${selected.id}/messages`, token, {
+          method: 'POST',
+          body: JSON.stringify({ content: finalContent, reply_to_id: savedReplyTo?.id || '' }),
+        })
       }
-      
-      await omniApi(`/conversations/${selected.id}/messages`, token, {
-        method: 'POST',
-        body: JSON.stringify({ content: finalContent, reply_to_id: savedReplyTo?.id || '' }),
-      })
       
       await Promise.all([
         loadMessages(selected.id, { stickToBottom: true }),
@@ -933,21 +1058,16 @@ export default function OmniChat({ token, provider }) {
     }
   }
 
-  async function connectFacebook() {
-    const cookie = facebookCookie.trim()
-    if (!cookie) {
-      setChannelStatus('Nhập cookie Facebook trước.')
-      return
-    }
+  async function startFacebookBrowserLogin() {
     setSavingFacebook(true)
-    setChannelStatus('Đang lưu Facebook...')
+    setChannelStatus('Đang mở cửa sổ Facebook...')
     try {
-      await omniApi('/connect/facebook', token, {
+      const data = await omniApi('/connect/facebook/browser/start', token, {
         method: 'POST',
-        body: JSON.stringify({ cookie }),
+        body: JSON.stringify({}),
       })
-      setFacebookCookie('')
-      setChannelStatus('Đã kết nối Facebook.')
+      setFacebookBrowserSession(data.session_id || '')
+      setChannelStatus('Đăng nhập Facebook trong cửa sổ vừa mở. Nếu có mã bảo mật, nhập trực tiếp ở đó.')
     } catch (err) {
       setChannelStatus(displayErrorMessage(err))
     } finally {
@@ -971,6 +1091,28 @@ export default function OmniChat({ token, provider }) {
       setSyncingFacebook(false)
     }
   }
+
+  useEffect(() => {
+    if (!facebookBrowserSession) return undefined
+    const timer = window.setInterval(async () => {
+      try {
+        const data = await omniApi(`/connect/facebook/browser/${facebookBrowserSession}/status`, token)
+        if (data.status === 'connected') {
+          setFacebookBrowserSession('')
+          setChannelStatus('Facebook đã kết nối. Đang đồng bộ...')
+          await syncFacebookMessages()
+        } else if (data.status === 'expired') {
+          setFacebookBrowserSession('')
+          setChannelStatus(data.detail || 'Phiên Facebook đã hết hạn.')
+        } else {
+          setChannelStatus(data.detail || 'Hoàn tất đăng nhập trong cửa sổ Facebook đang mở.')
+        }
+      } catch (err) {
+        setChannelStatus(displayErrorMessage(err))
+      }
+    }, 2500)
+    return () => window.clearInterval(timer)
+  }, [facebookBrowserSession, token])
 
   function renderMessageActions(msg) {
     const outgoing = isOutgoingMessage(msg)
@@ -1164,49 +1306,33 @@ export default function OmniChat({ token, provider }) {
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2 rounded-md bg-white p-2">
+                  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md bg-white p-2">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
                       <Settings className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-gray-900">Facebook</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowFacebookConnect(value => !value)}
-                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
-                    >
-                      Cookie
-                    </button>
-                    <button
-                      type="button"
-                      onClick={syncFacebookMessages}
-                      disabled={syncingFacebook}
-                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {syncingFacebook ? '...' : 'Sync'}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={startFacebookBrowserLogin}
+                        disabled={savingFacebook}
+                        className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
+                      >
+                        Browser
+                      </button>
+                      <button
+                        type="button"
+                        onClick={syncFacebookMessages}
+                        disabled={syncingFacebook}
+                        className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {syncingFacebook ? '...' : 'Sync'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                {showFacebookConnect && (
-                  <div className="mt-2 rounded-xl bg-white p-2">
-                    <textarea
-                      value={facebookCookie}
-                      onChange={e => setFacebookCookie(e.target.value)}
-                      placeholder="Cookie Facebook"
-                      className="min-h-16 w-full resize-none rounded-md border border-black/[0.06] bg-gray-50 px-3 py-2 text-xs outline-none focus:border-gray-300"
-                    />
-                    <button
-                      type="button"
-                      onClick={connectFacebook}
-                      disabled={savingFacebook}
-                      className="mt-2 h-8 w-full rounded-lg bg-gray-950 px-3 text-[11px] font-semibold text-white disabled:opacity-50"
-                    >
-                      {savingFacebook ? 'Đang lưu...' : 'Lưu Facebook'}
-                    </button>
-                  </div>
-                )}
 
                 {channelStatus && <p className="mt-2 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-4 text-gray-500">{channelStatus}</p>}
               </div>
@@ -1436,8 +1562,10 @@ export default function OmniChat({ token, provider }) {
                             {formatMessageTime(msg.created_at)}
                           </p>
                         )}
-                        {msg.status && !['sent', 'synced', 'received'].includes(msg.status) && (
-                          <p className={`mt-1 text-[11px] ${outgoing ? 'text-white/65' : 'text-gray-400'}`}>{msg.status}</p>
+                        {statusLabel(msg.status, outgoing) && (
+                          <p className={`mt-1 text-[11px] ${outgoing ? 'text-right text-white/65' : 'text-gray-400'}`}>
+                            {statusLabel(msg.status, outgoing)}
+                          </p>
                         )}
                         {Object.keys(msg.reactions || {}).length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">

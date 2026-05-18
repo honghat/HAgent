@@ -5,6 +5,8 @@ import {
   GraduationCap, Book, MessageSquare, Headphones,
   Menu, X, ChevronRight, LayoutGrid, Award, Settings2
 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const TYPES = [
   { id: 'all', label: 'Tất cả', icon: <Layers size={14} /> },
@@ -51,6 +53,35 @@ function extractJson(raw = '') {
     try { return JSON.parse(text.slice(arrayStart, arrayEnd + 1)) } catch (e) {}
   }
   return null
+}
+
+function MarkdownLesson({ children }) {
+  return (
+    <div className="border-l-2 border-indigo-100 pl-4 py-1 text-slate-700">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => <h1 className="mb-4 text-2xl font-black leading-tight text-slate-900">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-3 mt-6 text-xl font-black leading-tight text-slate-900">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-3 mt-5 text-lg font-black leading-tight text-slate-900">{children}</h3>,
+          h4: ({ children }) => <h4 className="mb-2 mt-4 text-base font-black leading-tight text-slate-900">{children}</h4>,
+          p: ({ children }) => <p className="mb-4 text-sm font-medium leading-relaxed">{children}</p>,
+          ul: ({ children }) => <ul className="mb-4 list-disc space-y-2 pl-6 text-sm font-medium leading-relaxed">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-4 list-decimal space-y-2 pl-6 text-sm font-medium leading-relaxed">{children}</ol>,
+          li: ({ children }) => <li>{children}</li>,
+          strong: ({ children }) => <strong className="font-black text-slate-900">{children}</strong>,
+          em: ({ children }) => <em className="italic text-indigo-700">{children}</em>,
+          blockquote: ({ children }) => <blockquote className="mb-4 border-l-4 border-slate-200 pl-4 italic text-slate-600">{children}</blockquote>,
+          table: ({ children }) => <div className="mb-4 overflow-x-auto"><table className="w-full border-collapse text-sm">{children}</table></div>,
+          th: ({ children }) => <th className="border border-slate-200 bg-slate-50 px-3 py-2 text-left font-black text-slate-900">{children}</th>,
+          td: ({ children }) => <td className="border border-slate-200 px-3 py-2 align-top">{children}</td>,
+          code: ({ children }) => <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-semibold text-slate-900">{children}</code>,
+        }}
+      >
+        {children}
+      </ReactMarkdown>
+    </div>
+  )
 }
 
 export default function English({ token, provider, cxModel }) {
@@ -525,7 +556,7 @@ Câu tốt hơn:`
 
         <div className="flex-1 flex overflow-hidden relative">
           {/* 3. Skills List */}
-          <aside className={`absolute inset-y-0 right-0 z-20 w-72 bg-white border-l border-slate-100 transform transition-transform duration-300 md:relative md:translate-x-0 ${showSkills ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <aside className={`absolute inset-y-0 right-0 z-20 w-72 bg-white border-l border-slate-100 transform transition-transform duration-300 md:relative md:w-60 md:translate-x-0 ${showSkills ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
             <div className="p-3 border-b border-slate-50 flex items-center gap-2">
               <div className="relative flex-1">
                 <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -563,11 +594,11 @@ Câu tốt hơn:`
           {/* 4. Detailed Content */}
           <article className="flex-1 overflow-y-auto bg-white custom-scrollbar p-5 md:p-8">
             {currentItem ? (
-              <div className="max-w-2xl mx-auto space-y-6">
+              <div className="max-w-6xl mx-auto space-y-6">
                 <header className="pb-4 border-b border-slate-100 flex items-center justify-between gap-4">
                   <div>
                     <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Bài {currentUnit?.id} • {TYPE_LABELS[currentItem.type] || currentItem.type}</div>
-                    <h1 className="text-lg font-black text-slate-900 leading-tight tracking-tight">{getItemTitle(currentItem)}</h1>
+                    <h1 className="text-base font-black text-slate-900 leading-tight tracking-tight">{getItemTitle(currentItem)}</h1>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <button
@@ -595,9 +626,13 @@ Câu tốt hơn:`
                   )}
 
                   {currentItem.content && (
-                    <div className="text-base leading-relaxed text-slate-700 font-medium whitespace-pre-line border-l-2 border-indigo-100 pl-4 py-1">
-                      {currentItem.content}
-                    </div>
+                    currentItem.type === 'grammar'
+                      ? <MarkdownLesson>{currentItem.content}</MarkdownLesson>
+                      : (
+                        <div className="text-lg leading-relaxed text-slate-700 font-medium whitespace-pre-line border-l-2 border-indigo-100 pl-4 py-1">
+                          {currentItem.content}
+                        </div>
+                      )
                   )}
 
                   {(meta.prompt || meta.topic || meta.hint) && (

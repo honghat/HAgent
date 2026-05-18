@@ -77,6 +77,49 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     return n.toString()
   }
 
+  const compactText = (value, max = 96) => {
+    const text = String(value || '').replace(/\s+/g, ' ').trim()
+    return text.length > max ? `${text.slice(0, max - 1)}…` : text
+  }
+
+  const compactUrl = (value, max = 92) => {
+    try {
+      const url = new URL(String(value || '').trim())
+      const compact = `${url.hostname}${url.pathname}`.replace(/\/$/, '')
+      return compactText(compact, max)
+    } catch {
+      return compactText(value, max)
+    }
+  }
+
+  const toolMeta = (name, label) => {
+    const toolName = String(name || '')
+    const raw = String(label || name || '').replace(/\s·\sSearXNG local/g, '').trim()
+    const fallback = compactText(raw || toolName)
+    if (toolName === 'web_search') {
+      return { icon: '🔎', title: 'Tìm web', source: 'SearXNG local', preview: compactText(raw, 86) }
+    }
+    if (toolName === 'web_extract') {
+      return { icon: '📄', title: 'Đọc trang', source: 'web_extract', preview: compactUrl(raw, 86) }
+    }
+    if (toolName === 'browser_navigate') {
+      return { icon: '🌐', title: 'Mở trình duyệt', source: 'browser', preview: compactUrl(raw, 86) }
+    }
+    return { icon: '🛠️', title: fallback || toolName || 'Tool', source: toolName, preview: '' }
+  }
+
+  const displayToolLabel = (name, label) => {
+    const meta = toolMeta(name, label)
+    return [meta.title, meta.source].filter(Boolean).join(' · ')
+  }
+
+  const formatToolProgress = (name, label, status) => {
+    const meta = toolMeta(name, label)
+    const state = status === 'done' ? 'xong' : 'đang chạy'
+    const header = `${status === 'done' ? '✅' : meta.icon} **${meta.title}** · ${meta.source} · ${state}`
+    return meta.preview ? `\n> ${header}\n> ${meta.preview}\n` : `\n> ${header}\n`
+  }
+
   const normalizeSession = (session) => ({
     ...session,
     id: session?.id || session?.session_id,
@@ -621,14 +664,15 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
             switch (data.type) {
               case 'tool':
                 if (data.status === 'start') {
-                  const stepLabel = data.label || data.name || ''
-                  collected += '\n' + stepLabel + '...\n'
+                  const stepLabel = displayToolLabel(data.name, data.label)
+                  collected += formatToolProgress(data.name, data.label, 'start')
                   setStreamingText(collected)
-                  setSteps((p) => p.some((s) => s.id === data.name) ? p : [...p, { id: data.name, label: data.label, status: 'running' }])
+                  setSteps((p) => p.some((s) => s.id === data.name) ? p : [...p, { id: data.name, label: stepLabel, status: 'running' }])
                 } else if (data.status === 'done') {
-                  collected += '✓ ' + (data.label || data.name || '') + '\n'
+                  const stepLabel = displayToolLabel(data.name, data.label)
+                  collected += formatToolProgress(data.name, data.label, 'done')
                   setStreamingText(collected)
-                  setSteps((p) => p.map((s) => s.id === data.name ? { ...s, status: 'done', count: data.count } : s))
+                  setSteps((p) => p.map((s) => s.id === data.name ? { ...s, label: stepLabel, status: 'done', count: data.count } : s))
                   await fetchWorkspace(currentId)
                 }
                 break

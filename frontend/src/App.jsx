@@ -13,6 +13,7 @@ import CodeWorkspace from './components/CodeWorkspace.jsx'
 import Learn from './components/Learn.jsx'
 import English from './components/English.jsx'
 import FileManager from './components/FileManager.jsx'
+import Workflows from './components/Workflows.jsx'
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -155,6 +156,7 @@ export default function App() {
         {view === 'ports' && <PortManager token={token} />}
         {view === 'settings' && <UserSettings token={token} user={user} provider={provider} cxModel={cxModel} onCxModelChange={saveCxModel} onProviderChange={saveProvider} onUpdate={fetchUser} onLogout={logout} />}
         {view === 'files' && <FileManager token={token} />}
+        {view === 'workflows' && <Workflows token={token} />}
       </main>
     </div>
   )

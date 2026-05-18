@@ -17,7 +17,9 @@ module.exports = {
         NODE_ENV: 'production',
         HAGENT_HOME: '/Users/nguyenhat/HAgent/backend',
         HAGENT_SKILLS_DIR: '/Users/nguyenhat/HAgent/backend/skills',
-        HAGENT_PYTHON_AGENT_AUTOSTART: 'false'
+        HAGENT_PYTHON_AGENT_AUTOSTART: 'false',
+        SEARXNG_URL: 'http://127.0.0.1:8888',
+        BROWSER_INACTIVITY_TIMEOUT: '15'
       }
     },
     {
@@ -31,7 +33,24 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         HAGENT_HOME: '/Users/nguyenhat/HAgent/backend',
-        PYTHONPATH: '.'
+        PYTHONPATH: '.',
+        SEARXNG_URL: 'http://127.0.0.1:8888',
+        BROWSER_INACTIVITY_TIMEOUT: '15'
+      }
+    },
+    {
+      name: 'hagent-searxng',
+      cwd: './backend/searxng-lite/searxng-src',
+      script: '../.venv/bin/python',
+      args: '-m searx.webapp',
+      error_file: `${LOG_DIR}/searxng-error.log`,
+      out_file: `${LOG_DIR}/searxng-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      env: {
+        SEARXNG_SETTINGS_PATH: '/Users/nguyenhat/HAgent/backend/searxng-lite/settings.yml',
+        SEARXNG_SECRET: 'hagent-local-searxng-lite',
+        SEARXNG_URL: 'http://127.0.0.1:8888'
       }
     },
     {
@@ -137,7 +156,9 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         HAGENT_HOME: '/Users/nguyenhat/HAgent/backend',
-        PYTHONPATH: '.'
+        PYTHONPATH: '.',
+        SEARXNG_URL: 'http://127.0.0.1:8888',
+        BROWSER_INACTIVITY_TIMEOUT: '15'
       }
     },
     {
@@ -151,7 +172,9 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         HAGENT_HOME: '/Users/nguyenhat/HAgent/backend',
-        PYTHONPATH: '.'
+        PYTHONPATH: '.',
+        SEARXNG_URL: 'http://127.0.0.1:8888',
+        BROWSER_INACTIVITY_TIMEOUT: '15'
       }
     },
     {

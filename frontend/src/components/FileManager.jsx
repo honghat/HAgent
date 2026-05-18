@@ -402,6 +402,12 @@ export default function FileManager({ token }) {
   const [renaming, setRenaming] = useState(null) // entry being renamed
   const [renameValue, setRenameValue] = useState('')
 
+  // Move / copy
+  const [transferDialog, setTransferDialog] = useState(null) // { mode, entry, path, parent, entries }
+  const [loadingTransferDir, setLoadingTransferDir] = useState(false)
+  const [transferring, setTransferring] = useState(false)
+  const [transferProgress, setTransferProgress] = useState(null)
+
   const dirty = fileContent !== savedContent
   const previewExt = (preview?.path || preview?.name || '').toLowerCase().match(/\.[^.]+$/)?.[0] || ''
   const previewIsVideo = ['.mp4','.mov','.webm','.mkv','.avi','.wmv','.flv','.m4v','.3gp','.ogv','.mts','.m2ts','.ts'].includes(previewExt)
@@ -753,6 +759,74 @@ export default function FileManager({ token }) {
     }
   }
 
+  async function openTransferDialog(mode, entry) {
+    const initialPath = currentPath || activeVolume?.path || volumes[0]?.path || ''
+    setTransferDialog({ mode, entry, path: initialPath, parent: null, entries: [] })
+    if (initialPath) await loadTransferDirectory(initialPath, mode, entry)
+  }
+
+  async function loadTransferDirectory(path, mode = transferDialog?.mode, entry = transferDialog?.entry) {
+    if (!path) return
+    setLoadingTransferDir(true)
+    try {
+      const r = await fetch(`/api/files/files/list?path=${encodeURIComponent(path)}&showHidden=false`, {
+        headers: authHeaders(token),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.detail || 'Cannot list directory')
+      setTransferDialog({
+        mode,
+        entry,
+        path,
+        parent: data.parent,
+        entries: (data.entries || []).filter(item => item.type === 'directory'),
+      })
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setLoadingTransferDir(false)
+    }
+  }
+
+  async function runTransfer() {
+    if (!transferDialog?.entry || !transferDialog?.path || transferring) return
+    const { mode, entry, path } = transferDialog
+    const destination = `${path.replace(/\/$/, '')}/${entry.name}`
+    setTransferring(true)
+    setTransferProgress({ progress: 0, copied_bytes: 0, total_bytes: entry.size || 0, status: 'queued' })
+    try {
+      const r = await fetch('/api/files/files/transfer', {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, source: entry.path, destination }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.detail || `Cannot ${mode}`)
+      const jobId = data.id
+      if (!jobId) throw new Error('Transfer did not start')
+      while (true) {
+        const statusRes = await fetch(`/api/files/files/transfer/${jobId}`, {
+          headers: authHeaders(token),
+        })
+        const status = await statusRes.json()
+        if (!statusRes.ok) throw new Error(status.detail || 'Cannot read transfer progress')
+        setTransferProgress(status)
+        if (status.status === 'completed') break
+        if (status.status === 'failed') throw new Error(status.error || 'Transfer failed')
+        await new Promise(resolve => setTimeout(resolve, 350))
+      }
+      showToast(mode === 'move' ? `Đã di chuyển: ${entry.name}` : `Đã sao chép: ${entry.name}`, 'ok')
+      setTransferDialog(null)
+      if (mode === 'move' && preview?.path === entry.path) closePreview()
+      loadDirectory(currentPath)
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setTransferring(false)
+      setTransferProgress(null)
+    }
+  }
+
   async function uploadPathToDrive(path) {
     if (!path || uploadingDrive) return
     setUploadingDrive(true)
@@ -908,6 +982,28 @@ export default function FileManager({ token }) {
                 Đổi tên
               </button>
               <button
+                onClick={() => {
+                  const entry = contextMenu.entry
+                  closeContextMenu()
+                  openTransferDialog('move', entry)
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
+              >
+                <ChevronRight className="h-3.5 w-3.5 text-amber-300" />
+                Di chuyển...
+              </button>
+              <button
+                onClick={() => {
+                  const entry = contextMenu.entry
+                  closeContextMenu()
+                  openTransferDialog('copy', entry)
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700/60"
+              >
+                <Copy className="h-3.5 w-3.5 text-cyan-300" />
+                Sao chép...
+              </button>
+              <button
                 onClick={() => { const e = contextMenu.entry; closeContextMenu(); confirmDelete(e) }}
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[11px] text-red-300 hover:bg-red-500/20"
               >
@@ -935,6 +1031,113 @@ export default function FileManager({ token }) {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* Move / copy destination picker */}
+      {transferDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" onClick={() => !transferring && setTransferDialog(null)}>
+          <div className="w-[min(720px,calc(100vw-2rem))] max-w-full overflow-hidden rounded-xl border border-slate-700 bg-[#121728] shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+              <div className="min-w-0 pr-3">
+                <div className="truncate text-sm font-medium text-slate-100">
+                  {transferDialog.mode === 'move' ? 'Di chuyển' : 'Sao chép'} “{transferDialog.entry.name}”
+                </div>
+                <div className="mt-0.5 truncate text-[11px] text-slate-500">{transferDialog.path}</div>
+              </div>
+              <button onClick={() => setTransferDialog(null)} disabled={transferring} className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-40">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid min-w-0 grid-cols-[180px_minmax(0,1fr)]">
+              <div className="border-r border-slate-800 p-2">
+                <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">Ổ đĩa</div>
+                <div className="space-y-0.5">
+                  {volumes.map(volume => (
+                    <button
+                      key={volume.path}
+                      onClick={() => loadTransferDirectory(volume.path)}
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] ${
+                        transferDialog.path === volume.path
+                          ? 'bg-cyan-500/15 text-cyan-200'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <HardDrive className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{volume.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="min-h-[280px] min-w-0">
+                <div className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
+                  <button
+                    onClick={() => transferDialog.parent && loadTransferDirectory(transferDialog.parent)}
+                    disabled={!transferDialog.parent || loadingTransferDir}
+                    className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    Lên
+                  </button>
+                  <div className="truncate text-[11px] text-slate-500">{transferDialog.path}</div>
+                </div>
+
+                <div className="max-h-[240px] overflow-y-auto p-2">
+                  {loadingTransferDir ? (
+                    <div className="flex items-center justify-center gap-2 py-10 text-[11px] text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Đang tải...
+                    </div>
+                  ) : transferDialog.entries.length === 0 ? (
+                    <div className="py-10 text-center text-[11px] text-slate-500">Không có thư mục con</div>
+                  ) : (
+                    transferDialog.entries.map(entry => (
+                      <button
+                        key={entry.path}
+                        onClick={() => loadTransferDirectory(entry.path)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[11px] text-slate-200 hover:bg-slate-800"
+                      >
+                        <Folder className="h-4 w-4 shrink-0 text-amber-400" />
+                        <span className="truncate">{entry.name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-800 px-4 py-3">
+              {transferring && transferProgress && (
+                <div className="mr-auto min-w-0">
+                  <div className="flex items-center gap-2 text-[11px] text-slate-300">
+                    <span>{transferProgress.progress ?? 0}%</span>
+                    <span className="text-slate-500">
+                      {formatSize(transferProgress.copied_bytes || 0)} / {formatSize(transferProgress.total_bytes || 0)}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-48 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-cyan-500 transition-all"
+                      style={{ width: `${transferProgress.progress || 0}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              <button onClick={() => setTransferDialog(null)} disabled={transferring} className="rounded-md px-3 py-1.5 text-[11px] text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+                Hủy
+              </button>
+              <button
+                onClick={runTransfer}
+                disabled={transferring || !transferDialog.path}
+                className="flex items-center gap-1.5 rounded-md bg-cyan-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-cyan-500 disabled:opacity-40"
+              >
+                {transferring && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {transferDialog.mode === 'move' ? 'Di chuyển vào đây' : 'Sao chép vào đây'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

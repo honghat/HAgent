@@ -72,7 +72,7 @@ def run_bot():
     bot = HAgentZaloListener("</>", "</>", imei, parse_cookie(cookie))
     own_id = str(getattr(getattr(bot, "_state", None), "user_id", "") or getattr(bot, "uid", "") or "")
     write({"event": "ready", "own_id": own_id})
-    bot.listen(type="websocket", run_forever=True, reconnect=5)
+    bot.listen(thread=False, reconnect=5)
 
 
 def main():

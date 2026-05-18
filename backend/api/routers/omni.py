@@ -425,6 +425,33 @@ def _save_zalo_channel(user_id: str, cookie: str, imei: str) -> None:
             )
 
 
+def _mark_zalo_channel_inactive(user_id: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE omni_channels
+               SET is_active = 0, updated_at = ?
+               WHERE user_id = ? AND platform = ?""",
+            (datetime.now().isoformat(), user_id, "zalo"),
+        )
+
+
+def _zalo_error_needs_reauth(message: str) -> bool:
+    normalized = (message or "").lower()
+    markers = (
+        "cookie/imei",
+        "cookie",
+        "imei",
+        "hết hạn",
+        "không hợp lệ",
+        "invalid",
+        "expired",
+        "login",
+        "unauthorized",
+        "not logged",
+    )
+    return any(marker in normalized for marker in markers)
+
+
 def _load_zalo_channel(user_id: str) -> tuple[str, str]:
     with get_connection() as conn:
         row = conn.execute(
@@ -440,6 +467,20 @@ def _load_zalo_channel(user_id: str) -> tuple[str, str]:
     except json.JSONDecodeError:
         return row["access_token"], ""
     return data.get("cookie", ""), data.get("imei", "")
+
+
+def _validate_zalo_session(cookie: str, imei: str) -> tuple[bool, str]:
+    try:
+        data = _run_zalo_bridge(
+            ZALO_SYNC_BRIDGE,
+            {"cookie": cookie, "imei": imei},
+            timeout=45,
+        )
+    except HTTPException as exc:
+        return False, str(exc.detail)
+    if data.get("error"):
+        return False, str(data["error"])
+    return True, ""
 
 
 def _run_zalo_bridge(script: Path, payload: dict, timeout: int = 90) -> dict:
@@ -710,6 +751,13 @@ async def check_zalo_qr_status(session: str, request: Request):
     imei = sess.get("imei") or await _read_zalo_imei(sess["page"])
     if not imei:
         imei = str(uuid.uuid4())
+    valid, reason = _validate_zalo_session(cookie, imei)
+    if not valid:
+        return OmniQRStatusResponse(
+            session=session,
+            status="pending",
+            detail=f"Zalo đã quét QR nhưng backend chưa dùng được phiên này: {reason}. Đang chờ Zalo hoàn tất đăng nhập...",
+        )
     _save_zalo_channel(user_id, cookie, imei)
     _ensure_zalo_listener(user_id, cookie, imei)
     await _close_zalo_qr_session(session)
@@ -747,6 +795,8 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
         data = {}
     if proc.returncode != 0 or data.get("error"):
         detail = data.get("error") or proc.stderr.strip() or "Zalo sync bridge lỗi."
+        if _zalo_error_needs_reauth(detail):
+            _mark_zalo_channel_inactive(user_id)
         return {
             "synced_contacts": 0,
             "synced_conversations": 0,

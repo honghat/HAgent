@@ -14,10 +14,15 @@ def _normalize_graph(graph) -> dict:
         return DEFAULT_GRAPH.copy()
     nodes = graph.get("nodes")
     edges = graph.get("edges")
-    return {
+    normalized = {
         "nodes": nodes if isinstance(nodes, list) else [],
         "edges": edges if isinstance(edges, list) else [],
     }
+    if isinstance(graph.get("schedule"), dict):
+        normalized["schedule"] = graph["schedule"]
+    if isinstance(graph.get("settings"), dict):
+        normalized["settings"] = graph["settings"]
+    return normalized
 
 
 def _row_to_workflow(row) -> dict:
@@ -28,6 +33,17 @@ def _row_to_workflow(row) -> dict:
         item["graph"] = DEFAULT_GRAPH.copy()
         item.pop("graph_json", None)
     return item
+
+
+def _row_to_schedule(row) -> dict | None:
+    if not row:
+        return None
+    return {
+        "enabled": bool(row["enabled"]),
+        "interval_seconds": int(row["interval_seconds"] or 7200),
+        "last_run_at": row["last_run_at"],
+        "next_run_at": row["next_run_at"],
+    }
 
 
 def list_workflows(user_id: str) -> list[dict]:
@@ -54,7 +70,20 @@ def get_workflow(workflow_id: str, user_id: str) -> dict | None:
             """,
             (workflow_id, user_id),
         ).fetchone()
-    return _row_to_workflow(row) if row else None
+    if not row:
+        return None
+    item = _row_to_workflow(row)
+    with get_connection() as conn:
+        schedule = conn.execute(
+            """
+            SELECT enabled, interval_seconds, last_run_at, next_run_at
+            FROM workflow_schedules
+            WHERE workflow_id = ? AND user_id = ?
+            """,
+            (workflow_id, user_id),
+        ).fetchone()
+    item["schedule"] = _row_to_schedule(schedule)
+    return item
 
 
 def create_workflow(user_id: str, name: str, description: str = "", graph=None) -> dict:
@@ -102,3 +131,27 @@ def delete_workflow(workflow_id: str, user_id: str) -> bool:
             (workflow_id, user_id),
         )
         return cursor.rowcount > 0
+
+
+def upsert_workflow_schedule(
+    workflow_id: str,
+    user_id: str,
+    *,
+    enabled: bool,
+    interval_seconds: int = 7200,
+    next_run_at: str | None = None,
+) -> None:
+    seconds = max(60, int(interval_seconds or 7200))
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO workflow_schedules (workflow_id, user_id, enabled, interval_seconds, next_run_at)
+            VALUES (?, ?, ?, ?, COALESCE(?, datetime('now')))
+            ON CONFLICT(workflow_id) DO UPDATE SET
+                enabled = excluded.enabled,
+                interval_seconds = excluded.interval_seconds,
+                next_run_at = COALESCE(excluded.next_run_at, workflow_schedules.next_run_at, datetime('now')),
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (workflow_id, user_id, 1 if enabled else 0, seconds, next_run_at),
+        )

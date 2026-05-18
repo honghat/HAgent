@@ -13,7 +13,7 @@ from api.services.workflow_store import (
     update_workflow,
 )
 from api.services.workflow_executor import WorkflowExecutionError, execute_workflow
-from api.services.workflow_run_store import get_run, list_runs
+from api.services.workflow_run_store import delete_artifact, get_run, list_runs
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -125,6 +125,16 @@ def get_item_run(workflow_id: str, run_id: str, request: Request):
     if run["workflow_id"] != workflow_id:
         raise HTTPException(status_code=404, detail="Workflow run not found")
     return run
+
+
+@router.delete("/{workflow_id}/artifacts/{artifact_id}")
+def delete_item_artifact(workflow_id: str, artifact_id: str, request: Request):
+    user_id = _user_id(request)
+    if not get_workflow(workflow_id, user_id):
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if not delete_artifact(artifact_id, workflow_id, user_id):
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return {"deleted": True}
 
 
 def _tool_catalog() -> list[dict]:

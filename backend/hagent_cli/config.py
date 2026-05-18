@@ -603,7 +603,7 @@ DEFAULT_CONFIG = {
 
     "web": {
         "backend": "",           # shared fallback — applies to both search and extract
-        "search_backend": "",    # per-capability override for web_search (e.g. "searxng")
+        "search_backend": "searxng",    # per-capability override for web_search
         "extract_backend": "",   # per-capability override for web_extract (e.g. "native")
     },
 

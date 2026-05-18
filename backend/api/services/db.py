@@ -142,6 +142,18 @@ def init_db() -> None:
                 FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS workflow_schedules (
+                workflow_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                interval_seconds INTEGER NOT NULL DEFAULT 7200,
+                last_run_at TEXT,
+                next_run_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS self_evolution_events (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -333,6 +345,8 @@ def init_db() -> None:
                 ON workflow_run_steps(run_id, started_at ASC);
             CREATE INDEX IF NOT EXISTS idx_workflow_artifacts_run_created
                 ON workflow_artifacts(run_id, created_at ASC);
+            CREATE INDEX IF NOT EXISTS idx_workflow_schedules_due
+                ON workflow_schedules(enabled, next_run_at);
             CREATE INDEX IF NOT EXISTS idx_goals_user_status
                 ON agent_goals(user_id, status, updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_goal_tasks_goal_status

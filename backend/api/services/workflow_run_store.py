@@ -23,6 +23,7 @@ def _row_to_run(row, *, include_steps: bool = False) -> dict | None:
     item["output"] = _loads(item.pop("output_json"), None)
     if include_steps:
         item["steps"] = list_run_steps(item["id"])
+        item["artifacts"] = list_run_artifacts(item["id"], item["user_id"])
     return item
 
 
@@ -146,3 +147,34 @@ def save_artifact(run_id: str, workflow_id: str, user_id: str, node_id: str, pay
             (artifact_id, run_id, workflow_id, user_id, node_id, json.dumps(payload)),
         )
     return {"id": artifact_id, "payload": payload}
+
+
+def list_run_artifacts(run_id: str, user_id: str) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, run_id, workflow_id, user_id, node_id, payload_json, created_at
+            FROM workflow_artifacts
+            WHERE run_id = ? AND user_id = ?
+            ORDER BY created_at ASC, rowid ASC
+            """,
+            (run_id, user_id),
+        ).fetchall()
+    artifacts = []
+    for row in rows:
+        item = dict(row)
+        item["payload"] = _loads(item.pop("payload_json"), None)
+        artifacts.append(item)
+    return artifacts
+
+
+def delete_artifact(artifact_id: str, workflow_id: str, user_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            DELETE FROM workflow_artifacts
+            WHERE id = ? AND workflow_id = ? AND user_id = ?
+            """,
+            (artifact_id, workflow_id, user_id),
+        )
+        return cursor.rowcount > 0

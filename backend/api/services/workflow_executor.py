@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+from html import unescape
 from collections import defaultdict, deque
 from urllib import error, request
+from xml.etree import ElementTree
 
 from api.services.agent_profiles import get_agent_profile
+from api.services.db import get_connection
 from api.services.provider_config import get_provider_config
 from api.services.session_store import add_message, create_session
 from api.services.source_core_agent import run_source_agent
@@ -120,6 +125,14 @@ def _execute_node(node: dict, node_input, *, run_id: str, workflow_id: str, user
         return _execute_agent_node(config, node_input, user_id=user_id, provider=provider, model=model)
     if node_type == "tool":
         return _execute_tool_node(config, node_input, run_id=run_id, workflow_id=workflow_id)
+    if node_type == "rss":
+        return _execute_rss_node(config)
+    if node_type == "telegram":
+        return _execute_telegram_node(config, node_input)
+    if node_type == "price_report":
+        return _execute_price_report_node(config)
+    if node_type == "zalo":
+        return _execute_zalo_node(config, node_input, user_id=user_id)
     return node_input
 
 
@@ -264,3 +277,394 @@ def _execute_tool_node(config: dict, node_input, *, run_id: str, workflow_id: st
         except json.JSONDecodeError:
             return {"content": raw}
     return raw
+
+
+def _execute_rss_node(config: dict):
+    url = str(config.get("url") or "https://vnexpress.net/rss/tin-moi-nhat.rss").strip()
+    limit = max(1, min(20, int(config.get("limit") or 5)))
+    req = request.Request(
+        url,
+        headers={
+            "User-Agent": "HAgent Workflow/1.0 (+https://vnexpress.net)",
+            "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+        },
+        method="GET",
+    )
+    try:
+        with request.urlopen(req, timeout=float(config.get("timeout") or 30)) as response:
+            raw = response.read()
+    except (error.HTTPError, OSError) as exc:
+        raise WorkflowExecutionError(f"RSS request failed: {exc}") from exc
+
+    try:
+        root = ElementTree.fromstring(raw)
+    except ElementTree.ParseError as exc:
+        raise WorkflowExecutionError(f"RSS parse failed: {exc}") from exc
+
+    items = []
+    for item in root.findall(".//item")[:limit]:
+        title = _node_text(item, "title")
+        link = _node_text(item, "link")
+        summary = _clean_html(_node_text(item, "description"))
+        published = _node_text(item, "pubDate")
+        if title or link:
+            items.append(
+                {
+                    "title": title,
+                    "link": link,
+                    "summary": summary,
+                    "published": published,
+                }
+            )
+
+    source = str(config.get("source") or "VnExpress").strip()
+    message = _format_news_message(source, items)
+    return {
+        "source": source,
+        "url": url,
+        "count": len(items),
+        "items": items,
+        "message": message,
+    }
+
+
+def _execute_telegram_node(config: dict, node_input):
+    message = str(config.get("message") or "").strip()
+    if not message:
+        if isinstance(node_input, dict) and node_input.get("message"):
+            message = str(node_input["message"])
+        elif isinstance(node_input, dict) and isinstance(node_input.get("items"), list):
+            message = _format_news_message(str(node_input.get("source") or "Tin mới"), node_input["items"])
+        else:
+            message = json.dumps(node_input, ensure_ascii=False, indent=2)
+
+    token = str(config.get("bot_token") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    target = str(config.get("target") or "telegram").strip()
+    chat_id = str(config.get("chat_id") or "").strip()
+    if not chat_id:
+        if target.startswith("telegram:"):
+            chat_id = target.split(":", 1)[1].strip()
+        else:
+            chat_id = str(os.getenv("TELEGRAM_HOME_CHANNEL") or os.getenv("TELEGRAM_HOME_CHANNEL_ID") or "").strip()
+    if not token:
+        raise WorkflowExecutionError("Telegram node requires TELEGRAM_BOT_TOKEN or config.bot_token")
+    if not chat_id:
+        raise WorkflowExecutionError("Telegram node requires TELEGRAM_HOME_CHANNEL or config.chat_id")
+
+    payload = {
+        "chat_id": chat_id,
+        "text": message[:3900],
+        "disable_web_page_preview": bool(config.get("disable_web_page_preview", False)),
+    }
+    req = request.Request(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=float(config.get("timeout") or 30)) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except (error.HTTPError, OSError, ValueError) as exc:
+        raise WorkflowExecutionError(f"Telegram send failed: {exc}") from exc
+    if not data.get("ok"):
+        raise WorkflowExecutionError(f"Telegram send failed: {data}")
+    return {
+        "sent": True,
+        "target": "telegram",
+        "chat_id": chat_id,
+        "message_id": data.get("result", {}).get("message_id"),
+    }
+
+
+def _execute_price_report_node(config: dict):
+    gold_url = str(config.get("gold_url") or "https://giavang.doji.vn/trangchu.html").strip()
+    silver_url = str(config.get("silver_url") or "https://giabac.org/").strip()
+    gold_items, gold_updated = _fetch_doji_gold(gold_url)
+    silver_items, silver_updated = _fetch_silver_prices(silver_url)
+    gold_ring = _pick_gold_ring_item(gold_items)
+    silver_luong = _pick_silver_luong_item(silver_items)
+    message = _format_compact_price_report_message(gold_ring, silver_luong, gold_updated, silver_updated)
+    return {
+        "source": {
+            "gold": gold_url,
+            "silver": silver_url,
+        },
+        "gold": {
+            "updated": gold_updated,
+            "items": gold_items,
+            "selected": gold_ring,
+        },
+        "silver": {
+            "updated": silver_updated,
+            "items": silver_items,
+            "selected": silver_luong,
+        },
+        "message": message,
+    }
+
+
+def _execute_zalo_node(config: dict, node_input, *, user_id: str):
+    message = str(config.get("message") or "").strip()
+    if not message:
+        if isinstance(node_input, dict) and node_input.get("message"):
+            message = str(node_input["message"])
+        else:
+            message = json.dumps(node_input, ensure_ascii=False, indent=2)
+
+    conversation_id = str(config.get("conversation_id") or "").strip()
+    external_id = str(config.get("external_id") or "").strip()
+    target_name = str(config.get("target_name") or "").strip()
+    thread_type = str(config.get("thread_type") or "").strip().lower()
+
+    conv = _resolve_zalo_target(
+        user_id,
+        conversation_id=conversation_id,
+        external_id=external_id,
+        target_name=target_name,
+        thread_type=thread_type,
+    )
+    if not conv:
+        raise WorkflowExecutionError("Zalo target not found")
+
+    try:
+        from api.routers.omni import _send_omni_text
+    except Exception as exc:  # noqa: BLE001
+        raise WorkflowExecutionError(f"Zalo sender unavailable: {exc}") from exc
+
+    try:
+        result = _send_omni_text(user_id, conv, message)
+    except Exception as exc:  # noqa: BLE001
+        detail = getattr(exc, "detail", None) or str(exc)
+        raise WorkflowExecutionError(f"Zalo send failed: {detail}") from exc
+    return {
+        "sent": True,
+        "target": "zalo",
+        "conversation_id": conv.get("id"),
+        "external_id": conv.get("external_id"),
+        "thread_type": conv.get("thread_type") or thread_type or "user",
+        "result": result,
+    }
+
+
+def _node_text(parent, name: str) -> str:
+    node = parent.find(name)
+    return (node.text or "").strip() if node is not None and node.text else ""
+
+
+def _clean_html(value: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", value or "")
+    return " ".join(unescape(text).split())
+
+
+def _format_news_message(source: str, items: list[dict]) -> str:
+    lines = [f"📰 {source} — tin mới"]
+    if not items:
+        lines.append("Không có tin mới.")
+        return "\n".join(lines)
+    for idx, item in enumerate(items, start=1):
+        title = item.get("title") or "(không tiêu đề)"
+        link = item.get("link") or ""
+        lines.append(f"{idx}. {title}")
+        if link:
+            lines.append(link)
+    return "\n".join(lines)
+
+
+def _http_text(url: str, timeout: float = 30) -> str:
+    req = request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 HAgent Workflow/1.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        method="GET",
+    )
+    with request.urlopen(req, timeout=timeout) as response:
+        return response.read().decode("utf-8", errors="replace")
+
+
+def _fetch_doji_gold(url: str) -> tuple[list[dict], str]:
+    try:
+        html = _http_text(url, 30)
+    except (error.HTTPError, OSError) as exc:
+        raise WorkflowExecutionError(f"Gold price request failed: {exc}") from exc
+
+    items = []
+    for tr in re.finditer(r"<tr[^>]*>(.*?)</tr>", html, re.DOTALL | re.IGNORECASE):
+        cols = re.findall(r"<td[^>]*>(.*?)</td>", tr.group(1), re.DOTALL | re.IGNORECASE)
+        if len(cols) < 3:
+            continue
+        name = _clean_html(cols[0])
+        buy = _clean_html(cols[1])
+        sell = _clean_html(cols[2])
+        if name and re.search(r"\d", buy):
+            items.append({"name": name, "buy": buy, "sell": sell})
+    updated_match = re.search(r"C(?:ậ|a)p\s*nh(?:ậ|a)t\s*l(?:ú|u)c:?\s*([^<\n]+)", html, re.IGNORECASE)
+    updated = _clean_html(updated_match.group(1)) if updated_match else "Vừa cập nhật"
+    return items[:20], updated
+
+
+def _fetch_silver_prices(url: str) -> tuple[list[dict], str]:
+    try:
+        html = _http_text(url, 30)
+    except (error.HTTPError, OSError) as exc:
+        raise WorkflowExecutionError(f"Silver price request failed: {exc}") from exc
+
+    items = []
+    for tr in re.finditer(r"<tr[^>]*>(.*?)</tr>", html, re.DOTALL | re.IGNORECASE):
+        cols = [_clean_html(col) for col in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr.group(1), re.DOTALL | re.IGNORECASE)]
+        cols = [col for col in cols if col]
+        joined = " | ".join(cols)
+        if len(cols) >= 5 and re.search(r"\d", joined) and re.search(r"bạc|phú|999|kg|lượng", joined, re.IGNORECASE):
+            # giabac.org style: Hãng | Mua 1 lượng | Bán 1 lượng | Mua 1 kg | Bán 1 kg
+            items.append({
+                "name": cols[0],
+                "unit": "1 lượng",
+                "buy": cols[1],
+                "sell": cols[2],
+                "kg_buy": cols[3],
+                "kg_sell": cols[4],
+            })
+        elif len(cols) >= 4 and re.search(r"\d", joined) and re.search(r"bạc|phú|999|kg|lượng", joined, re.IGNORECASE):
+            # giabac.co style: Sản phẩm | Đơn vị | Giá mua vào | Giá bán ra
+            items.append({"name": cols[0], "unit": cols[1], "buy": cols[2], "sell": cols[3]})
+
+    if not items:
+        text = _clean_html(html)
+        for match in re.finditer(r"((?:Phú Quý|Bạc)[^\n]{0,120}?)(\d[\d.,]+)\s+(\d[\d.,]+)", text, re.IGNORECASE):
+            items.append({"name": match.group(1).strip(), "unit": "", "buy": match.group(2), "sell": match.group(3)})
+
+    updated_match = re.search(r"C(?:ậ|a)p\s*nh(?:ậ|a)t[^:<]*:?\s*([^<\n]{6,80})", html, re.IGNORECASE)
+    updated = _clean_html(updated_match.group(1)) if updated_match else "Vừa cập nhật"
+    return items[:10], updated
+
+
+def _pick_gold_ring_item(items: list[dict]) -> dict | None:
+    def score(item: dict) -> int:
+        name = _normalize_vietnamese(str(item.get("name") or ""))
+        value = 0
+        if "nhan" in name:
+            value += 10
+        if "tron" in name or "trơn" in str(item.get("name") or "").lower():
+            value += 8
+        if "hung thinh vuong" in name or "htv" in name:
+            value += 5
+        if "9999" in name or "999.9" in name:
+            value += 3
+        return value
+
+    ranked = sorted((item for item in items if item.get("buy") or item.get("sell")), key=score, reverse=True)
+    if ranked and score(ranked[0]) > 0:
+        return ranked[0]
+    return ranked[0] if ranked else None
+
+
+def _pick_silver_luong_item(items: list[dict]) -> dict | None:
+    def score(item: dict) -> int:
+        name = _normalize_vietnamese(str(item.get("name") or ""))
+        unit = _normalize_vietnamese(str(item.get("unit") or ""))
+        value = 0
+        if "luong" in unit or "luong" in name:
+            value += 10
+        if "phu quy" in name:
+            value += 4
+        if "999" in name:
+            value += 2
+        return value
+
+    ranked = sorted((item for item in items if item.get("buy") or item.get("sell")), key=score, reverse=True)
+    if ranked and score(ranked[0]) > 0:
+        return ranked[0]
+    return ranked[0] if ranked else None
+
+
+def _format_compact_price_report_message(gold_item: dict | None, silver_item: dict | None, gold_updated: str, silver_updated: str) -> str:
+    lines = ["📊 Giá vàng/bạc hôm nay"]
+    if gold_item:
+        lines.append(f"🥇 Vàng nhẫn trơn: Mua {gold_item.get('buy')} | Bán {gold_item.get('sell')}")
+    else:
+        lines.append("🥇 Vàng nhẫn trơn: chưa đọc được giá.")
+    if silver_item:
+        lines.append(f"🥈 Bạc/lượng: Mua {silver_item.get('buy')} | Bán {silver_item.get('sell')}")
+    else:
+        lines.append("🥈 Bạc/lượng: chưa đọc được giá.")
+    updated = gold_updated or silver_updated
+    if updated:
+        lines.append(f"⏱ Cập nhật: {updated}")
+    return "\n".join(lines)
+
+
+def _normalize_vietnamese(value: str) -> str:
+    table = str.maketrans(
+        "àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ"
+        "ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ",
+        "aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd"
+        "AAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD",
+    )
+    return value.translate(table).lower()
+
+
+def _resolve_zalo_target(user_id: str, *, conversation_id: str = "", external_id: str = "", target_name: str = "", thread_type: str = "") -> dict | None:
+    from api.services.omni_store import ensure_conversation, get_conversation
+
+    if conversation_id:
+        conv = get_conversation(conversation_id)
+        if conv and conv.get("user_id") == user_id and conv.get("platform") == "zalo":
+            return conv
+
+    with get_connection() as conn:
+        row = None
+        if external_id:
+            row = conn.execute(
+                "SELECT * FROM omni_conversations WHERE user_id = ? AND platform = 'zalo' AND external_id = ? LIMIT 1",
+                (user_id, external_id),
+            ).fetchone()
+        if not row and target_name:
+            like = f"%{target_name}%"
+            row = conn.execute(
+                """
+                SELECT * FROM omni_conversations
+                WHERE user_id = ? AND platform = 'zalo'
+                  AND (title LIKE ? OR custom_name LIKE ?)
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (user_id, like, like),
+            ).fetchone()
+        if row:
+            conv = dict(row)
+            if thread_type and conv.get("thread_type") != thread_type:
+                conv["thread_type"] = thread_type
+            return conv
+
+        contact = None
+        if external_id:
+            contact = conn.execute(
+                "SELECT platform, external_id, name, avatar_url FROM omni_contacts WHERE user_id = ? AND platform = 'zalo' AND external_id = ? LIMIT 1",
+                (user_id, external_id),
+            ).fetchone()
+        if not contact and target_name:
+            like = f"%{target_name}%"
+            contact = conn.execute(
+                """
+                SELECT platform, external_id, name, avatar_url
+                FROM omni_contacts
+                WHERE user_id = ? AND platform = 'zalo' AND name LIKE ?
+                ORDER BY last_message_at DESC, created_at DESC
+                LIMIT 1
+                """,
+                (user_id, like),
+            ).fetchone()
+    if contact and contact["external_id"]:
+        return ensure_conversation(
+            user_id,
+            "zalo",
+            contact["name"] or contact["external_id"],
+            contact["external_id"],
+            thread_type or "user",
+            contact["avatar_url"] or "",
+        )
+    if external_id:
+        return ensure_conversation(user_id, "zalo", target_name or external_id, external_id, thread_type or "user")
+    return None

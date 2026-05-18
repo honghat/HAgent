@@ -43,6 +43,7 @@ def save_user_wiki(args, **kwargs):
     try:
         from api.services.session_store import get_session
         from api.services.wiki_memory import save_wiki_entry
+        from api.services.wiki_policy import GIT_WIKI_BLOCK_REASON, contains_git_material
         
         session = get_session(session_id)
         user_id = session.user_id if session else _DEFAULT_USER
@@ -53,6 +54,8 @@ def save_user_wiki(args, **kwargs):
             "summary": summary or "",
             "topics": topics
         }
+        if contains_git_material(entry):
+            return tool_error(GIT_WIKI_BLOCK_REASON)
         result = save_wiki_entry(user_id, entry, source="tool")
         if not result:
             return tool_error("Failed to save wiki entry")
@@ -77,6 +80,7 @@ def edit_user_wiki(args, **kwargs):
     try:
         from api.services.session_store import get_session
         from api.services.wiki_store import update_entry, get_entry
+        from api.services.wiki_policy import GIT_WIKI_BLOCK_REASON, contains_git_material
         
         session = get_session(session_id)
         user_id = session.user_id if session else _DEFAULT_USER
@@ -93,6 +97,8 @@ def edit_user_wiki(args, **kwargs):
         
         if not updates:
             return tool_error("Nothing to update — provide at least one field")
+        if contains_git_material(updates):
+            return tool_error(GIT_WIKI_BLOCK_REASON)
         
         result = update_entry(entry_id, user_id, updates)
         if not result:

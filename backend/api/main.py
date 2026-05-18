@@ -5,6 +5,7 @@ from pathlib import Path
 
 from api.routers import agents, auth, config, context, drive, evolution, files, goals, health, job_hunter, messages, omni, services, sessions, skills, status, stop, telegram, video, web, wiki, workflows, workspace
 from api.services.db import init_db
+from api.services.workflow_scheduler import start_workflow_scheduler
 
 
 ALLOWED_ORIGINS = [
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
         omni.restore_active_zalo_listeners()
         omni.restore_active_facebook_sync_tasks()
         telegram.restore_active_listeners()
+        start_workflow_scheduler()
 
     return app
 

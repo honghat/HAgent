@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from api.services.db import DB_PATH, get_connection
+from api.services.wiki_policy import GIT_WIKI_BLOCK_REASON, contains_git_material
 
 
 def get_entry(entry_id: str, user_id: str) -> dict | None:
@@ -18,6 +19,8 @@ def get_entry(entry_id: str, user_id: str) -> dict | None:
 
 
 def update_entry(entry_id: str, user_id: str, updates: dict) -> dict | None:
+    if contains_git_material(updates):
+        raise ValueError(GIT_WIKI_BLOCK_REASON)
     fields, params = [], []
     for key, val in updates.items():
         if val is not None:

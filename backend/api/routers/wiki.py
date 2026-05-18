@@ -100,7 +100,10 @@ def update(entry_id: str, request: Request, payload: dict):
             if field == "topics" and isinstance(v, list):
                 v = json.dumps(v)
             updates[field] = v
-    r = update_entry(entry_id, uid, updates)
+    try:
+        r = update_entry(entry_id, uid, updates)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return r or {"ok": True}
 
 

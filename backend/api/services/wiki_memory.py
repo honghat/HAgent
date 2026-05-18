@@ -10,6 +10,7 @@ from uuid import uuid4
 from api.services.provider_config import get_provider_config
 
 from api.services.db import DB_PATH, get_connection
+from api.services.wiki_policy import contains_git_material
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 HAGENT_DB_PATH = DB_PATH
@@ -32,7 +33,8 @@ Quy tắc:
 - Topics gồm 1-3 danh mục slug.
 - Content là nội dung thực tế, giữ số liệu, ngày tháng, liên kết quan trọng.
 - Nếu chỉ là chào hỏi, lỗi provider, câu hỏi chưa có lời giải, hoặc tán gẫu không có kiến thức thực tế thì trả về {"skip": true}.
-- Chỉ lấy facts, không lấy ý kiến cá nhân của trợ lý."""
+- Chỉ lấy facts, không lấy ý kiến cá nhân của trợ lý.
+- Không lưu bất kỳ nội dung nào liên quan đến git: lệnh git, trạng thái git, diff, commit, .git paths, branch/remote/log metadata. Nếu lượt hội thoại chủ yếu là git thì trả về {"skip": true}."""
 
 
 def resolve_user_id(authorization: str | None) -> str:
@@ -157,6 +159,8 @@ def _similarity(a: str, b: str) -> float:
 
 
 def save_wiki_entry(user_id: str, entry: dict, source: str = "chat") -> dict | None:
+    if contains_git_material(entry):
+        return None
     normalized = _normalize_entry(entry)
     if not normalized:
         return None

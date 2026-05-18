@@ -1076,6 +1076,21 @@ _cleanup_running = False
 _cleanup_lock = threading.Lock()
 
 
+def _pid_exists(pid: int) -> bool:
+    """Return True if a process exists without terminating it."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
 def _emergency_cleanup_all_sessions():
     """
     Emergency cleanup of all active browser sessions.
@@ -1302,8 +1317,11 @@ def _browser_cleanup_thread_worker():
         except Exception as e:
             logger.warning("Cleanup thread error: %s", e)
 
-        # Sleep in 1-second intervals so we can stop quickly if needed
-        for _ in range(30):
+        # Sleep in 1-second intervals so we can stop quickly if needed.
+        # Keep the sweep cadence below the inactivity timeout so short-lived
+        # local Chrome sessions disappear promptly after a browser tool run.
+        sweep_interval = max(1, min(30, BROWSER_SESSION_INACTIVITY_TIMEOUT))
+        for _ in range(sweep_interval):
             if not _cleanup_running:
                 break
             time.sleep(1)

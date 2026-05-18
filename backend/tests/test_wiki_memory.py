@@ -58,3 +58,30 @@ def test_wiki_semantic_dedupe_merges_similar_entry(monkeypatch, tmp_path):
 
     assert first["id"] == second["id"]
     assert second["existing"] is True
+
+
+def test_wiki_rejects_git_material(monkeypatch, tmp_path):
+    wiki = _reload_wiki(monkeypatch, tmp_path)
+
+    result = wiki.save_wiki_entry("hat", {
+        "title": "Git status snapshot",
+        "summary": "Repo state",
+        "content": "On branch main\nChanges not staged:\n  modified: backend/foo.py",
+        "topics": ["git"],
+    })
+
+    assert result is None
+    assert wiki.list_wiki_entries("hat") == []
+
+
+def test_wiki_git_policy_does_not_block_unrelated_words(monkeypatch, tmp_path):
+    wiki = _reload_wiki(monkeypatch, tmp_path)
+
+    result = wiki.save_wiki_entry("hat", {
+        "title": "Digital garden",
+        "summary": "Personal knowledge structure",
+        "content": "A digital garden is a lightweight way to organize notes.",
+        "topics": ["knowledge"],
+    })
+
+    assert result is not None

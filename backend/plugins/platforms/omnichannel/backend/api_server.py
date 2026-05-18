@@ -266,7 +266,7 @@ async def init_zalo_qr_login():
         session_id = str(uuid.uuid4())
         
         playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(headless=False, args=['--disable-blink-features=AutomationControlled'])
+        browser = await playwright.chromium.launch(headless=True, args=['--disable-blink-features=AutomationControlled'])
         context = await browser.new_context(
             user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             viewport={'width': 1280, 'height': 900}
@@ -293,24 +293,46 @@ async def init_zalo_qr_login():
         except Exception as e:
             logger.warning(f"Failed to click QR tab: {e}")
             
-        # Extract QR code
-        qr_selector = '.login-qr canvas, .qr-container canvas, canvas, img[src*="qr"], img[src*="data:image"]'
-        await page.wait_for_selector(qr_selector, state='visible', timeout=30000)
-        
+        # Extract the real QR image. Zalo's login page also contains small
+        # data-image icons, so choosing the first img/canvas often grabs a
+        # 35px icon instead of the scannable QR.
+        qr_selector = '.login-qr canvas, .qr-container canvas, canvas, img[alt="QR"], img[src*="qr"], img[src*="data:image"]'
+
+        async def find_qr_data() -> str:
+            candidates = await page.query_selector_all(qr_selector)
+            best_data = ""
+            best_score = 0
+            for handle in candidates:
+                try:
+                    visible = await handle.is_visible()
+                    if not visible:
+                        continue
+                    tag_name = await handle.evaluate("el => el.tagName.toLowerCase()")
+                    box = await handle.bounding_box()
+                    width = int(box["width"]) if box else 0
+                    height = int(box["height"]) if box else 0
+                    if width < 120 or height < 120:
+                        continue
+                    if tag_name == "canvas":
+                        data = await handle.evaluate("el => el.toDataURL('image/png')")
+                    else:
+                        data = await handle.get_attribute("src") or ""
+
+                    score = width * height + len(data)
+                    if data and score > best_score:
+                        best_data = data
+                        best_score = score
+                except Exception:
+                    continue
+            return best_data
+
         qr_data = ""
-        for _ in range(5):
-            await page.wait_for_timeout(1000)
-            qr_handle = await page.query_selector(qr_selector)
-            if not qr_handle: continue
-            
-            tag_name = await qr_handle.evaluate("el => el.tagName.toLowerCase()")
-            if tag_name == 'canvas':
-                qr_data = await qr_handle.evaluate("el => el.toDataURL('image/png')")
-            else:
-                qr_data = await qr_handle.get_attribute("src")
-                
+        deadline = time.monotonic() + 45
+        while time.monotonic() < deadline:
+            qr_data = await find_qr_data()
             if qr_data and len(qr_data) > 500:
                 break
+            await page.wait_for_timeout(1000)
                 
         if not qr_data or len(qr_data) < 100:
             raise Exception("Cannot find valid Zalo QR code.")

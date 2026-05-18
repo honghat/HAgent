@@ -98,32 +98,32 @@ def start_backend_server(env_file: Path):
     print("📡 Starting backend server...")
     print()
     
-    # Start server in background
+    print("✅ Backend server starting!")
+    print()
+    print("📍 API Endpoints:")
+    print("   GET    /api/v1/omni/conversations      - List all conversations")
+    print("   POST   /api/v1/omni/conversations/{chat_id}/messages  - Send message")
+    print("   GET    /api/v1/omni/conversations/{chat_id}/messages?limit=50 - Chat history")
+    print("   POST   /api/v1/omni/conversations/read-all         - Mark all as read")
+    print("   POST   /api/v1/auth/zalo/qrcode/init              - Init QR login")
+    print("   GET    /api/v1/auth/zalo/qrcode/poll/{chat_id}    - Poll QR status")
+    print()
+    print(f"🌐 Server running at http://{os.environ.get('OMNICHANNEL_HOST', '0.0.0.0')}:{os.environ.get('OMNICHANNEL_API_PORT', 8080)}")
+    print()
+    print("=" * 60)
+    print("✅ OMNICHANNEL HUB READY!")
+    print("=" * 60)
+    print()
+
+    # Run Uvicorn in the current process so PM2 manages the real server
+    # lifecycle instead of a short-lived wrapper around a child process.
     try:
-        server_process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", 
-             "api_server:app", 
-             "--host", "0.0.0.0",
-             "--port", "8080"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+        uvicorn.run(
+            "api_server:app",
+            host=os.environ.get("OMNICHANNEL_HOST", "0.0.0.0"),
+            port=int(os.environ.get("OMNICHANNEL_API_PORT", "8080")),
         )
-        
-        print("✅ Backend server started!")
-        print()
-        print("📍 API Endpoints:")
-        print("   GET    /api/v1/omni/conversations      - List all conversations")
-        print("   POST   /api/v1/omni/conversations/{chat_id}/messages  - Send message")
-        print("   GET    /api/v1/omni/conversations/{chat_id}/messages?limit=50 - Chat history")
-        print("   POST   /api/v1/omni/conversations/read-all         - Mark all as read")
-        print("   POST   /api/v1/auth/zalo/qrcode/init              - Init QR login")
-        print("   GET    /api/v1/auth/zalo/qrcode/poll/{chat_id}    - Poll QR status")
-        print()
-        print(f"🌐 Server running at http://{os.environ.get('OMNICHANNEL_HOST', '0.0.0.0')}:{os.environ.get('OMNICHANNEL_API_PORT', 8080)}")
-        print()
-        
-        return server_process
+        return True
         
     except Exception as e:
         print(f"❌ Failed to start backend server: {e}")
@@ -146,39 +146,7 @@ def main():
         print(f"   cp {config_file}.example {config_file}")
         return False
     
-    # Start backend server
-    server_process = start_backend_server(config_file)
-    
-    if not server_process:
-        return False
-    
-    print("=" * 60)
-    print("✅ OMNICHANNEL HUB READY!")
-    print("=" * 60)
-    print()
-    print("Next steps:")
-    print("1. Initialize Zalo QR login (if using QR auth):")
-    print(f"   curl -X POST http://localhost:8080/api/v1/auth/zalo/qrcode/init")
-    print()
-    print("2. List conversations:")
-    print(f"   curl http://localhost:8080/api/v1/omni/conversations")
-    print()
-    print("3. Send message to chat:")
-    print('   curl -X POST http://localhost:8080/api/v1/omni/conversations/{chat_id}/messages \\')
-    print('     -H "Content-Type: application/json" \\')
-    print('     -d \'{"content": "Hello!", "chat_id": "zalo_123456789"}\' ')
-    print()
-    
-    # Keep script running (for background management)
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print()
-        print("⏹️  Shutting down...")
-        server_process.terminate()
-        server_process.wait()
-        print("✅ Server stopped")
+    return start_backend_server(config_file)
 
 
 if __name__ == "__main__":

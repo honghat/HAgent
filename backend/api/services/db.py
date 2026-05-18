@@ -163,6 +163,58 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (goal_id) REFERENCES agent_goals(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS omni_channels (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                access_token TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS omni_conversations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                external_id TEXT,
+                title TEXT NOT NULL,
+                custom_name TEXT,
+                last_message_preview TEXT DEFAULT '',
+                last_message_sender TEXT DEFAULT '',
+                last_message_at TEXT,
+                unread_count INTEGER DEFAULT 0,
+                pinned INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS omni_messages (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL DEFAULT '',
+                reply_to_id TEXT,
+                platform TEXT,
+                external_id TEXT,
+                reactions_json TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (conversation_id) REFERENCES omni_conversations(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS omni_contacts (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                external_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                avatar_url TEXT DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
         _ensure_column(conn, "chat_sessions", "agent_id", "TEXT")
@@ -172,6 +224,9 @@ def init_db() -> None:
         _ensure_column(conn, "messages", "provider", "TEXT")
         _ensure_column(conn, "messages", "usage_json", "TEXT")
         _ensure_column(conn, "self_evolution", "metadata_json", "TEXT")
+        _ensure_column(conn, "omni_channels", "access_token", "TEXT")
+        _ensure_column(conn, "omni_messages", "external_id", "TEXT")
+        _ensure_column(conn, "omni_messages", "reactions_json", "TEXT")
         conn.executescript(
             """
             CREATE INDEX IF NOT EXISTS idx_evolution_user_status
@@ -188,6 +243,14 @@ def init_db() -> None:
                 ON agent_goals(user_id, status, updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_goal_tasks_goal_status
                 ON goal_tasks(goal_id, status, priority ASC);
+            CREATE INDEX IF NOT EXISTS idx_omni_channels_user_platform
+                ON omni_channels(user_id, platform);
+            CREATE INDEX IF NOT EXISTS idx_omni_conversations_user_platform_external
+                ON omni_conversations(user_id, platform, external_id);
+            CREATE INDEX IF NOT EXISTS idx_omni_messages_conversation_external
+                ON omni_messages(conversation_id, external_id);
+            CREATE INDEX IF NOT EXISTS idx_omni_contacts_user_platform_external
+                ON omni_contacts(user_id, platform, external_id);
             """
         )
 

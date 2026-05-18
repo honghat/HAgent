@@ -647,6 +647,32 @@ def _apply_zalo_reaction_event(user_id: str, message_object: dict, author_id: st
     return True
 
 
+def _apply_zalo_undo_event(user_id: str, message_object: dict) -> bool:
+    try:
+        payload = json.loads(str(message_object.get("content") or ""))
+    except (TypeError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    msg_id = str(payload.get("globalMsgId") or "")
+    cli_msg_id = str(payload.get("cliMsgId") or "")
+    if not msg_id and not cli_msg_id:
+        return False
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT id FROM omni_messages
+               WHERE user_id = ?
+                 AND platform = 'zalo'
+                 AND (external_id = ? OR external_cli_msg_id = ?)
+               ORDER BY created_at DESC LIMIT 1""",
+            (user_id, msg_id, cli_msg_id),
+        ).fetchone()
+        if not row:
+            return False
+        conn.execute("DELETE FROM omni_messages WHERE id = ?", (row["id"],))
+    return True
+
+
 def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
     if event.get("event") == "ready":
         state["own_id"] = str(event.get("own_id") or "")
@@ -664,12 +690,16 @@ def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
         thread_type = "user"
 
     message_object = event.get("message_object") or {}
-    if str(message_object.get("msgType") or "").lower() == "chat.reaction":
+    msg_type = str(message_object.get("msgType") or "").lower()
+    if msg_type == "chat.reaction":
         _apply_zalo_reaction_event(
             user_id,
             message_object,
             str(event.get("author_id") or ""),
         )
+        return
+    if msg_type == "chat.undo":
+        _apply_zalo_undo_event(user_id, message_object)
         return
 
     conv = ensure_conversation(user_id, "zalo", thread_id, thread_id, thread_type)
@@ -848,7 +878,7 @@ def _cleanup_zalo_reaction_messages(user_id: str) -> int:
             """DELETE FROM omni_messages
                WHERE user_id = ?
                  AND platform = 'zalo'
-                 AND external_msg_type = 'chat.reaction'""",
+                 AND external_msg_type IN ('chat.reaction', 'chat.undo')""",
             (user_id,),
         )
         return result.rowcount

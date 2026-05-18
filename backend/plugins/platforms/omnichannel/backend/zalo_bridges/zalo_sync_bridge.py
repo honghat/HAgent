@@ -57,7 +57,7 @@ def text_from_message(msg):
 def normalize_message(msg, fallback_thread_id="", own_id=""):
     if not isinstance(msg, dict):
         return None
-    if str(pick(msg, "msgType", "type") or "").lower() == "chat.reaction":
+    if str(pick(msg, "msgType", "type") or "").lower() in {"chat.reaction", "chat.undo"}:
         return None
     content = text_from_message(msg).strip()
     if not content:

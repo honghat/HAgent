@@ -131,6 +131,60 @@ def normalize_friend(item):
     }
 
 
+def normalize_group(item):
+    if not isinstance(item, dict):
+        return None
+    group_id = str(pick(item, "groupId", "grid", "id", "threadId"))
+    if not group_id:
+        return None
+    name = str(pick(item, "name", "groupName", "displayName", "title") or group_id)
+    avatar = str(pick(item, "avatar", "avt", "thumbnail", "photo") or "")
+    return {
+        "group_id": group_id,
+        "name": name,
+        "avatar": avatar,
+    }
+
+
+def collect_group_ids(node):
+    ids = []
+    if isinstance(node, dict):
+        grid_map = node.get("gridVerMap")
+        if isinstance(grid_map, dict):
+            ids.extend(str(k) for k in grid_map.keys())
+        for key in ("groups", "items", "list", "data"):
+            value = node.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    group = normalize_group(item)
+                    if group:
+                        ids.append(group["group_id"])
+    elif isinstance(node, list):
+        for item in node:
+            group = normalize_group(item)
+            if group:
+                ids.append(group["group_id"])
+    return list(dict.fromkeys(ids))
+
+
+def thread_from_marker(item, friend_names, group_names):
+    if not isinstance(item, dict):
+        return None
+    thread_id = str(pick(item, "idTo", "threadId", "uid", "id"))
+    if not thread_id:
+        return None
+    is_group = str(pick(item, "isGroup", "type", "threadType")).lower() in ("1", "group", "true")
+    return {
+        "thread_id": thread_id,
+        "name": group_names.get(thread_id) if is_group else friend_names.get(thread_id, thread_id),
+        "avatar": "",
+        "last_message": "",
+        "unread": 0,
+        "thread_type": "group" if is_group else "user",
+        "messages": [],
+    }
+
+
 def collect_threads(node, source_key="", own_id=""):
     threads = []
     if isinstance(node, list):
@@ -196,9 +250,8 @@ def main():
         raise RuntimeError("Missing Zalo IMEI. Reconnect Zalo QR to capture IMEI.")
 
     bot = ZaloAPI("</>", "</>", imei, parse_cookie(cookie))
-    own_id = str(getattr(getattr(bot, "_state", None), "user_id", "") or "")
+    own_id = str(getattr(getattr(bot, "_state", None), "user_id", "") or getattr(bot, "user_id", "") or getattr(bot, "uid", "") or "")
     raw = plain(bot.getLastMsgs())
-    threads = enrich_recent_messages(bot, collect_threads(raw, own_id=own_id), own_id=own_id)
     friends = []
     friends_error = ""
     try:
@@ -206,11 +259,38 @@ def main():
         friends = [item for item in (normalize_friend(x) for x in friends_raw or []) if item]
     except Exception as exc:
         friends_error = str(exc)
+
+    friend_names = {item["friend_id"]: item["name"] for item in friends}
+    group_names = {}
+    groups_error = ""
+    try:
+        groups_raw = plain(bot.fetchAllGroups())
+        for group_id in collect_group_ids(groups_raw):
+            group_names[group_id] = group_id
+    except Exception as exc:
+        groups_error = str(exc)
+
+    threads = collect_threads(raw, own_id=own_id)
+    marker_threads = []
+    if isinstance(raw, dict):
+        for key in ("clearUnreads", "clearUnreadsReact"):
+            for item in raw.get(key) or []:
+                thread = thread_from_marker(item, friend_names, group_names)
+                if thread:
+                    marker_threads.append(thread)
+
+    by_id = {}
+    for thread in threads + marker_threads:
+        if thread and thread.get("thread_id"):
+            by_id[thread["thread_id"]] = {**by_id.get(thread["thread_id"], {}), **thread}
+    threads = list(by_id.values())
+    threads = enrich_recent_messages(bot, threads, own_id=own_id)
     print(json.dumps({
         "own_id": own_id,
         "threads": threads,
         "friends": friends,
         "friends_error": friends_error,
+        "groups_error": groups_error,
         "raw_type": type(raw).__name__,
     }, ensure_ascii=False))
 

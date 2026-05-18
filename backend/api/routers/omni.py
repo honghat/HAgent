@@ -568,13 +568,15 @@ def _ensure_zalo_listener(user_id: str, cookie: str, imei: str) -> bool:
 
 def _parse_bridge_json(output: str) -> dict:
     clean = re.sub(r"\x1b\[[0-9;:]*[A-Za-z]", "", output or "").strip()
-    try:
-        return json.loads(clean or "{}")
-    except json.JSONDecodeError:
-        start = clean.rfind("{")
-        if start >= 0:
-            return json.loads(clean[start:])
-        raise
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"{", clean):
+        try:
+            data, _ = decoder.raw_decode(clean[match.start():])
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            continue
+    return {}
 
 
 def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own_id: str = "") -> bool:

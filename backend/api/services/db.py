@@ -221,6 +221,14 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS omni_hidden_contacts (
+                user_id TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                external_id TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, platform, external_id)
+            );
             """
         )
         _ensure_column(conn, "chat_sessions", "agent_id", "TEXT")

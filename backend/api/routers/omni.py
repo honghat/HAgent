@@ -39,6 +39,7 @@ from api.services.omni_store import (
     create_message,
     ensure_conversation,
     delete_conversation,
+    delete_contact,
     delete_message,
     toggle_pin_conversation,
     rename_conversation,
@@ -47,6 +48,7 @@ from api.services.omni_store import (
     add_reaction,
     upsert_contact,
     update_conversation_preview,
+    refresh_conversation_preview,
 )
 from api.services.db import get_connection
 from api.services.user_store import resolve_user_id
@@ -193,6 +195,14 @@ def delete_conversation_endpoint(id: str, request: Request):
     _get_user_id(request)
     if not delete_conversation(id):
         raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"deleted": True}
+
+
+@router.delete("/contacts/{id}")
+def delete_contact_endpoint(id: str, request: Request):
+    uid = _get_user_id(request)
+    if not delete_contact(id, uid):
+        raise HTTPException(status_code=404, detail="Contact not found")
     return {"deleted": True}
 
 
@@ -660,7 +670,7 @@ def _apply_zalo_undo_event(user_id: str, message_object: dict) -> bool:
         return False
     with get_connection() as conn:
         row = conn.execute(
-            """SELECT id FROM omni_messages
+            """SELECT id, conversation_id FROM omni_messages
                WHERE user_id = ?
                  AND platform = 'zalo'
                  AND (external_id = ? OR external_cli_msg_id = ?)
@@ -670,6 +680,7 @@ def _apply_zalo_undo_event(user_id: str, message_object: dict) -> bool:
         if not row:
             return False
         conn.execute("DELETE FROM omni_messages WHERE id = ?", (row["id"],))
+    refresh_conversation_preview(row["conversation_id"])
     return True
 
 
@@ -855,6 +866,56 @@ def _cleanup_stale_zalo_group_conversations(user_id: str, active_thread_ids: set
         return result.rowcount
 
 
+def _cleanup_empty_unpinned_zalo_conversations(user_id: str) -> int:
+    with get_connection() as conn:
+        result = conn.execute(
+            """DELETE FROM omni_conversations
+               WHERE user_id = ?
+                 AND platform = 'zalo'
+                 AND pinned = 0
+                 AND NOT EXISTS (
+                     SELECT 1 FROM omni_messages
+                     WHERE omni_messages.conversation_id = omni_conversations.id
+                 )""",
+            (user_id,),
+        )
+        return result.rowcount
+
+
+def _normalize_zalo_self_conversations(user_id: str) -> int:
+    with get_connection() as conn:
+        result = conn.execute(
+            """UPDATE omni_messages
+               SET role = 'user'
+               WHERE user_id = ?
+                 AND platform = 'zalo'
+                 AND conversation_id IN (
+                     SELECT id FROM omni_conversations
+                     WHERE user_id = ?
+                       AND platform = 'zalo'
+                       AND lower(title) IN ('cloud của tôi', 'my documents')
+                 )""",
+            (user_id, user_id),
+        )
+        return result.rowcount
+
+
+def _refresh_empty_zalo_previews(user_id: str) -> None:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id FROM omni_conversations c
+               WHERE c.user_id = ?
+                 AND c.platform = 'zalo'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM omni_messages m
+                     WHERE m.conversation_id = c.id
+                 )""",
+            (user_id,),
+        ).fetchall()
+    for row in rows:
+        refresh_conversation_preview(row["id"])
+
+
 def _cleanup_stale_zalo_contacts(user_id: str, active_external_ids: set[str]) -> int:
     if not active_external_ids:
         return 0
@@ -874,6 +935,13 @@ def _cleanup_stale_zalo_contacts(user_id: str, active_external_ids: set[str]) ->
 
 def _cleanup_zalo_reaction_messages(user_id: str) -> int:
     with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT DISTINCT conversation_id FROM omni_messages
+               WHERE user_id = ?
+                 AND platform = 'zalo'
+                 AND external_msg_type IN ('chat.reaction', 'chat.undo')""",
+            (user_id,),
+        ).fetchall()
         result = conn.execute(
             """DELETE FROM omni_messages
                WHERE user_id = ?
@@ -881,7 +949,9 @@ def _cleanup_zalo_reaction_messages(user_id: str) -> int:
                  AND external_msg_type IN ('chat.reaction', 'chat.undo')""",
             (user_id,),
         )
-        return result.rowcount
+    for row in rows:
+        refresh_conversation_preview(row["conversation_id"])
+    return result.rowcount
 
 
 @router.post("/sync/zalo/qr/start")
@@ -1049,15 +1119,16 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
         friend_id = str(friend["friend_id"])
         friend_profiles[friend_id] = friend
         active_contact_ids.add(friend_id)
-        upsert_contact(user_id, "zalo", friend_id, str(friend.get("name") or friend_id), friend.get("avatar") or "")
-        synced_contacts += 1
+        if upsert_contact(user_id, "zalo", friend_id, str(friend.get("name") or friend_id), friend.get("avatar") or ""):
+            synced_contacts += 1
     for group in data.get("groups") or []:
         if not group.get("group_id"):
             continue
         group_id = str(group["group_id"])
         group_profiles[group_id] = group
         active_contact_ids.add(group_id)
-        upsert_contact(user_id, "zalo", group_id, str(group.get("name") or group_id), group.get("avatar") or "")
+        if upsert_contact(user_id, "zalo", group_id, str(group.get("name") or group_id), group.get("avatar") or ""):
+            synced_contacts += 1
 
     for thread in (data.get("threads") or [])[: payload.maxThreads]:
         thread_id = str(thread.get("thread_id") or "")
@@ -1089,46 +1160,6 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
                     },
                 })
 
-    remaining_slots = max(0, payload.maxThreads - synced_conversations)
-    for friend_id, friend in friend_profiles.items():
-        if remaining_slots <= 0:
-            break
-        if friend_id in active_thread_ids:
-            continue
-        conv = ensure_conversation(
-            user_id,
-            "zalo",
-            str(friend.get("name") or friend_id),
-            friend_id,
-            "user",
-            str(friend.get("avatar") or ""),
-        )
-        touched_conversations.add(conv["id"])
-        active_thread_ids.add(friend_id)
-        synced_conversations += 1
-        remaining_slots -= 1
-
-    for group_id, group in group_profiles.items():
-        if remaining_slots <= 0:
-            break
-        if group_id in active_thread_ids:
-            continue
-        group_name = str(group.get("name") or group_id)
-        if group_name == group_id and not group.get("avatar"):
-            continue
-        conv = ensure_conversation(
-            user_id,
-            "zalo",
-            group_name,
-            group_id,
-            "group",
-            str(group.get("avatar") or ""),
-        )
-        touched_conversations.add(conv["id"])
-        active_thread_ids.add(group_id)
-        synced_conversations += 1
-        remaining_slots -= 1
-
     if touched_conversations:
         _broadcast({
             "type": "sync",
@@ -1138,7 +1169,10 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
         })
     _cleanup_stale_zalo_contacts(user_id, active_contact_ids)
     _cleanup_stale_zalo_group_conversations(user_id, active_thread_ids)
+    _cleanup_empty_unpinned_zalo_conversations(user_id)
     _cleanup_zalo_reaction_messages(user_id)
+    _normalize_zalo_self_conversations(user_id)
+    _refresh_empty_zalo_previews(user_id)
     _ensure_zalo_listener(user_id, cookie, imei)
 
     return {

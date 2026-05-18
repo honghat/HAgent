@@ -497,6 +497,19 @@ export default function OmniChat({ token }) {
     }
   }
 
+  async function deleteContact(contact) {
+    if (!contact) return
+    if (!window.confirm(`Xóa ${contact.sender || 'liên hệ này'} khỏi danh bạ?`)) return
+    setStatus('')
+    try {
+      await omniApi(`/contacts/${contact.id}`, token, { method: 'DELETE' })
+      setContacts(current => current.filter(item => item.id !== contact.id))
+      setSelectedId(current => current === contact.id ? '' : current)
+    } catch (err) {
+      setStatus(err.message)
+    }
+  }
+
   async function deleteMessage(msg) {
     if (!msg || !selected) return
     if (!window.confirm('Xóa tin nhắn này?')) return
@@ -931,22 +944,34 @@ export default function OmniChat({ token }) {
                 <div className="p-8 text-center text-xs font-semibold text-gray-400">Chưa có danh bạ</div>
               ) : (
                 filteredContacts.map(contact => (
-                  <button
+                  <div
                     key={contact.id}
-                    type="button"
-                    onClick={() => setSelectedId(contact.id)}
                     className={`group flex w-full gap-3 rounded-md p-2 text-left transition-colors ${selectedId === contact.id ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
                   >
-                    <Avatar src={contact.avatar} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">{contact.sender}</p>
-                        {contact.has_conversation && <span className="h-2 w-2 rounded-full bg-gray-300" />}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(contact.id)}
+                      className="min-w-0 flex flex-1 gap-3 text-left"
+                    >
+                      <Avatar src={contact.avatar} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">{contact.sender}</p>
+                          {contact.has_conversation && <span className="h-2 w-2 rounded-full bg-gray-300" />}
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">{contact.external_id}</p>
+                        <p className="mt-1 text-[11px] font-medium uppercase text-gray-400">{contact.channel}</p>
                       </div>
-                      <p className="mt-0.5 truncate text-xs text-gray-500">{contact.external_id}</p>
-                      <p className="mt-1 text-[11px] font-medium uppercase text-gray-400">{contact.channel}</p>
-                    </div>
-                  </button>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteContact(contact)}
+                      className="h-8 w-8 shrink-0 rounded-lg text-gray-400 opacity-100 sm:opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 inline-flex items-center justify-center"
+                      title="Xoá khỏi danh bạ"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 ))
               )
             ) : filteredConversations.length === 0 ? (

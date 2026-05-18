@@ -70,7 +70,12 @@ def run_bot():
         raise RuntimeError("Missing Zalo IMEI")
 
     bot = HAgentZaloListener("</>", "</>", imei, parse_cookie(cookie))
-    own_id = str(getattr(getattr(bot, "_state", None), "user_id", "") or getattr(bot, "uid", "") or "")
+    own_id = str(
+        getattr(getattr(bot, "_state", None), "user_id", "")
+        or getattr(bot, "user_id", "")
+        or getattr(bot, "uid", "")
+        or ""
+    )
     write({"event": "ready", "own_id": own_id})
     bot.listen(thread=False, reconnect=5)
 

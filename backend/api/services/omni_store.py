@@ -166,6 +166,26 @@ def delete_conversation(conversation_id: str) -> bool:
         return result.rowcount > 0
 
 
+def delete_contact(contact_id: str, user_id: str) -> bool:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT platform, external_id FROM omni_contacts WHERE id = ? AND user_id = ?",
+            (contact_id, user_id),
+        ).fetchone()
+        if not row:
+            return False
+        conn.execute(
+            """INSERT OR IGNORE INTO omni_hidden_contacts (user_id, platform, external_id)
+               VALUES (?, ?, ?)""",
+            (user_id, row["platform"], row["external_id"]),
+        )
+        result = conn.execute(
+            "DELETE FROM omni_contacts WHERE id = ? AND user_id = ?",
+            (contact_id, user_id),
+        )
+        return result.rowcount > 0
+
+
 def toggle_pin_conversation(conversation_id: str) -> bool | None:
     """Toggle pinned state. Returns new state, or None if not found."""
     with get_connection() as conn:
@@ -205,6 +225,32 @@ def update_conversation_preview(
                WHERE id = ?""",
             (preview, sender, conversation_id),
         )
+
+
+def refresh_conversation_preview(conversation_id: str) -> None:
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT content, role, created_at FROM omni_messages
+               WHERE conversation_id = ?
+               ORDER BY created_at DESC LIMIT 1""",
+            (conversation_id,),
+        ).fetchone()
+        if row:
+            conn.execute(
+                """UPDATE omni_conversations
+                   SET last_message_preview = ?, last_message_sender = ?,
+                       last_message_at = ?, updated_at = datetime('now', 'localtime')
+                   WHERE id = ?""",
+                (row["content"][:200], row["role"], row["created_at"], conversation_id),
+            )
+        else:
+            conn.execute(
+                """UPDATE omni_conversations
+                   SET last_message_preview = '', last_message_sender = '',
+                       last_message_at = NULL, updated_at = datetime('now', 'localtime')
+                   WHERE id = ?""",
+                (conversation_id,),
+            )
 
 
 # ── Messages ───────────────────────────────────────────────────────────────
@@ -266,10 +312,16 @@ def create_message(
 
 def delete_message(message_id: str) -> bool:
     with get_connection() as conn:
+        row = conn.execute(
+            "SELECT conversation_id FROM omni_messages WHERE id = ?",
+            (message_id,),
+        ).fetchone()
         result = conn.execute(
             "DELETE FROM omni_messages WHERE id = ?", (message_id,)
         )
-        return result.rowcount > 0
+    if result.rowcount > 0 and row:
+        refresh_conversation_preview(row["conversation_id"])
+    return result.rowcount > 0
 
 
 def get_message(message_id: str) -> dict | None:
@@ -360,6 +412,13 @@ def upsert_contact(
 ) -> str:
     contact_id = str(uuid4())
     with get_connection() as conn:
+        hidden = conn.execute(
+            """SELECT 1 FROM omni_hidden_contacts
+               WHERE user_id = ? AND platform = ? AND external_id = ?""",
+            (user_id, platform, external_id),
+        ).fetchone()
+        if hidden:
+            return ""
         existing = conn.execute(
             "SELECT id FROM omni_contacts WHERE user_id = ? AND platform = ? AND external_id = ?",
             (user_id, platform, external_id),

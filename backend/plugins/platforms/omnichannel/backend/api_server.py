@@ -201,6 +201,196 @@ async def send_message(chat_id: str, message_data: Message):
     })
 
 
+class ImageMessage(BaseModel):
+    """Image message model."""
+    chat_id: str
+    image_path: Optional[str] = None
+    image_paths: Optional[List[str]] = None
+    file_url: Optional[str] = None
+    text: Optional[str] = ""
+    thread_type: Optional[str] = "user"
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "chat_id": "zalo_123456789",
+                "image_path": "/path/to/screenshot.png",
+                "text": "Check this out!"
+            }
+        }
+
+
+@app.post("/api/v1/omni/conversations/{chat_id}/paste-image")
+async def paste_image_from_clipboard(chat_id: str, request: Request):
+    """
+    Paste and send image from clipboard to Zalo.
+    
+    This endpoint gets the image from system clipboard and sends it.
+    Useful for quick screenshot sharing.
+    """
+    if not Config.ENABLED:
+        raise HTTPException(status_code=403, detail="Omnichannel hub is disabled")
+    
+    platform = chat_id.split("_")[0]
+    target_id = chat_id.replace("zalo_", "").replace("fb_", "")
+    
+    if platform != "zalo":
+        return JSONResponse(status_code=400, content={
+            "success": False,
+            "error": "Clipboard paste only supported for Zalo"
+        })
+    
+    data = await request.json()
+    caption = data.get("text", "")
+    thread_type = data.get("thread_type", "user")
+    
+    logger.info(f"Pasting clipboard image to {chat_id}")
+    
+    try:
+        import subprocess
+        import json
+        from pathlib import Path
+        
+        # Call clipboard_to_zalo.py
+        script_path = Path(__file__).parent / "zalo_bridges" / "clipboard_to_zalo.py"
+        
+        env = os.environ.copy()
+        env["ZALO_COOKIE_STRING"] = Config.ZALO_COOKIE_STRING
+        env["ZALO_IMEI"] = Config.ZALO_IMEI
+        
+        result = subprocess.run(
+            ["python3", str(script_path), target_id, caption],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env
+        )
+        
+        if result.returncode == 0:
+            response_data = json.loads(result.stdout)
+            if response_data.get("ok"):
+                return JSONResponse(content={
+                    "success": True,
+                    "message": "Pasted and sent clipboard image",
+                    "platform": platform
+                })
+            else:
+                return JSONResponse(status_code=400, content={
+                    "success": False,
+                    "error": response_data.get("error", "Unknown error")
+                })
+        else:
+            return JSONResponse(status_code=500, content={
+                "success": False,
+                "error": result.stderr or "Failed to paste image"
+            })
+            
+    except Exception as e:
+        logger.error(f"Clipboard paste error: {str(e)}")
+        return JSONResponse(status_code=500, content={
+            "success": False,
+            "error": str(e)
+        })
+
+
+@app.post("/api/v1/omni/conversations/{chat_id}/send-image")
+async def send_image(chat_id: str, image_data: ImageMessage):
+    """
+    Send an image to a specific chat.
+    
+    Supports:
+    - Single image: provide image_path
+    - Multiple images: provide image_paths array
+    - Remote file: provide file_url
+    """
+    if not Config.ENABLED:
+        raise HTTPException(status_code=403, detail="Omnichannel hub is disabled")
+    
+    platform = chat_id.split("_")[0]
+    target_id = chat_id.replace("zalo_", "").replace("fb_", "")
+    
+    logger.info(f"Sending image to {chat_id}")
+    
+    if platform == "zalo":
+        cookie = Config.ZALO_COOKIE_STRING
+        imei = Config.ZALO_IMEI
+        
+        if not cookie or not imei:
+            return JSONResponse(status_code=400, content={
+                "success": False,
+                "error": "ZALO_COOKIE_STRING or ZALO_IMEI is missing in configuration"
+            })
+            
+        try:
+            from zlapi import ZaloAPI
+            from zlapi.models import Message as ZlMessage, ThreadType
+            
+            # Khởi tạo bot Zalo Headless
+            bot = ZaloAPI("</>", "</>", imei, parse_cookie(cookie))
+            t_type = ThreadType.GROUP if image_data.thread_type == "group" else ThreadType.USER
+            
+            # Prepare message object if text is provided
+            msg = ZlMessage(text=image_data.text) if image_data.text else None
+            
+            # Send based on what's provided
+            if image_data.image_paths and len(image_data.image_paths) > 0:
+                # Multiple images
+                result = bot.sendMultiLocalImage(
+                    image_data.image_paths,
+                    thread_id=target_id,
+                    thread_type=t_type,
+                    message=msg
+                )
+                return JSONResponse(content={
+                    "success": True,
+                    "message": f"Sent {len(image_data.image_paths)} images to {chat_id}",
+                    "platform": platform
+                })
+            elif image_data.image_path:
+                # Single image
+                result = bot.sendLocalImage(
+                    image_data.image_path,
+                    thread_id=target_id,
+                    thread_type=t_type,
+                    message=msg
+                )
+                return JSONResponse(content={
+                    "success": True,
+                    "message": f"Sent image to {chat_id}",
+                    "platform": platform
+                })
+            elif image_data.file_url:
+                # Remote file
+                result = bot.sendRemoteFile(
+                    image_data.file_url,
+                    thread_id=target_id,
+                    thread_type=t_type,
+                    message=msg
+                )
+                return JSONResponse(content={
+                    "success": True,
+                    "message": f"Sent remote file to {chat_id}",
+                    "platform": platform
+                })
+            else:
+                return JSONResponse(status_code=400, content={
+                    "success": False,
+                    "error": "Must provide image_path, image_paths, or file_url"
+                })
+            
+        except Exception as e:
+            logger.error(f"Zalo send image error: {str(e)}")
+            return JSONResponse(status_code=500, content={
+                "success": False,
+                "error": str(e)
+            })
+    
+    return JSONResponse(status_code=400, content={
+        "success": False,
+        "error": f"Platform {platform} not supported for image sending"
+    })
+
+
 @app.get("/api/v1/omni/conversations/{chat_id}/messages")
 async def get_chat_history(chat_id: str, limit: int = 50):
     """
@@ -507,6 +697,8 @@ async def root():
         "endpoints": [
             "/api/v1/omni/conversations - List conversations",
             "/api/v1/omni/conversations/{chat_id}/messages - Send message",
+            "/api/v1/omni/conversations/{chat_id}/send-image - Send image (NEW)",
+            "/api/v1/omni/conversations/{chat_id}/paste-image - Paste from clipboard (NEW)",
             "/api/v1/omni/conversations/{chat_id}/messages?limit=50 - Chat history",
             "/api/v1/omni/conversations/read-all - Mark all as read",
             "/api/v1/auth/zalo/qrcode/init - Init QR login",

@@ -69,6 +69,11 @@ def main():
     target = str(payload.get("target", "")).strip()
     text = str(payload.get("text", "")).strip()
     thread_type = str(payload.get("thread_type", "user")).lower()
+    
+    # Image/file parameters
+    image_path = str(payload.get("image_path", "")).strip()
+    image_paths = payload.get("image_paths", [])  # For multiple images
+    file_url = str(payload.get("file_url", "")).strip()
 
     if not cookie:
         raise RuntimeError("Missing Zalo cookie")
@@ -76,12 +81,28 @@ def main():
         raise RuntimeError("Missing Zalo IMEI. Reconnect Zalo QR to capture IMEI.")
     if not target:
         raise RuntimeError("Missing Zalo target")
-    if action in ("send", "reply") and not text:
-        raise RuntimeError("Missing Zalo text")
+    if action in ("send", "reply") and not text and not image_path and not image_paths and not file_url:
+        raise RuntimeError("Missing Zalo text, image, or file")
 
     bot = ZaloAPI("</>", "</>", imei, parse_cookie(cookie))
     t_type = ThreadType.GROUP if thread_type == "group" else ThreadType.USER
-    if action == "react":
+    
+    if action == "send_image":
+        # Send single image
+        if not image_path:
+            raise RuntimeError("Missing image_path for send_image action")
+        result = bot.sendLocalImage(image_path, thread_id=target, thread_type=t_type, message=Message(text=text) if text else None)
+    elif action == "send_images":
+        # Send multiple images
+        if not image_paths or not isinstance(image_paths, list):
+            raise RuntimeError("Missing or invalid image_paths for send_images action")
+        result = bot.sendMultiLocalImage(image_paths, thread_id=target, thread_type=t_type, message=Message(text=text) if text else None)
+    elif action == "send_file":
+        # Send file from URL
+        if not file_url:
+            raise RuntimeError("Missing file_url for send_file action")
+        result = bot.sendRemoteFile(file_url, thread_id=target, thread_type=t_type, message=Message(text=text) if text else None)
+    elif action == "react":
         reaction = str(payload.get("emoji", "")).strip()
         message_object = message_object_from_payload(payload.get("message") or {})
         if not reaction:

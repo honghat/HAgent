@@ -134,35 +134,6 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
     external_id = conv.get("external_id") or ""
     platform = conv.get("platform") or ""
     send_meta = {}
-    if platform == "zalo" and external_id:
-        cookie, imei = _load_zalo_channel(uid)
-        if not cookie or not imei:
-            raise HTTPException(status_code=400, detail="Chưa có phiên Zalo. Hãy quét QR trước.")
-        send_meta = _run_zalo_bridge(
-            ZALO_SEND_BRIDGE,
-            {
-                "cookie": cookie,
-                "imei": imei,
-                "target": external_id,
-                "text": payload.content,
-                "thread_type": conv.get("thread_type") or "user",
-                "action": "reply" if payload.reply_to_id else "send",
-                "reply_to": _get_zalo_reply_meta(payload.reply_to_id, uid),
-            },
-            timeout=45,
-        )
-    elif platform == "telegram" and external_id:
-        from api.routers.telegram import send_real_message
-
-        send_meta = asyncio.run(
-            send_real_message(
-                uid,
-                external_id,
-                payload.content,
-                _get_telegram_reply_external_id(payload.reply_to_id, uid),
-            )
-        )
-
     msg_id = create_message(
         conversation_id=id,
         user_id=uid,
@@ -171,6 +142,38 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
         reply_to_id=payload.reply_to_id or None,
         platform=platform,
     )
+    try:
+        if platform == "zalo" and external_id:
+            cookie, imei = _load_zalo_channel(uid)
+            if not cookie or not imei:
+                raise HTTPException(status_code=400, detail="Chưa có phiên Zalo. Hãy quét QR trước.")
+            send_meta = _run_zalo_bridge(
+                ZALO_SEND_BRIDGE,
+                {
+                    "cookie": cookie,
+                    "imei": imei,
+                    "target": external_id,
+                    "text": payload.content,
+                    "thread_type": conv.get("thread_type") or "user",
+                    "action": "reply" if payload.reply_to_id else "send",
+                    "reply_to": _get_zalo_reply_meta(payload.reply_to_id, uid),
+                },
+                timeout=45,
+            )
+        elif platform == "telegram" and external_id:
+            from api.routers.telegram import send_real_message
+
+            send_meta = asyncio.run(
+                send_real_message(
+                    uid,
+                    external_id,
+                    payload.content,
+                    _get_telegram_reply_external_id(payload.reply_to_id, uid),
+                )
+            )
+    except Exception:
+        delete_message(msg_id)
+        raise
     external_msg_id = send_meta.get("msg_id") or send_meta.get("cli_msg_id") or ""
     external_cli_msg_id = send_meta.get("cli_msg_id") or ""
     external_msg_type = send_meta.get("msg_type") or "webchat"
@@ -911,6 +914,37 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
             return False
         author_id = str(msg.get("author_id") or "")
         role = "user" if own_id and author_id == own_id else "assistant"
+        content = str(msg.get("content") or "")
+        if role == "user":
+            pending = conn.execute(
+                """SELECT id FROM omni_messages
+                   WHERE conversation_id = ?
+                     AND role = 'user'
+                     AND content = ?
+                     AND COALESCE(external_id, '') = ''
+                   ORDER BY created_at DESC LIMIT 1""",
+                (conversation_id, content),
+            ).fetchone()
+            if pending:
+                conn.execute(
+                    """UPDATE omni_messages
+                       SET external_id = ?,
+                           external_cli_msg_id = ?,
+                           external_msg_type = ?,
+                           external_author_id = ?,
+                           external_author_name = ?
+                       WHERE id = ?""",
+                    (
+                        external_id,
+                        str(msg.get("cli_msg_id") or ""),
+                        str(msg.get("msg_type") or "webchat"),
+                        author_id,
+                        str(msg.get("author_name") or ""),
+                        pending["id"],
+                    ),
+                )
+                update_conversation_preview(conversation_id, content[:200], role)
+                return False
         created_at = datetime.now().isoformat()
         conn.execute(
             """INSERT INTO omni_messages
@@ -923,7 +957,7 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
                 conversation_id,
                 user_id,
                 role,
-                str(msg.get("content") or ""),
+                content,
                 "zalo",
                 external_id,
                 str(msg.get("cli_msg_id") or ""),

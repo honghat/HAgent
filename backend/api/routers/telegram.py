@@ -142,6 +142,29 @@ def _insert_message_once(
         ).fetchone()
         if exists:
             return False
+        if role == "user":
+            pending = conn.execute(
+                """SELECT id FROM omni_messages
+                   WHERE conversation_id = ?
+                     AND role = 'user'
+                     AND content = ?
+                     AND COALESCE(external_id, '') = ''
+                   ORDER BY created_at DESC LIMIT 1""",
+                (conversation_id, content),
+            ).fetchone()
+            if pending:
+                conn.execute(
+                    """UPDATE omni_messages
+                       SET external_id = ?,
+                           external_msg_type = 'message',
+                           external_author_id = ?,
+                           external_author_name = ?,
+                           reply_to_id = COALESCE(?, reply_to_id)
+                       WHERE id = ?""",
+                    (external_id, author_id, author_name, reply_to_id, pending["id"]),
+                )
+                update_conversation_preview(conversation_id, content[:200], role)
+                return False
         conn.execute(
             """INSERT INTO omni_messages
                (id, conversation_id, user_id, role, content, platform, external_id,
@@ -535,6 +558,19 @@ async def ingest_bot_message(request: Request):
 
     upsert_contact(user_id, "telegram", bot_id, bot_name, "")
     conv = ensure_conversation(user_id, "telegram", bot_name, bot_id, "user", "")
+    if role == "user":
+        with get_connection() as conn:
+            recent = conn.execute(
+                """SELECT id FROM omni_messages
+                   WHERE conversation_id = ?
+                     AND role = 'user'
+                     AND content = ?
+                     AND julianday(replace(created_at, 'T', ' ')) >= julianday('now', 'localtime', '-2 minutes')
+                   ORDER BY created_at DESC LIMIT 1""",
+                (conv["id"], content),
+            ).fetchone()
+        if recent:
+            return {"inserted": False, "conversation_id": conv["id"]}
     inserted = _insert_message_once(
         user_id,
         conv["id"],

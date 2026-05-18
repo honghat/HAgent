@@ -1245,6 +1245,7 @@ _zalo_listeners_lock = threading.Lock()
 _facebook_browser_sessions: dict[str, dict] = {}
 _facebook_live_sessions: dict[str, dict] = {}
 _facebook_sync_tasks: dict[str, asyncio.Task] = {}
+_facebook_sync_locks: dict[str, asyncio.Lock] = {}
 FACEBOOK_PROFILE_ROOT = BACKEND_ROOT / "data" / "facebook_profiles"
 
 
@@ -1442,6 +1443,7 @@ async def restore_facebook_live_session(user_id: str) -> dict | None:
     await page.wait_for_timeout(2500)
     if await _facebook_page_is_connected(page, sess["context"]):
         _facebook_live_sessions[user_id] = sess
+        _ensure_facebook_sync_task(user_id)
         return sess
     try:
         await sess["context"].close()
@@ -1510,64 +1512,53 @@ async def _sync_facebook_live_session(user_id: str, max_threads: int) -> dict | 
         href = thread["href"]
         if href.startswith("/"):
             href = f"https://www.facebook.com{href}"
-        await page.goto(href, wait_until="domcontentloaded", timeout=60000)
-        await page.wait_for_timeout(1800)
-        items = await page.locator('div[dir="auto"]').evaluate_all(
-            """nodes => nodes.map(node => {
-                const rect = node.getBoundingClientRect();
-                const text = (node.innerText || '').trim();
-                let align = '';
-                let timestampText = '';
-                let el = node;
-                for (let depth = 0; el && depth < 8; depth += 1, el = el.parentElement) {
-                    const currentAlign = getComputedStyle(el).alignItems;
-                    if (currentAlign === 'flex-start' || currentAlign === 'flex-end') {
-                        align = currentAlign;
-                    }
-                    timestampText ||= el.getAttribute('data-tooltip-content') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
-                }
-                return {
-                    text,
-                    align,
-                    timestampText,
-                    x: rect.x,
-                    right: rect.right,
-                    y: rect.y,
-                    width: rect.width,
-                    height: rect.height
-                };
-            }).filter(item =>
-                item.text &&
-                item.x > 300 &&
-                item.y > 120 &&
-                item.width > 10 &&
-                item.width < 700 &&
-                item.height > 10 &&
-                item.height < 220
-            )"""
-        )
-        if not items and "/messages/e2ee/t/" in href:
-            regular_href = href.replace("/messages/e2ee/t/", "/messages/t/")
-            await page.goto(regular_href, wait_until="domcontentloaded", timeout=60000)
-            await page.wait_for_timeout(1800)
+        candidate_hrefs = [href]
+        if "/messages/e2ee/t/" in href:
+            candidate_hrefs.append(href.replace("/messages/e2ee/t/", "/messages/t/"))
+        elif "/messages/t/" in href:
+            candidate_hrefs.append(href.replace("/messages/t/", "/messages/e2ee/t/"))
+
+        items = []
+        for candidate_href in candidate_hrefs:
+            try:
+                await page.goto(candidate_href, wait_until="domcontentloaded", timeout=60000)
+                await page.wait_for_timeout(3500 if "/messages/e2ee/t/" in candidate_href else 1800)
+                await page.evaluate(
+                    """() => {
+                        for (const el of document.querySelectorAll('div')) {
+                            if (el.scrollHeight > el.clientHeight + 120) {
+                                el.scrollTop = el.scrollHeight;
+                            }
+                        }
+                    }"""
+                )
+                await page.wait_for_timeout(600)
+            except Exception:
+                continue
             items = await page.locator('div[dir="auto"]').evaluate_all(
                 """nodes => nodes.map(node => {
                     const rect = node.getBoundingClientRect();
                     const text = (node.innerText || '').trim();
                     let align = '';
                     let timestampText = '';
+                    let messageLabel = '';
                     let el = node;
-                    for (let depth = 0; el && depth < 8; depth += 1, el = el.parentElement) {
+                    for (let depth = 0; el && depth < 14; depth += 1, el = el.parentElement) {
                         const currentAlign = getComputedStyle(el).alignItems;
                         if (currentAlign === 'flex-start' || currentAlign === 'flex-end') {
                             align = currentAlign;
                         }
-                        timestampText ||= el.getAttribute('data-tooltip-content') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+                        const aria = el.getAttribute('aria-label') || '';
+                        if (!messageLabel && /^Lúc \\d{1,2}:\\d{2}, /.test(aria)) {
+                            messageLabel = aria;
+                        }
+                        timestampText ||= el.getAttribute('data-tooltip-content') || aria || el.getAttribute('title') || '';
                     }
                     return {
                         text,
                         align,
                         timestampText,
+                        messageLabel,
                         x: rect.x,
                         right: rect.right,
                         y: rect.y,
@@ -1584,6 +1575,8 @@ async def _sync_facebook_live_session(user_id: str, max_threads: int) -> dict | 
                     item.height < 220
                 )"""
             )
+            if items:
+                break
         seen_messages = set()
         active_messages = []
         for item in items:
@@ -1591,11 +1584,12 @@ async def _sync_facebook_live_session(user_id: str, max_threads: int) -> dict | 
             if not text or text in seen_messages:
                 continue
             seen_messages.add(text)
-            role = "user" if str(item.get("align") or "") == "flex-end" else "assistant"
+            message_label = str(item.get("messageLabel") or "").strip()
+            role = "user" if ", Bạn" in message_label or str(item.get("align") or "") == "flex-end" else "assistant"
             active_messages.append({
                 "content": text,
                 "role": role,
-                "timestamp_text": str(item.get("timestampText") or "").strip(),
+                "timestamp_text": message_label or str(item.get("timestampText") or "").strip(),
             })
         thread_messages[thread["external_id"]] = active_messages[-30:]
     return {"ok": True, "threads": threads, "thread_messages": thread_messages}
@@ -1644,81 +1638,97 @@ def _insert_facebook_message_once(
     return message_id
 
 
+def _facebook_created_at_from_label(label: str) -> str | None:
+    match = re.search(r"Lúc\s+(\d{1,2}):(\d{2})", label or "")
+    if not match:
+        return None
+    now = datetime.now()
+    return now.replace(
+        hour=int(match.group(1)),
+        minute=int(match.group(2)),
+        second=0,
+        microsecond=0,
+    ).isoformat()
+
+
 async def _sync_facebook_for_user(user_id: str, max_threads: int) -> dict:
-    cookie = _load_facebook_channel(user_id)
-    if not cookie:
-        return {"ok": False, "synced_conversations": 0, "synced_messages": 0}
-    data = await _sync_facebook_live_session(user_id, max_threads)
-    if data is None:
-        data = _run_facebook_bridge(
-            FACEBOOK_SYNC_BRIDGE,
-            {"cookie": cookie, "max_threads": max_threads},
-            timeout=90,
-        )
-    synced_conversations = 0
-    synced_messages = 0
-    touched_conversations = set()
-    conv_by_external_id = {}
-    for thread in data.get("threads") or []:
-        external_id = str(thread.get("external_id") or "").strip()
-        if not external_id:
-            continue
-        conv = ensure_conversation(
-            user_id,
-            "facebook",
-            str(thread.get("title") or external_id),
-            external_id,
-            "user",
-            "",
-        )
-        conv_by_external_id[external_id] = conv
-        synced_conversations += 1
-    for thread_id, messages in (data.get("thread_messages") or {}).items():
-        active_conv = conv_by_external_id.get(str(thread_id))
-        if not active_conv:
-            continue
-        for msg in messages or []:
-            message_id = _insert_facebook_message_once(
-                user_id,
-                active_conv["id"],
-                str(thread_id),
-                str(msg.get("role") or "assistant"),
-                str(msg.get("content") or ""),
+    lock = _facebook_sync_locks.setdefault(user_id, asyncio.Lock())
+    async with lock:
+        cookie = _load_facebook_channel(user_id)
+        if not cookie:
+            return {"ok": False, "synced_conversations": 0, "synced_messages": 0}
+        data = await _sync_facebook_live_session(user_id, max_threads)
+        if data is None:
+            data = _run_facebook_bridge(
+                FACEBOOK_SYNC_BRIDGE,
+                {"cookie": cookie, "max_threads": max_threads},
+                timeout=90,
             )
-            if message_id:
-                touched_conversations.add(active_conv["id"])
-                synced_messages += 1
-                if str(msg.get("role") or "") != "user":
-                    _broadcast({
-                        "type": "message",
-                        "conversationId": active_conv["id"],
-                        "message": {
-                            "id": message_id,
-                            "sender_type": "assistant",
-                            "content": str(msg.get("content") or ""),
-                            "status": "received",
-                        },
-                    })
-    if touched_conversations:
-        _broadcast({
-            "type": "sync",
-            "platform": "facebook",
-            "conversationIds": list(touched_conversations),
-            "messages": synced_messages,
-        })
-    return {
-        "ok": True,
-        "synced_conversations": synced_conversations,
-        "synced_messages": synced_messages,
-        "threads": data.get("threads") or [],
-    }
+        synced_conversations = 0
+        synced_messages = 0
+        touched_conversations = set()
+        conv_by_external_id = {}
+        for thread in data.get("threads") or []:
+            external_id = str(thread.get("external_id") or "").strip()
+            if not external_id:
+                continue
+            conv = ensure_conversation(
+                user_id,
+                "facebook",
+                str(thread.get("title") or external_id),
+                external_id,
+                "user",
+                "",
+            )
+            conv_by_external_id[external_id] = conv
+            synced_conversations += 1
+        for thread_id, messages in (data.get("thread_messages") or {}).items():
+            active_conv = conv_by_external_id.get(str(thread_id))
+            if not active_conv:
+                continue
+            for msg in messages or []:
+                message_id = _insert_facebook_message_once(
+                    user_id,
+                    active_conv["id"],
+                    str(thread_id),
+                    str(msg.get("role") or "assistant"),
+                    str(msg.get("content") or ""),
+                    _facebook_created_at_from_label(str(msg.get("timestamp_text") or "")),
+                )
+                if message_id:
+                    touched_conversations.add(active_conv["id"])
+                    synced_messages += 1
+                    if str(msg.get("role") or "") != "user":
+                        _broadcast({
+                            "type": "message",
+                            "conversationId": active_conv["id"],
+                            "message": {
+                                "id": message_id,
+                                "sender_type": "assistant",
+                                "content": str(msg.get("content") or ""),
+                                "status": "received",
+                            },
+                        })
+        if touched_conversations:
+            _broadcast({
+                "type": "sync",
+                "platform": "facebook",
+                "conversationIds": list(touched_conversations),
+                "messages": synced_messages,
+            })
+        return {
+            "ok": True,
+            "synced_conversations": synced_conversations,
+            "synced_messages": synced_messages,
+            "threads": data.get("threads") or [],
+        }
 
 
 async def _facebook_sync_loop(user_id: str) -> None:
     try:
         while user_id in _facebook_live_sessions:
             try:
-                await _sync_facebook_for_user(user_id, 20)
+                await _sync_facebook_for_user(user_id, 1)
             except Exception:
                 logging.exception("Facebook realtime sync failed for user %s", user_id)
             await asyncio.sleep(8)
@@ -2710,6 +2720,7 @@ async def facebook_browser_login_status(session_id: str, request: Request):
         cookie = await _get_facebook_cookie_header(sess["context"])
         _save_facebook_channel(user_id, cookie)
         _facebook_live_sessions[user_id] = sess
+        _ensure_facebook_sync_task(user_id)
         _facebook_browser_sessions.pop(session_id, None)
         return {"session_id": session_id, "status": "connected", "detail": "Facebook đã kết nối."}
     if await _facebook_page_needs_security_unlock(page):
@@ -2731,57 +2742,14 @@ async def sync_facebook_messages(payload: OmniSyncMessagesRequest, request: Requ
     cookie = _load_facebook_channel(user_id)
     if not cookie:
         raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
-    data = await _sync_facebook_live_session(user_id, payload.maxThreads)
-    if data is None:
-        data = _run_facebook_bridge(
-            FACEBOOK_SYNC_BRIDGE,
-            {"cookie": cookie, "max_threads": payload.maxThreads},
-            timeout=90,
-        )
-    synced_conversations = 0
-    synced_messages = 0
-    conv_by_external_id = {}
-    for thread in data.get("threads") or []:
-        external_id = str(thread.get("external_id") or "").strip()
-        if not external_id:
-            continue
-        conv = ensure_conversation(
-            user_id,
-            "facebook",
-            str(thread.get("title") or external_id),
-            external_id,
-            "user",
-            "",
-        )
-        conv_by_external_id[external_id] = conv
-        synced_conversations += 1
-    for thread_id, messages in (data.get("thread_messages") or {}).items():
-        active_conv = conv_by_external_id.get(str(thread_id))
-        if not active_conv:
-            continue
-        for msg in messages or []:
-            message_id = _insert_facebook_message_once(
-                user_id,
-                active_conv["id"],
-                str(thread_id),
-                str(msg.get("role") or "assistant"),
-                str(msg.get("content") or ""),
-            )
-            if message_id:
-                synced_messages += 1
-                if str(msg.get("role") or "") != "user":
-                    _broadcast({
-                        "type": "message",
-                        "conversationId": active_conv["id"],
-                        "message": {
-                            "id": message_id,
-                            "sender_type": "assistant",
-                            "content": str(msg.get("content") or ""),
-                            "status": "received",
-                        },
-                    })
+    try:
+        data = await _sync_facebook_for_user(user_id, payload.maxThreads)
+    except Exception as exc:
+        logging.exception("Facebook sync request failed for user %s", user_id)
+        raise HTTPException(status_code=502, detail=f"Đồng bộ Facebook lỗi: {exc}") from exc
+    _ensure_facebook_sync_task(user_id)
     return {
-        "synced_conversations": synced_conversations,
-        "synced_messages": synced_messages,
+        "synced_conversations": data["synced_conversations"],
+        "synced_messages": data["synced_messages"],
         "status": "Đồng bộ Facebook xong danh sách hội thoại gần đây.",
     }

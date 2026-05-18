@@ -859,7 +859,7 @@ export default function OmniChat({ token }) {
                     )}
                     {qr && (
                       <div className="rounded-xl bg-white p-4 text-center shadow-lg border border-black/[0.05]">
-                        <img src={qr} alt="Zalo QR" className="mx-auto h-64 w-64 rounded-lg object-contain bg-white" />
+                        <img src={qr} alt="Zalo QR" className="mx-auto h-64 w-64 rounded-lg object-contain bg-white p-2 [image-rendering:pixelated]" />
                         <div className="mt-3 flex flex-col items-center gap-2">
                           <span className="text-sm font-semibold text-gray-700">Zalo</span>
                           <button

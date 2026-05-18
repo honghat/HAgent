@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import queue
 import asyncio
+import base64
+import io
 import re
 import subprocess
 import sys
@@ -16,6 +18,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import StreamingResponse
+from PIL import Image, ImageOps
 
 from api.schemas import (
     OmniConversation,
@@ -358,6 +361,22 @@ async def _find_zalo_qr_data(page) -> str:
     return best_data
 
 
+def _normalize_qr_data_uri(data_uri: str) -> str:
+    if not data_uri.startswith("data:image/") or "," not in data_uri:
+        return data_uri
+    header, encoded = data_uri.split(",", 1)
+    try:
+        raw = base64.b64decode(encoded)
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        image = ImageOps.expand(image, border=max(24, image.width // 10), fill="white")
+        image = image.resize((image.width * 2, image.height * 2), Image.Resampling.NEAREST)
+        out = io.BytesIO()
+        image.save(out, format="PNG")
+        return f"{header},{base64.b64encode(out.getvalue()).decode('utf-8')}"
+    except Exception:
+        return data_uri
+
+
 async def _get_zalo_cookie_header(context) -> str:
     cookies = await context.cookies()
     return "; ".join(f"{c['name']}={c['value']}" for c in cookies if c.get("name"))
@@ -644,6 +663,7 @@ async def start_zalo_qr(request: Request):
 
         if not qr_data or len(qr_data) < 100:
             raise RuntimeError("Không tìm thấy mã QR Zalo hợp lệ.")
+        qr_data = _normalize_qr_data_uri(qr_data)
 
         asyncio.create_task(_expire_zalo_qr_session(session_id))
         return {

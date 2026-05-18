@@ -7,6 +7,10 @@ import queue
 import threading
 import uuid
 from datetime import datetime
+import requests
+import qrcode
+import base64
+import io
 
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import StreamingResponse
@@ -253,22 +257,64 @@ def event_stream(request: Request):
 
 @router.post("/sync/zalo/qr/start")
 def start_zalo_qr():
+    try:
+        resp = requests.post("http://127.0.0.1:8080/api/v1/auth/zalo/qrcode/init", timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            qr_url = data.get("qr_url")
+            if qr_url:
+                qr = qrcode.QRCode(version=1, box_size=10, border=4)
+                qr.add_data(qr_url)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white")
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                qr_base64 = f"data:image/png;base64,{b64}"
+                
+                session_id = str(uuid.uuid4())
+                return {
+                    "session": session_id,
+                    "session_id": session_id,
+                    "qr": qr_base64,
+                    "status": "pending",
+                    "detail": data.get("message", "Quét QR bằng Zalo trên điện thoại.")
+                }
+    except Exception as e:
+        print(f"Lỗi gọi backend Zalo 8080: {e}")
+        
     session_id = str(uuid.uuid4())
     return {
         "session": session_id,
         "session_id": session_id,
         "qr": None,
         "status": "unavailable",
-        "detail": "OmniChat hiện chưa bật đăng nhập QR Zalo. Dùng cookie Facebook hoặc nối Zalo web session trước.",
+        "detail": "Không thể kết nối đến backend Zalo (port 8080). Hãy đảm bảo backend đã chạy.",
     }
 
 
 @router.get("/sync/zalo/qr/{session}/status", response_model=OmniQRStatusResponse)
 def check_zalo_qr_status(session: str):
+    try:
+        resp = requests.get(f"http://127.0.0.1:8080/api/v1/auth/zalo/qrcode/poll/{session}", timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            status = data.get("status", "pending")
+            if status == "success":
+                status = "connected"
+                
+            return OmniQRStatusResponse(
+                session=session,
+                status=status,
+                detail=data.get("message", "Đang quét...")
+            )
+    except Exception:
+        pass
+        
     return OmniQRStatusResponse(
         session=session,
-        status="unavailable",
-        detail="OmniChat hiện chưa bật đăng nhập QR Zalo. Dùng cookie Facebook hoặc nối Zalo web session trước.",
+        status="pending",
+        detail="Đang chờ quét QR Zalo...",
     )
 
 

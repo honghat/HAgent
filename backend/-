@@ -1,3 +1,0 @@
-# Tin tức mỗi 2h từ 06:00 - 23:00 (chạy ở phút 0 của mỗi giờ)
-0 */2 6-23 * * * /Users/nguyenhat/.venv/bin/python ~/HAgent/tin-tuc-ngay.py >> /Users/nguyenhat/logs/tin-tuc.log 2>&1
-

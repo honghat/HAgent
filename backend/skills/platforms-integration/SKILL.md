@@ -621,6 +621,7 @@ References:
 - **Zalo Message Viewing**: `~/.hagent/plugins/platforms/omnichannel/backend/references/zalo-message-viewing-workflow.md` (API limitations & browser-only reading guide) ⭐
 - **Omnichannel Hub Backend API**: `~/.hagent/plugins/platforms/omnichannel/OMNICHANNEL_BACKEND_SETUP.md` - Complete setup & integration guide
 - [OmniChat Frontend Pattern](/Users/nguyenhat/HAgent/frontend/src/components/OmniChat.jsx) - Unified inbox React component
+- **Omnichannel Frontend Integration**: `references/omnichannel-frontend-integration-pattern.md` - 4-step external API backend + frontend pattern ✅
 
 Support Files:
 - `references/zalo-setup.md` - Zalo cookie extraction, bot registration
@@ -631,6 +632,7 @@ Support Files:
 - **`references/zalo-message-viewing-workflow.md`** - Zalo API limitations & browser-only reading guide ⭐
 - `templates/testing-framework.md` - Multi-platform test patterns and verification checklist
 - **`scripts/omnichannel_setup.sh`** - Quick setup & verify script (automates config creation, env loading)
+- **`references/omnichannel-frontend-integration-pattern.md`** - Frontend React component integration workflow ✅
 
 ### Omnichannel Hub Backend Specific:
 - `references/zalo-qr-workflow.md` - Complete QR code login guide (Zalo/Facebook OAuth patterns)

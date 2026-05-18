@@ -154,5 +154,15 @@ module.exports = {
         PYTHONPATH: '.'
       }
     },
+    {
+      name: 'hagent-omni',
+      cwd: './backend/plugins/platforms/omnichannel/backend',
+      script: './start.sh',
+      interpreter: '/Users/nguyenhat/HAgent/backend/.venv/bin/python',
+      error_file: `${LOG_DIR}/omni-error.log`,
+      out_file: `${LOG_DIR}/omni-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
   ]
 };

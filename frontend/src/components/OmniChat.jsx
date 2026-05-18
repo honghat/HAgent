@@ -292,8 +292,8 @@ export default function OmniChat({ token }) {
       setLoading(false)
       setStatus(err.message)
     })
-    loadContacts().catch(() => {})
-    loadTodayStats().catch(() => {})
+    loadContacts().catch(() => { })
+    loadTodayStats().catch(() => { })
   }, [token])
 
   useEffect(() => {
@@ -315,8 +315,8 @@ export default function OmniChat({ token }) {
       window.clearTimeout(reloadTimerRef.current)
       reloadTimerRef.current = window.setTimeout(() => {
         loadConversations({ quiet: true }).catch(err => setStatus(err.message))
-        loadContacts().catch(() => {})
-        loadTodayStats().catch(() => {})
+        loadContacts().catch(() => { })
+        loadTodayStats().catch(() => { })
         const currentId = selectedIdRef.current
         if (currentId) loadMessages(currentId).catch(err => setStatus(err.message))
       }, 150)
@@ -334,11 +334,11 @@ export default function OmniChat({ token }) {
   useEffect(() => {
     if (!token) return undefined
     const timer = window.setInterval(() => {
-      loadConversations({ quiet: true }).catch(() => {})
-      loadContacts().catch(() => {})
-      loadTodayStats().catch(() => {})
+      loadConversations({ quiet: true }).catch(() => { })
+      loadContacts().catch(() => { })
+      loadTodayStats().catch(() => { })
       const currentId = selectedIdRef.current
-      if (currentId) loadMessages(currentId).catch(() => {})
+      if (currentId) loadMessages(currentId).catch(() => { })
     }, AUTO_REFRESH_MS)
     return () => window.clearInterval(timer)
   }, [token])
@@ -765,6 +765,13 @@ export default function OmniChat({ token }) {
                     </div>
                     <button
                       type="button"
+                      onClick={startTelegramQr}
+                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
+                    >
+                      QR
+                    </button>
+                    <button
+                      type="button"
                       onClick={syncTelegramMessages}
                       disabled={syncingTelegram}
                       className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
@@ -781,6 +788,13 @@ export default function OmniChat({ token }) {
                       <p className="text-xs font-semibold text-gray-900">Zalo</p>
                       <p className="truncate text-[10px] text-gray-400">Chưa bật QR</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={startZaloQr}
+                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
+                    >
+                      QR
+                    </button>
                     <button
                       type="button"
                       onClick={syncZaloMessages}

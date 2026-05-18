@@ -54,6 +54,7 @@ class Config:
     ZALO_COOKIE_STRING = os.environ.get("ZALO_COOKIE_STRING", "")
     ZALO_QR_ENABLED = os.environ.get("ZALO_QR_ENABLED", "true").lower() == "true"
     ZALO_BOT_UID = os.environ.get("ZALO_BOT_UID", "")
+    ZALO_IMEI = os.environ.get("ZALO_IMEI", "")
     
     # Facebook configuration  
     FACEBOOK_COOKIE_STRING = os.environ.get("FACEBOOK_COOKIE_STRING", "")
@@ -137,32 +138,65 @@ async def list_conversations():
     return conversations
 
 
+def parse_cookie(cookie_str):
+    result = {}
+    for item in (cookie_str or "").split(";"):
+        if "=" in item:
+            key, value = item.strip().split("=", 1)
+            if key:
+                result[key] = value
+    return result
+
+
 @app.post("/api/v1/omni/conversations/{chat_id}/messages")
 async def send_message(chat_id: str, message_data: Message):
     """
     Send a message to a specific chat.
-    
-    Args:
-        chat_id: Chat ID (e.g., zalo_123456789)
-        message_data: Message content
-    
-    Returns:
-        Success response with message ID
     """
     if not Config.ENABLED:
         raise HTTPException(status_code=403, detail="Omnichannel hub is disabled")
     
-    platform = chat_id.split("_")[0]  # Extract platform from chat_id
+    platform = chat_id.split("_")[0]
+    target_id = chat_id.replace("zalo_", "").replace("fb_", "")
     
     logger.info(f"Sending message to {chat_id}: {message_data.content}")
     
-    # Platform-specific sending logic would go here
-    # For Zalo: use webhook polling or browser automation
-    # For Facebook: use Playwright automation
+    if platform == "zalo":
+        cookie = Config.ZALO_COOKIE_STRING
+        imei = Config.ZALO_IMEI
+        
+        if not cookie or not imei:
+            return JSONResponse(status_code=400, content={
+                "success": False,
+                "error": "ZALO_COOKIE_STRING or ZALO_IMEI is missing in configuration"
+            })
+            
+        try:
+            from zlapi import ZaloAPI
+            from zlapi.models import Message as ZlMessage, ThreadType
+            
+            # Khởi tạo bot Zalo Headless
+            bot = ZaloAPI("</>", "</>", imei, parse_cookie(cookie))
+            
+            # Gửi tin nhắn (Mặc định gửi cho USER, nếu là GROUP thì cần logic phân biệt target_id)
+            bot.send(ZlMessage(text=message_data.content), thread_id=target_id, thread_type=ThreadType.USER)
+            
+            return JSONResponse(content={
+                "success": True,
+                "message": f"Sent via headless zlapi to {chat_id}",
+                "platform": platform
+            })
+            
+        except Exception as e:
+            logger.error(f"Zalo send error: {str(e)}")
+            return JSONResponse(status_code=500, content={
+                "success": False,
+                "error": str(e)
+            })
     
     return JSONResponse(content={
         "success": True,
-        "message": f"Sent to {chat_id}",
+        "message": f"Sent to {chat_id} (Simulated)",
         "platform": platform
     })
 
@@ -212,58 +246,210 @@ async def mark_all_as_read(request: ReadAllRequest = None):
     })
 
 
+# --- Zalo QR Login State ---
+qr_sessions = {}
+
 @app.post("/api/v1/auth/zalo/qrcode/init")
 async def init_zalo_qr_login():
     """
-    Initialize Zalo QR code login flow.
+    Initialize Zalo QR code login flow using Playwright.
+    """
+    if not Config.ENABLED or not Config.ZALO_QR_ENABLED:
+        raise HTTPException(status_code=403, detail="Omnichannel hub or Zalo QR is disabled")
     
-    Returns QR code URL for scanning with Zalo app.
+    logger.info("Initializing Zalo QR code login with Playwright...")
+    
+    try:
+        from playwright.async_api import async_playwright
+        import uuid
+        
+        session_id = str(uuid.uuid4())
+        
+        playwright = await async_playwright().start()
+        browser = await playwright.chromium.launch(headless=False, args=['--disable-blink-features=AutomationControlled'])
+        context = await browser.new_context(
+            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            viewport={'width': 1280, 'height': 900}
+        )
+        page = await context.new_page()
+        
+        # Save session
+        qr_sessions[session_id] = {
+            "playwright": playwright,
+            "browser": browser,
+            "context": context,
+            "page": page,
+            "status": "initializing"
+        }
+        
+        await page.goto('https://chat.zalo.me/', wait_until='networkidle', timeout=45000)
+        
+        # Click "VỚI MÃ QR" tab
+        try:
+            qr_tab_selector = 'a:has-text("VỚI MÃ QR"), .tabs-header >> text="VỚI MÃ QR", text="VỚI MÃ QR"'
+            if await page.locator(qr_tab_selector).is_visible(timeout=5000):
+                await page.click(qr_tab_selector)
+                await page.wait_for_timeout(1000)
+        except Exception as e:
+            logger.warning(f"Failed to click QR tab: {e}")
+            
+        # Extract QR code
+        qr_selector = '.login-qr canvas, .qr-container canvas, canvas, img[src*="qr"], img[src*="data:image"]'
+        await page.wait_for_selector(qr_selector, state='visible', timeout=30000)
+        
+        qr_data = ""
+        for _ in range(5):
+            await page.wait_for_timeout(1000)
+            qr_handle = await page.query_selector(qr_selector)
+            if not qr_handle: continue
+            
+            tag_name = await qr_handle.evaluate("el => el.tagName.toLowerCase()")
+            if tag_name == 'canvas':
+                qr_data = await qr_handle.evaluate("el => el.toDataURL('image/png')")
+            else:
+                qr_data = await qr_handle.get_attribute("src")
+                
+            if qr_data and len(qr_data) > 500:
+                break
+                
+        if not qr_data or len(qr_data) < 100:
+            raise Exception("Cannot find valid Zalo QR code.")
+            
+        qr_sessions[session_id]["status"] = "waiting"
+        
+        # Auto-cleanup after 5 minutes
+        async def cleanup():
+            await asyncio.sleep(300)
+            if session_id in qr_sessions:
+                sess = qr_sessions.pop(session_id)
+                try: await sess["browser"].close()
+                except: pass
+                try: await sess["playwright"].stop()
+                except: pass
+        asyncio.create_task(cleanup())
+        
+        return JSONResponse(content={
+            "success": True,
+            "session_id": session_id,
+            "qr_url": qr_data,
+            "message": "Please scan QR code with Zalo app",
+            "expires_in": 300
+        })
+        
+    except Exception as e:
+        logger.error(f"QR Init error: {str(e)}")
+        if 'session_id' in locals() and session_id in qr_sessions:
+            sess = qr_sessions.pop(session_id)
+            try: await sess["browser"].close()
+            except: pass
+            try: await sess["playwright"].stop()
+            except: pass
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.get("/api/v1/auth/zalo/qrcode/poll/{session_id}")
+async def poll_qr_scan_status(session_id: str):
+    """
+    Poll QR code scan status and extract cookies.
     """
     if not Config.ENABLED:
         raise HTTPException(status_code=403, detail="Omnichannel hub is disabled")
+        
+    if session_id not in qr_sessions:
+        return JSONResponse(status_code=404, content={"success": False, "error": "Session not found or expired"})
+        
+    sess = qr_sessions[session_id]
+    page = sess["page"]
+    context = sess["context"]
     
-    if not Config.ZALO_QR_ENABLED:
-        raise HTTPException(status_code=400, detail="Zalo QR login is disabled")
-    
-    logger.info("Initializing Zalo QR code login...")
-    
-    # In production, this would call Zalo OAuth endpoint
-    # For now, return a mock QR code URL
-    
-    qr_url = "https://zalo.me/qrcode?appid=test&redirect_uri=http://localhost:8080/auth/zalo/callback"
-    
-    return JSONResponse(content={
-        "success": True,
-        "qr_url": qr_url,
-        "message": "Please scan QR code with Zalo app",
-        "expires_in": 1800  # 30 minutes
-    })
+    try:
+        cookies = await context.cookies()
+        cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+        
+        logged_in = "zpsid" in cookie_str or "zpw_sek" in cookie_str
+        
+        if not logged_in:
+            return JSONResponse(content={"status": "waiting"})
+            
+        # Logged in! Find IMEI.
+        # Sometimes IMEI is in localStorage
+        imei = await page.evaluate("window.localStorage.getItem('z_uuid') || ''")
+        if not imei:
+            # Fallback for older imei locations
+            imei = await page.evaluate("window.localStorage.getItem('imei') || ''")
+            
+        if not imei:
+            # Generate a fake UUID if Zalo changed how IMEI is stored, as zlapi can sometimes work with it
+            import uuid
+            imei = str(uuid.uuid4())
+            
+        # Update config in memory
+        Config.ZALO_COOKIE_STRING = cookie_str
+        Config.ZALO_IMEI = imei
+        
+        # Write to config.env to persist
+        config_env_path = Path(__file__).parent / "config.env"
+        env_content = ""
+        if config_env_path.exists():
+            env_content = config_env_path.read_text()
+            
+        # Replace or append
+        import re
+        if "ZALO_COOKIE_STRING" in env_content:
+            env_content = re.sub(r'ZALO_COOKIE_STRING=.*', f'ZALO_COOKIE_STRING="{cookie_str}"', env_content)
+        else:
+            env_content += f'\nZALO_COOKIE_STRING="{cookie_str}"'
+            
+        if "ZALO_IMEI" in env_content:
+            env_content = re.sub(r'ZALO_IMEI=.*', f'ZALO_IMEI="{imei}"', env_content)
+        else:
+            env_content += f'\nZALO_IMEI="{imei}"'
+            
+        config_env_path.write_text(env_content.strip() + '\n')
+        
+        # Cleanup browser
+        qr_sessions.pop(session_id)
+        await sess["browser"].close()
+        await sess["playwright"].stop()
+        
+        return JSONResponse(content={
+            "status": "success",
+            "message": "Zalo login successful! Credentials saved.",
+            "imei": imei
+        })
+        
+    except Exception as e:
+        logger.error(f"Poll error: {str(e)}")
+        return JSONResponse(status_code=500, content={"status": "error", "error": str(e)})
 
+# --- Giao tiếp với Chrome Extension ---
+pending_commands = []
 
-@app.get("/api/v1/auth/zalo/qrcode/poll/{chat_id}")
-async def poll_qr_scan_status(chat_id: str):
-    """
-    Poll QR code scan status.
-    
-    Args:
-        chat_id: Chat ID to poll
-    
-    Returns:
-        Scan status (pending, success, failed)
-    """
-    if not Config.ENABLED:
-        raise HTTPException(status_code=403, detail="Omnichannel hub is disabled")
-    
-    logger.info(f"Polling QR scan status for {chat_id}")
-    
-    # In production, poll Zalo OAuth endpoint
-    # Return current scan status
-    
-    return JSONResponse(content={
-        "chat_id": chat_id,
-        "status": "pending",  # pending, scanning, success, failed
-        "message": "Waiting for QR code to be scanned"
+@app.post("/api/v1/omni/webhook/zalo")
+async def zalo_webhook(request: Request):
+    """Nhận tin nhắn mới từ Chrome Extension"""
+    data = await request.json()
+    logger.info(f"New Zalo message from extension: {data}")
+    # Xử lý tin nhắn ở đây (lưu db, gửi event, v.v...)
+    return {"success": True}
+
+@app.get("/api/v1/omni/commands/zalo")
+async def get_zalo_commands():
+    """Chrome Extension gọi vào để lấy lệnh (ví dụ: gửi tin)"""
+    global pending_commands
+    cmds = pending_commands[:]
+    pending_commands.clear()
+    return {"commands": cmds}
+
+@app.post("/api/v1/omni/send_zalo_command")
+async def send_zalo_cmd(payload: dict):
+    """API nội bộ để push lệnh xuống Chrome Extension"""
+    global pending_commands
+    pending_commands.append({
+        "action": payload.get("action", "SEND_MESSAGE"),
+        "content": payload.get("content", "")
     })
+    return {"success": True}
 
 
 @app.get("/api/v1/status")

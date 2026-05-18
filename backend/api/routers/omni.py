@@ -555,6 +555,25 @@ def _load_zalo_channel(user_id: str) -> tuple[str, str]:
     return data.get("cookie", ""), data.get("imei", "")
 
 
+def restore_active_zalo_listeners() -> None:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT user_id, access_token
+               FROM omni_channels
+               WHERE platform = 'zalo' AND is_active = 1"""
+        ).fetchall()
+    for row in rows:
+        try:
+            data = json.loads(row["access_token"] or "{}")
+        except json.JSONDecodeError:
+            data = {"cookie": row["access_token"] or "", "imei": ""}
+        _ensure_zalo_listener(
+            row["user_id"],
+            str(data.get("cookie") or ""),
+            str(data.get("imei") or ""),
+        )
+
+
 def _validate_zalo_session(cookie: str, imei: str) -> tuple[bool, str]:
     try:
         data = _run_zalo_bridge(
@@ -830,6 +849,20 @@ def _ensure_zalo_listener(user_id: str, cookie: str, imei: str) -> bool:
         state["thread"] = thread
         thread.start()
         return True
+
+
+@router.get("/sync/zalo/listener/status")
+def zalo_listener_status(request: Request):
+    user_id = _get_user_id(request)
+    with _zalo_listeners_lock:
+        state = dict(_zalo_listeners.get(user_id) or {})
+    proc = state.pop("proc", None)
+    state.pop("thread", None)
+    return {
+        "running": bool(proc and proc.poll() is None),
+        "own_id": state.get("own_id") or "",
+        "error": state.get("error") or "",
+    }
 
 
 def _parse_bridge_json(output: str) -> dict:

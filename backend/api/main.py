@@ -53,6 +53,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def restore_telegram_listeners():
+        omni.restore_active_zalo_listeners()
         telegram.restore_active_listeners()
 
     return app

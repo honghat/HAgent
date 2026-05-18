@@ -519,3 +519,45 @@ def listener_status(request: Request):
         "last_event_at": state.get("last_event_at"),
         "error": state.get("error") or "",
     }
+
+
+@router.post("/bot/messages")
+async def ingest_bot_message(request: Request):
+    user_id = _get_user_id(request)
+    payload = await request.json()
+    bot_id = str(payload.get("bot_id") or "").strip()
+    bot_name = str(payload.get("bot_name") or "Telegram Bot").strip() or "Telegram Bot"
+    external_id = str(payload.get("external_id") or "").strip()
+    role = str(payload.get("role") or "").strip()
+    content = str(payload.get("content") or "")
+    if not bot_id or not external_id or role not in {"user", "assistant"} or not content:
+        raise HTTPException(status_code=400, detail="Dữ liệu bot Telegram không hợp lệ.")
+
+    upsert_contact(user_id, "telegram", bot_id, bot_name, "")
+    conv = ensure_conversation(user_id, "telegram", bot_name, bot_id, "user", "")
+    inserted = _insert_message_once(
+        user_id,
+        conv["id"],
+        external_id=external_id,
+        role=role,
+        content=content,
+        author_id=str(payload.get("author_id") or ""),
+        author_name=str(payload.get("author_name") or ""),
+        reply_to_id=_find_local_reply_id(conv["id"], str(payload.get("reply_to_external_id") or "")),
+    )
+    if inserted:
+        from api.routers.omni import _broadcast
+
+        _broadcast(
+            {
+                "type": "message",
+                "platform": "telegram",
+                "conversationId": conv["id"],
+                "message": {
+                    "sender_type": role,
+                    "content": content,
+                    "status": "received",
+                },
+            }
+        )
+    return {"inserted": inserted, "conversation_id": conv["id"]}

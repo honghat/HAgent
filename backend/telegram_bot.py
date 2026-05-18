@@ -198,6 +198,23 @@ async def _call_api(method: str, path: str, body: dict = None) -> Optional[dict]
             return await r.json() if r.content_length else None
 
 
+async def _mirror_omni_bot_message(update: Update, *, role: str, content: str, external_id: str) -> None:
+    bot = update.get_bot()
+    await _call_api(
+        "post",
+        "/api/telegram/bot/messages",
+        {
+            "bot_id": str(bot.id),
+            "bot_name": bot.first_name or "Telegram Bot",
+            "external_id": str(external_id),
+            "role": role,
+            "content": content,
+            "author_id": str(update.effective_user.id if role == "user" and update.effective_user else bot.id),
+            "author_name": update.effective_user.full_name if role == "user" and update.effective_user else (bot.first_name or "Telegram Bot"),
+        },
+    )
+
+
 async def _stream_to_telegram(update: Update, session_id: str, text: str) -> None:
     """Send a message to the agent and stream the response to Telegram in real-time.
 
@@ -276,6 +293,12 @@ async def _stream_to_telegram(update: Update, session_id: str, text: str) -> Non
                     import re
                     plain = re.sub(r"<[^>]+>", "", formatted[:4000])
                     await sent_msg.edit_text(plain)
+                await _mirror_omni_bot_message(
+                    update,
+                    role="assistant",
+                    content=collected.strip(),
+                    external_id=str(sent_msg.message_id),
+                )
             else:
                 await sent_msg.edit_text("✅ Hoàn thành.", parse_mode="HTML")
 
@@ -682,6 +705,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
     if not text:
         return
+    await _mirror_omni_bot_message(
+        update,
+        role="user",
+        content=text,
+        external_id=str(update.message.message_id),
+    )
     await _forward_to_agent(update, context, text)
 
 

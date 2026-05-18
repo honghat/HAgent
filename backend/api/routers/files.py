@@ -6,8 +6,11 @@ import subprocess
 import mimetypes
 import urllib.parse
 import json
+import threading
+import time
+import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
@@ -230,6 +233,10 @@ class FileCopyRequest(BaseModel):
     destination: str
 
 
+class FileTransferRequest(FileCopyRequest):
+    mode: Literal["copy", "move"]
+
+
 class MkdirRequest(BaseModel):
     path: str
 
@@ -238,6 +245,100 @@ class OperationResponse(BaseModel):
     ok: bool
     message: str = ""
     path: str = ""
+
+
+_transfer_jobs: dict[str, dict] = {}
+_transfer_jobs_lock = threading.Lock()
+
+
+def _set_transfer_job(job_id: str, **updates) -> None:
+    with _transfer_jobs_lock:
+        if job_id in _transfer_jobs:
+            _transfer_jobs[job_id].update(updates)
+
+
+def _get_path_size(path: Path) -> int:
+    if path.is_file():
+        return path.stat().st_size
+    total = 0
+    for item in path.rglob("*"):
+        if item.is_file():
+            try:
+                total += item.stat().st_size
+            except OSError:
+                continue
+    return total
+
+
+def _copy_file_with_progress(source: Path, destination: Path, job_id: str, copied: int, total: int) -> int:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with source.open("rb") as src, destination.open("wb") as dst:
+        while True:
+            chunk = src.read(8 * 1024 * 1024)
+            if not chunk:
+                break
+            dst.write(chunk)
+            copied += len(chunk)
+            progress = 100 if total <= 0 else min(100, int(copied * 100 / total))
+            _set_transfer_job(job_id, copied_bytes=copied, progress=progress)
+    shutil.copystat(source, destination, follow_symlinks=True)
+    return copied
+
+
+def _run_transfer_job(job_id: str, mode: str, source_raw: str, destination_raw: str) -> None:
+    source = Path(source_raw)
+    destination = Path(destination_raw)
+    try:
+        total = _get_path_size(source)
+        _set_transfer_job(job_id, status="running", total_bytes=total, progress=0)
+        if mode == "move" and source.stat().st_dev == destination.parent.stat().st_dev:
+            moved_path = shutil.move(str(source), str(destination))
+            _set_transfer_job(
+                job_id,
+                status="completed",
+                copied_bytes=total,
+                progress=100,
+                finished_at=time.time(),
+                path=str(moved_path),
+            )
+            return
+        copied = 0
+        if source.is_dir():
+            destination.mkdir(parents=True, exist_ok=False)
+            for item in source.rglob("*"):
+                relative = item.relative_to(source)
+                target = destination / relative
+                if item.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                elif item.is_file():
+                    copied = _copy_file_with_progress(item, target, job_id, copied, total)
+            shutil.copystat(source, destination, follow_symlinks=True)
+        else:
+            copied = _copy_file_with_progress(source, destination, job_id, copied, total)
+
+        if mode == "move":
+            if source.is_dir():
+                shutil.rmtree(source)
+            else:
+                source.unlink()
+        _set_transfer_job(
+            job_id,
+            status="completed",
+            copied_bytes=copied,
+            progress=100,
+            finished_at=time.time(),
+            path=str(destination),
+        )
+    except Exception as exc:
+        try:
+            if destination.exists():
+                if destination.is_dir():
+                    shutil.rmtree(destination)
+                else:
+                    destination.unlink()
+        except OSError:
+            pass
+        _set_transfer_job(job_id, status="failed", error=str(exc), finished_at=time.time())
 
 
 class RemoteShareInfo(BaseModel):
@@ -789,6 +890,19 @@ def copy_file(req: FileCopyRequest, request: Request):
     _get_user_id(request)
     if not _is_safe_path(req.source) or not _is_safe_path(req.destination):
         raise HTTPException(403, "Path restricted")
+    if not os.path.exists(req.source):
+        raise HTTPException(404, "Source not found")
+    if os.path.exists(req.destination):
+        raise HTTPException(409, "Destination already exists")
+    destination_parent = os.path.dirname(req.destination) or "."
+    if not os.path.isdir(destination_parent):
+        raise HTTPException(404, "Destination directory not found")
+    source_path = Path(req.source).resolve()
+    destination_path = Path(req.destination).resolve()
+    if source_path.is_dir() and (
+        destination_path == source_path or source_path in destination_path.parents
+    ):
+        raise HTTPException(400, "Cannot copy a directory into itself")
     try:
         if os.path.isdir(req.source):
             shutil.copytree(req.source, req.destination)
@@ -797,6 +911,87 @@ def copy_file(req: FileCopyRequest, request: Request):
         return OperationResponse(ok=True, path=req.destination, message="Copied")
     except OSError as e:
         raise HTTPException(500, f"Copy failed: {e}")
+
+
+@router.post("/files/move", response_model=OperationResponse)
+def move_file(req: FileCopyRequest, request: Request):
+    _get_user_id(request)
+    if not _is_safe_path(req.source) or not _is_safe_path(req.destination):
+        raise HTTPException(403, "Path restricted")
+    if not os.path.exists(req.source):
+        raise HTTPException(404, "Source not found")
+    if os.path.exists(req.destination):
+        raise HTTPException(409, "Destination already exists")
+    destination_parent = os.path.dirname(req.destination) or "."
+    if not os.path.isdir(destination_parent):
+        raise HTTPException(404, "Destination directory not found")
+    source_path = Path(req.source).resolve()
+    destination_path = Path(req.destination).resolve()
+    if source_path.is_dir() and (
+        destination_path == source_path or source_path in destination_path.parents
+    ):
+        raise HTTPException(400, "Cannot move a directory into itself")
+    try:
+        moved_path = shutil.move(req.source, req.destination)
+        return OperationResponse(ok=True, path=moved_path, message="Moved")
+    except OSError as e:
+        raise HTTPException(500, f"Move failed: {e}")
+
+
+@router.post("/files/transfer")
+def start_transfer(req: FileTransferRequest, request: Request):
+    uid = _get_user_id(request)
+    if not _is_safe_path(req.source) or not _is_safe_path(req.destination):
+        raise HTTPException(403, "Path restricted")
+    if not os.path.exists(req.source):
+        raise HTTPException(404, "Source not found")
+    if os.path.exists(req.destination):
+        raise HTTPException(409, "Destination already exists")
+    destination_parent = os.path.dirname(req.destination) or "."
+    if not os.path.isdir(destination_parent):
+        raise HTTPException(404, "Destination directory not found")
+    source_path = Path(req.source).resolve()
+    destination_path = Path(req.destination).resolve()
+    if source_path.is_dir() and (
+        destination_path == source_path or source_path in destination_path.parents
+    ):
+        raise HTTPException(400, f"Cannot {req.mode} a directory into itself")
+
+    job_id = uuid.uuid4().hex
+    with _transfer_jobs_lock:
+        _transfer_jobs[job_id] = {
+            "id": job_id,
+            "owner_id": uid,
+            "mode": req.mode,
+            "source": req.source,
+            "destination": req.destination,
+            "status": "queued",
+            "progress": 0,
+            "copied_bytes": 0,
+            "total_bytes": 0,
+            "created_at": time.time(),
+            "error": "",
+            "path": "",
+        }
+    threading.Thread(
+        target=_run_transfer_job,
+        args=(job_id, req.mode, req.source, req.destination),
+        daemon=True,
+    ).start()
+    return {"id": job_id}
+
+
+@router.get("/files/transfer/{job_id}")
+def get_transfer(job_id: str, request: Request):
+    uid = _get_user_id(request)
+    with _transfer_jobs_lock:
+        job = dict(_transfer_jobs.get(job_id) or {})
+    if not job:
+        raise HTTPException(404, "Transfer not found")
+    if job.get("owner_id") != uid:
+        raise HTTPException(403, "Transfer restricted")
+    job.pop("owner_id", None)
+    return job
 
 
 @router.get("/files/pinned")

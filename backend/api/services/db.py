@@ -92,6 +92,56 @@ def init_db() -> None:
                 FOREIGN KEY (entry_id) REFERENCES wiki_entries(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS workflows (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                graph_json TEXT NOT NULL DEFAULT '{"nodes":[],"edges":[]}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS workflow_runs (
+                id TEXT PRIMARY KEY,
+                workflow_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'running',
+                input_json TEXT NOT NULL DEFAULT '{}',
+                output_json TEXT,
+                error TEXT,
+                started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                finished_at TEXT,
+                FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS workflow_run_steps (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                node_id TEXT NOT NULL,
+                node_type TEXT NOT NULL,
+                node_title TEXT NOT NULL,
+                status TEXT NOT NULL,
+                input_json TEXT,
+                output_json TEXT,
+                error TEXT,
+                started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                finished_at TEXT,
+                FOREIGN KEY (run_id) REFERENCES workflow_runs(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS workflow_artifacts (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                workflow_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                node_id TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (run_id) REFERENCES workflow_runs(id) ON DELETE CASCADE,
+                FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS self_evolution_events (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -275,6 +325,14 @@ def init_db() -> None:
                 ON wiki_entries(user_id);
             CREATE INDEX IF NOT EXISTS idx_wiki_updated
                 ON wiki_entries(updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_workflows_user_updated
+                ON workflows(user_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow_started
+                ON workflow_runs(workflow_id, started_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_workflow_steps_run_started
+                ON workflow_run_steps(run_id, started_at ASC);
+            CREATE INDEX IF NOT EXISTS idx_workflow_artifacts_run_created
+                ON workflow_artifacts(run_id, created_at ASC);
             CREATE INDEX IF NOT EXISTS idx_goals_user_status
                 ON agent_goals(user_id, status, updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_goal_tasks_goal_status

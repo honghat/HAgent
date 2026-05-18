@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from api.routers import agents, auth, config, context, drive, evolution, files, goals, health, job_hunter, messages, omni, services, sessions, skills, status, stop, telegram, video, web, wiki, workspace
+from api.routers import agents, auth, config, context, drive, evolution, files, goals, health, job_hunter, messages, omni, services, sessions, skills, status, stop, telegram, video, web, wiki, workflows, workspace
 from api.services.db import init_db
 
 
@@ -50,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(skills.router)
     app.include_router(web.router)
     app.include_router(wiki.router)
+    app.include_router(workflows.router)
 
     @app.on_event("startup")
     async def restore_telegram_listeners():

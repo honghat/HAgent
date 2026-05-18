@@ -1,0 +1,4 @@
+.venv/
+searxng-src/
+searxng.log
+searxng.pid

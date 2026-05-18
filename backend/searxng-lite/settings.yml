@@ -1,0 +1,28 @@
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+      - bing
+      - brave
+      - wikipedia
+
+general:
+  debug: false
+  instance_name: "HAgent SearXNG Lite"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "replace-me-at-runtime"
+  bind_address: "127.0.0.1"
+  port: 8888
+  limiter: false
+  public_instance: false
+
+ui:
+  static_use_hash: true

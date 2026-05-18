@@ -29,15 +29,19 @@ def _row_to_session(row) -> SessionRecord:
     )
 
 
-def create_session(title: str | None = None, agent_id: str | None = None) -> SessionRecord:
+def create_session(
+    title: str | None = None,
+    agent_id: str | None = None,
+    user_id: str = "398f6a8a-8954-4315-8240-df769e664b54",
+) -> SessionRecord:
     session_id = str(uuid4())
     session_title = title or "Cuộc trò chuyện mới"
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO chat_sessions (id, title, agent_id, user_id) VALUES (?, ?, ?, ?)",
-            (session_id, session_title, agent_id, "398f6a8a-8954-4315-8240-df769e664b54"),
+            (session_id, session_title, agent_id, user_id),
         )
-    return SessionRecord(session_id=session_id, title=session_title, agent_id=agent_id, status="idle")
+    return SessionRecord(session_id=session_id, title=session_title, agent_id=agent_id, user_id=user_id, status="idle")
 
 
 def get_session(session_id: str) -> SessionRecord | None:
@@ -76,7 +80,7 @@ def add_message(
 ) -> str | None:
     with get_connection() as conn:
         session_row = conn.execute(
-            "SELECT id FROM chat_sessions WHERE id = ?",
+            "SELECT id, user_id FROM chat_sessions WHERE id = ?",
             (session_id,),
         ).fetchone()
         if not session_row:
@@ -84,7 +88,7 @@ def add_message(
         msg_id = str(uuid4())
         cursor = conn.execute(
             "INSERT INTO messages (id, session_id, role, content, provider, usage_json, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (msg_id, session_id, role, content, provider, json.dumps(usage) if usage else None, "398f6a8a-8954-4315-8240-df769e664b54"),
+            (msg_id, session_id, role, content, provider, json.dumps(usage) if usage else None, session_row["user_id"]),
         )
         conn.execute(
             "UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",

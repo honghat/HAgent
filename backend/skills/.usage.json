@@ -38,6 +38,19 @@
     "use_count": 3,
     "view_count": 3
   },
+  "github-research-wiki": {
+    "archived_at": null,
+    "created_at": "2026-05-18T15:46:06.850416+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-05-18T15:47:23.196727+00:00",
+    "last_used_at": null,
+    "last_viewed_at": null,
+    "patch_count": 1,
+    "pinned": false,
+    "state": "active",
+    "use_count": 0,
+    "view_count": 0
+  },
   "hagent-agent": {
     "archived_at": null,
     "created_at": "2026-05-15T04:31:26.566768+00:00",

@@ -575,7 +575,7 @@ export default function OmniChat({ token }) {
     try {
       const data = await omniApi('/sync/zalo/messages', token, {
         method: 'POST',
-        body: JSON.stringify({ maxThreads: 80, maxMessages: 80 }),
+        body: JSON.stringify({ maxThreads: 500, maxMessages: 80 }),
       })
       setChannelStatus(`Zalo: ${data.synced_contacts || 0} bạn bè, ${data.synced_conversations || 0} hội thoại, ${data.synced_messages || 0} tin.`)
       await Promise.all([loadConversations({ quiet: true }), loadContacts()])

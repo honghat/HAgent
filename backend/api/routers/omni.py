@@ -676,6 +676,23 @@ def _cleanup_stale_zalo_group_conversations(user_id: str, active_thread_ids: set
         return result.rowcount
 
 
+def _cleanup_stale_zalo_contacts(user_id: str, active_external_ids: set[str]) -> int:
+    if not active_external_ids:
+        return 0
+    placeholders = ",".join("?" for _ in active_external_ids)
+    params = [user_id]
+    params.extend(sorted(active_external_ids))
+    with get_connection() as conn:
+        result = conn.execute(
+            f"""DELETE FROM omni_contacts
+                WHERE user_id = ?
+                  AND platform = 'zalo'
+                  AND external_id NOT IN ({placeholders})""",
+            params,
+        )
+        return result.rowcount
+
+
 @router.post("/sync/zalo/qr/start")
 async def start_zalo_qr(request: Request):
     user_id = _get_user_id(request)
@@ -831,16 +848,25 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
     synced_messages = 0
     touched_conversations: set[str] = set()
     active_thread_ids: set[str] = set()
+    active_contact_ids: set[str] = set()
     own_id = str(data.get("own_id") or "")
+    friend_profiles: dict[str, dict] = {}
+    group_profiles: dict[str, dict] = {}
     for friend in data.get("friends") or []:
         if not friend.get("friend_id"):
             continue
-        upsert_contact(user_id, "zalo", str(friend["friend_id"]), str(friend.get("name") or friend["friend_id"]), friend.get("avatar") or "")
+        friend_id = str(friend["friend_id"])
+        friend_profiles[friend_id] = friend
+        active_contact_ids.add(friend_id)
+        upsert_contact(user_id, "zalo", friend_id, str(friend.get("name") or friend_id), friend.get("avatar") or "")
         synced_contacts += 1
     for group in data.get("groups") or []:
         if not group.get("group_id"):
             continue
-        upsert_contact(user_id, "zalo", str(group["group_id"]), str(group.get("name") or group["group_id"]), group.get("avatar") or "")
+        group_id = str(group["group_id"])
+        group_profiles[group_id] = group
+        active_contact_ids.add(group_id)
+        upsert_contact(user_id, "zalo", group_id, str(group.get("name") or group_id), group.get("avatar") or "")
 
     for thread in (data.get("threads") or [])[: payload.maxThreads]:
         thread_id = str(thread.get("thread_id") or "")
@@ -872,6 +898,46 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
                     },
                 })
 
+    remaining_slots = max(0, payload.maxThreads - synced_conversations)
+    for friend_id, friend in friend_profiles.items():
+        if remaining_slots <= 0:
+            break
+        if friend_id in active_thread_ids:
+            continue
+        conv = ensure_conversation(
+            user_id,
+            "zalo",
+            str(friend.get("name") or friend_id),
+            friend_id,
+            "user",
+            str(friend.get("avatar") or ""),
+        )
+        touched_conversations.add(conv["id"])
+        active_thread_ids.add(friend_id)
+        synced_conversations += 1
+        remaining_slots -= 1
+
+    for group_id, group in group_profiles.items():
+        if remaining_slots <= 0:
+            break
+        if group_id in active_thread_ids:
+            continue
+        group_name = str(group.get("name") or group_id)
+        if group_name == group_id and not group.get("avatar"):
+            continue
+        conv = ensure_conversation(
+            user_id,
+            "zalo",
+            group_name,
+            group_id,
+            "group",
+            str(group.get("avatar") or ""),
+        )
+        touched_conversations.add(conv["id"])
+        active_thread_ids.add(group_id)
+        synced_conversations += 1
+        remaining_slots -= 1
+
     if touched_conversations:
         _broadcast({
             "type": "sync",
@@ -879,6 +945,7 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
             "conversationIds": list(touched_conversations),
             "messages": synced_messages,
         })
+    _cleanup_stale_zalo_contacts(user_id, active_contact_ids)
     _cleanup_stale_zalo_group_conversations(user_id, active_thread_ids)
     _ensure_zalo_listener(user_id, cookie, imei)
 

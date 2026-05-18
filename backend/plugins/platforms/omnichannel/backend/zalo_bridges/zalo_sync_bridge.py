@@ -415,6 +415,7 @@ def main():
     threads = enrich_recent_messages(bot, threads, own_id=own_id)
     threads, friends = enrich_user_profiles(bot, threads, friends)
     threads, groups = enrich_group_profiles(bot, threads, group_profiles)
+    groups = [group for group in groups if not group.get("removed")]
     threads = [
         thread for thread in threads
         if not thread.get("_removed")

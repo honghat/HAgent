@@ -93,3 +93,7 @@ node_modules/
 */logs/
 */.deps_installed
 SideScreen
+
+# Local browser debug profiles created during Omni/CDP testing
+backend/chrome-debug/
+backend/brave-debug/

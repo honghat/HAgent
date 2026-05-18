@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import re
 from pathlib import Path
+from typing import Any
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 if str(APP_ROOT) not in sys.path:
@@ -109,7 +110,29 @@ def _build_memory_wiki_review_prompt(user_id: str, user_message: str) -> str:
     )
 
 
-def _sanitize_identity_text(content: str) -> str:
+def _content_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        chunks: list[str] = []
+        image_count = 0
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            ptype = part.get("type")
+            if ptype in {"text", "input_text"}:
+                chunks.append(str(part.get("text") or ""))
+            elif ptype in {"image_url", "input_image", "image"}:
+                image_count += 1
+        text = "\n".join(chunk for chunk in chunks if chunk).strip()
+        if image_count:
+            text = (text + "\n\n" if text else "") + f"[{image_count} ảnh được đính kèm]"
+        return text
+    return str(content or "")
+
+
+def _sanitize_identity_text(content: Any) -> str:
+    content = _content_text(content)
     return (
         (content or "")
         .replace("Tôi là Hagent Agent, một trợ lý AI thông minh được tạo ra bởiNous Research.", "Tôi là HAgent, trợ lý AI chạy trong ứng dụng HAgent của bạn.")
@@ -170,7 +193,7 @@ def analyze_with_js_heuristics(text: str) -> list[str]:
 
 def run_source_agent(
     session_id: str,
-    user_message: str,
+    user_message: Any,
     provider_name: str | None,
     model_override: str | None = None,
     stream_callback=None,
@@ -203,12 +226,17 @@ def run_source_agent(
             prefill_messages.append({"role": role, "content": content})
 
     sanitized_history = [{**item, "content": _sanitize_identity_text(item.get("content") or "")} for item in history]
-    effective_message = _build_continuation_turn(user_message, sanitized_history)
+    user_message_text = _content_text(user_message)
+    effective_message = (
+        _build_continuation_turn(user_message_text, sanitized_history)
+        if isinstance(user_message, str)
+        else user_message
+    )
     agent_prompt = _build_agent_prompt(agent_profile)
     user_id = session.user_id if session else "398f6a8a-8954-4315-8240-df769e664b54"
     if thinking_callback:
         thinking_callback("Rà soát bộ nhớ và wiki trước khi trả lời.")
-    review_prompt = _build_memory_wiki_review_prompt(user_id, user_message)
+    review_prompt = _build_memory_wiki_review_prompt(user_id, user_message_text)
     agent_prompt = "\n\n".join(part for part in [agent_prompt, review_prompt] if part)
 
     enabled_toolsets = _clean_list((agent_profile or {}).get("tool_groups"))

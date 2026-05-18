@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Bot,
+  BriefcaseBusiness,
   CirclePlay,
   Coins,
   Database,
+  Flame,
   GitBranch,
   Maximize2,
   MessageCircle,
@@ -13,7 +15,9 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   Send,
+  Share2,
   Trash2,
   X,
   Webhook,
@@ -74,6 +78,30 @@ const NODE_TYPES = {
     icon: MessageCircle,
     color: 'bg-blue-600',
   },
+  job_search: {
+    label: 'Tìm việc',
+    detail: 'Lọc job mới phù hợp',
+    icon: BriefcaseBusiness,
+    color: 'bg-indigo-600',
+  },
+  facebook_hot_topics: {
+    label: 'Hot Facebook',
+    detail: 'Tìm chủ đề đang nổi',
+    icon: Flame,
+    color: 'bg-rose-500',
+  },
+  facebook: {
+    label: 'Facebook',
+    detail: 'Gửi Messenger/Omni',
+    icon: MessageCircle,
+    color: 'bg-blue-700',
+  },
+  facebook_page_post: {
+    label: 'FB Page Post',
+    detail: 'Đăng bài lên Page feed',
+    icon: Share2,
+    color: 'bg-blue-700',
+  },
 }
 
 const NODE_WIDTH = 220
@@ -92,6 +120,7 @@ function emptyGraph() {
 
 export default function Workflows({ token }) {
   const canvasRef = useRef(null)
+  const panMovedRef = useRef(false)
   const [screen, setScreen] = useState('list')
   const [workflows, setWorkflows] = useState([])
   const [activeId, setActiveId] = useState(null)
@@ -102,6 +131,9 @@ export default function Workflows({ token }) {
   const [draggingId, setDraggingId] = useState(null)
   const [connectionDraft, setConnectionDraft] = useState(null)
   const [showNodePicker, setShowNodePicker] = useState(false)
+  const [showNodeSearch, setShowNodeSearch] = useState(false)
+  const [nodeSearch, setNodeSearch] = useState('')
+  const [focusedNodeId, setFocusedNodeId] = useState(null)
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -114,8 +146,16 @@ export default function Workflows({ token }) {
   const [configDraft, setConfigDraft] = useState('{}')
   const [configError, setConfigError] = useState('')
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 })
+  const [panning, setPanning] = useState(null)
 
   const selectedNode = graph.nodes.find((node) => node.id === selectedId) || null
+  const filteredNodeTypes = Object.entries(NODE_TYPES).filter(([type, meta]) => {
+    const query = nodeSearch.trim().toLowerCase()
+    if (!query) return true
+    return [type, meta.label, meta.detail]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query))
+  })
   const toScreenX = (x) => view.x + x * view.scale
   const toScreenY = (y) => view.y + y * view.scale
   const toGraphX = (x) => (x - view.x) / view.scale
@@ -165,6 +205,9 @@ export default function Workflows({ token }) {
     setSelectedId(null)
     setConnectionDraft(null)
     setShowNodePicker(false)
+    setShowNodeSearch(false)
+    setNodeSearch('')
+    setFocusedNodeId(null)
     setLastRun(null)
     setRuns([])
     setSelectedRun(null)
@@ -181,6 +224,9 @@ export default function Workflows({ token }) {
     setSelectedId(null)
     setConnectionDraft(null)
     setShowNodePicker(false)
+    setShowNodeSearch(false)
+    setNodeSearch('')
+    setFocusedNodeId(null)
     setRuns([])
     setSelectedRun(null)
     setShowResults(false)
@@ -338,6 +384,8 @@ export default function Workflows({ token }) {
     setGraph((current) => ({ ...current, nodes: [...current.nodes, node] }))
     setSelectedId(null)
     setShowNodePicker(false)
+    setShowNodeSearch(false)
+    setNodeSearch('')
   }
 
   function updateSelected(updates) {
@@ -360,6 +408,19 @@ export default function Workflows({ token }) {
   function startDrag(event, nodeId) {
     event.stopPropagation()
     setDraggingId(nodeId)
+    setPanning(null)
+    setShowNodePicker(false)
+  }
+
+  function startPan(event) {
+    if (event.button !== 0 || draggingId || connectionDraft) return
+    panMovedRef.current = false
+    setPanning({
+      startX: event.clientX,
+      startY: event.clientY,
+      viewX: view.x,
+      viewY: view.y,
+    })
     setShowNodePicker(false)
   }
 
@@ -376,6 +437,22 @@ export default function Workflows({ token }) {
 
   function finishDrag() {
     setDraggingId(null)
+  }
+
+  function movePan(event) {
+    if (!panning) return
+    const dx = event.clientX - panning.startX
+    const dy = event.clientY - panning.startY
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) panMovedRef.current = true
+    setView((current) => ({
+      ...current,
+      x: panning.viewX + dx,
+      y: panning.viewY + dy,
+    }))
+  }
+
+  function finishPan() {
+    setPanning(null)
   }
 
   function startConnection(event, nodeId) {
@@ -447,6 +524,20 @@ export default function Workflows({ token }) {
       scale,
       x: (rect.width - width * scale) / 2 - minX * scale,
       y: (rect.height - height * scale) / 2 - minY * scale,
+    })
+  }
+
+  function focusNode(node) {
+    if (!node || !canvasRef.current) return
+    const rect = canvasRef.current.getBoundingClientRect()
+    const scale = Math.max(0.7, Math.min(1, view.scale || 1))
+    setFocusedNodeId(node.id)
+    setSelectedId(null)
+    setShowResults(false)
+    setView({
+      scale,
+      x: rect.width / 2 - (node.x + NODE_WIDTH / 2) * scale,
+      y: rect.height / 2 - (node.y + NODE_HEIGHT / 2) * scale,
     })
   }
 
@@ -615,7 +706,10 @@ export default function Workflows({ token }) {
               <Database className="h-4 w-4" />
             </button>
             <button
-              onClick={() => setShowNodePicker((value) => !value)}
+              onClick={() => {
+                setShowNodePicker((value) => !value)
+                setNodeSearch('')
+              }}
               title="Thêm node"
               aria-label="Thêm node"
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-black/[0.08] bg-white text-gray-700 hover:bg-gray-50"
@@ -653,23 +747,32 @@ export default function Workflows({ token }) {
         <div className="relative flex min-h-0 flex-1">
           <div
             ref={canvasRef}
+            onMouseDown={startPan}
             onMouseMove={(event) => {
               moveNode(event)
               moveConnection(event)
+              movePan(event)
             }}
             onMouseUp={() => {
               finishDrag()
               finishConnection()
+              finishPan()
             }}
             onMouseLeave={() => {
               finishDrag()
               finishConnection()
+              finishPan()
             }}
             onClick={() => {
+              if (panMovedRef.current) {
+                panMovedRef.current = false
+                return
+              }
               setSelectedId(null)
               setShowNodePicker(false)
+              setShowNodeSearch(false)
             }}
-            className="relative flex-1 overflow-hidden bg-white"
+            className={`relative flex-1 overflow-hidden bg-white ${panning ? 'cursor-grabbing' : 'cursor-grab'}`}
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.10)_1px,transparent_0)] [background-size:22px_22px]" />
 
@@ -715,6 +818,7 @@ export default function Workflows({ token }) {
               const meta = NODE_TYPES[node.type] || NODE_TYPES.webhook
               const Icon = meta.icon
               const selected = selectedId === node.id
+              const focused = focusedNodeId === node.id
               return (
                 <div
                   key={node.id}
@@ -735,7 +839,11 @@ export default function Workflows({ token }) {
                     setSelectedId(node.id)
                   }}
                   className={`absolute z-10 w-[220px] cursor-move rounded-xl border bg-white shadow-sm ${
-                    selected ? 'border-gray-950 ring-2 ring-black/10' : 'border-gray-400'
+                    selected
+                      ? 'border-gray-950 ring-2 ring-black/10'
+                      : focused
+                        ? 'border-amber-500 ring-4 ring-amber-300/30'
+                        : 'border-gray-400'
                   }`}
                 >
                   <button
@@ -769,10 +877,25 @@ export default function Workflows({ token }) {
           </div>
 
           {showNodePicker ? (
-            <div className="absolute right-5 top-5 z-20 w-72 rounded-2xl border border-black/[0.08] bg-white p-3 shadow-xl">
-              <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Thêm node</div>
-              <div className="space-y-1">
-                {Object.entries(NODE_TYPES).map(([type, meta]) => {
+            <div onClick={(event) => event.stopPropagation()} className="absolute right-5 top-5 z-20 flex max-h-[calc(100vh-130px)] w-72 flex-col rounded-2xl border border-black/[0.08] bg-white p-3 shadow-xl">
+              <div className="mb-2 shrink-0 px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Thêm node</div>
+              <div className="relative mb-3 shrink-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={nodeSearch}
+                  onChange={(event) => setNodeSearch(event.target.value)}
+                  placeholder="Search node..."
+                  className="h-10 w-full rounded-xl border border-black/[0.08] bg-white pl-9 pr-3 text-sm outline-none focus:border-black/25"
+                  autoFocus
+                />
+              </div>
+              <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+                {filteredNodeTypes.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-black/[0.12] px-3 py-4 text-center text-xs text-gray-500">
+                    Không tìm thấy node.
+                  </div>
+                ) : null}
+                {filteredNodeTypes.map(([type, meta]) => {
                   const Icon = meta.icon
                   return (
                     <button

@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections import Counter, defaultdict, deque
+from datetime import datetime, timedelta
 from html import unescape
-from collections import defaultdict, deque
-from urllib import error, request
+from pathlib import Path
+from urllib import error, parse, request
 from xml.etree import ElementTree
 
 from api.services.agent_profiles import get_agent_profile
@@ -24,6 +26,9 @@ from api.services.workflow_run_store import (
 
 class WorkflowExecutionError(RuntimeError):
     pass
+
+
+JOB_CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "jobs_cache.json"
 
 
 def execute_workflow(workflow: dict, user_id: str, payload: dict | None = None, *, provider: str | None = None, model: str | None = None) -> dict:
@@ -133,6 +138,14 @@ def _execute_node(node: dict, node_input, *, run_id: str, workflow_id: str, user
         return _execute_price_report_node(config)
     if node_type == "zalo":
         return _execute_zalo_node(config, node_input, user_id=user_id)
+    if node_type == "job_search":
+        return _execute_job_search_node(config, user_id=user_id)
+    if node_type == "facebook_hot_topics":
+        return _execute_facebook_hot_topics_node(config, user_id=user_id)
+    if node_type == "facebook":
+        return _execute_facebook_node(config, node_input, user_id=user_id)
+    if node_type == "facebook_page_post":
+        return _execute_facebook_page_post_node(config, node_input)
     return node_input
 
 
@@ -445,6 +458,328 @@ def _execute_zalo_node(config: dict, node_input, *, user_id: str):
         "thread_type": conv.get("thread_type") or thread_type or "user",
         "result": result,
     }
+
+
+def _execute_job_search_node(config: dict, *, user_id: str):
+    keywords = config.get("keywords")
+    if isinstance(keywords, str):
+        keywords = [part.strip() for part in re.split(r"[,;\n]", keywords) if part.strip()]
+    if not isinstance(keywords, list) or not keywords:
+        keywords = ["python", "react", "node", "ai", "automation"]
+    keyword_terms = [_normalize_vietnamese(str(item)) for item in keywords if str(item).strip()]
+    sources = config.get("sources")
+    if isinstance(sources, str):
+        sources = [part.strip().lower() for part in re.split(r"[,;\n]", sources) if part.strip()]
+    if not isinstance(sources, list):
+        sources = []
+    sources = [str(source).lower() for source in sources if str(source).strip()]
+    location = _normalize_vietnamese(str(config.get("location") or ""))
+    days_old = int(config.get("days_old") or 7)
+    limit = max(1, min(30, int(config.get("limit") or 10)))
+
+    jobs = _load_cached_jobs()
+    cutoff = datetime.now() - timedelta(days=max(1, days_old))
+    matched = []
+    for job in jobs:
+        haystack = _normalize_vietnamese(
+            " ".join(
+                str(job.get(key) or "")
+                for key in ("title", "company", "location", "source", "description_snippet")
+            )
+            + " "
+            + " ".join(job.get("skills") if isinstance(job.get("skills"), list) else [])
+        )
+        if keyword_terms and not any(term in haystack for term in keyword_terms):
+            continue
+        if sources and str(job.get("source") or "").lower() not in sources:
+            continue
+        if location and location not in _normalize_vietnamese(str(job.get("location") or "")):
+            continue
+        job_date = _parse_loose_datetime(job.get("updated_at") or job.get("created_at") or job.get("posted_date"))
+        if job_date and job_date < cutoff:
+            continue
+        matched.append(job)
+
+    matched = sorted(
+        matched,
+        key=lambda item: str(item.get("updated_at") or item.get("created_at") or item.get("posted_date") or ""),
+        reverse=True,
+    )[:limit]
+    message = _format_job_search_message(matched, keywords)
+    return {
+        "count": len(matched),
+        "keywords": keywords,
+        "jobs": matched,
+        "message": message,
+    }
+
+
+def _execute_facebook_hot_topics_node(config: dict, *, user_id: str):
+    limit = max(20, min(300, int(config.get("limit") or 120)))
+    days_old = max(1, min(30, int(config.get("days_old") or 7)))
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT m.content, m.created_at, c.title, c.custom_name
+            FROM omni_messages m
+            JOIN omni_conversations c ON c.id = m.conversation_id
+            WHERE m.user_id = ? AND COALESCE(m.platform, c.platform) = 'facebook'
+              AND datetime(m.created_at) >= datetime('now', ?)
+              AND LENGTH(TRIM(m.content)) > 0
+            ORDER BY m.created_at DESC
+            LIMIT ?
+            """,
+            (user_id, f"-{days_old} days", limit),
+        ).fetchall()
+
+    texts = [str(row["content"] or "") for row in rows]
+    topics = _extract_hot_terms(texts, max_topics=int(config.get("max_topics") or 8))
+    if not topics:
+        fallback = config.get("fallback_topics")
+        if isinstance(fallback, list):
+            topics = [{"topic": str(item), "score": 1} for item in fallback if str(item).strip()][:8]
+        if not topics:
+            topics = [
+                {"topic": "AI automation", "score": 1},
+                {"topic": "kiếm tiền online", "score": 1},
+                {"topic": "công cụ tăng năng suất", "score": 1},
+            ]
+
+    message = _format_hot_topics_message(topics)
+    return {
+        "source": "facebook_messages",
+        "count": len(rows),
+        "topics": topics,
+        "message": message,
+    }
+
+
+def _execute_facebook_node(config: dict, node_input, *, user_id: str):
+    message = str(config.get("message") or "").strip() or _input_message(node_input)
+    if not message:
+        message = json.dumps(node_input, ensure_ascii=False, indent=2)
+
+    conversation_id = str(config.get("conversation_id") or "").strip()
+    external_id = str(config.get("external_id") or "").strip()
+    target_name = str(config.get("target_name") or "").strip()
+    conv = _resolve_facebook_target(
+        user_id,
+        conversation_id=conversation_id,
+        external_id=external_id,
+        target_name=target_name,
+    )
+    if not conv:
+        raise WorkflowExecutionError("Facebook target not found. Set config.conversation_id, external_id, or target_name.")
+
+    try:
+        from api.routers.omni import _send_omni_text
+    except Exception as exc:  # noqa: BLE001
+        raise WorkflowExecutionError(f"Facebook sender unavailable: {exc}") from exc
+
+    try:
+        result = _send_omni_text(user_id, conv, message[:3900])
+    except Exception as exc:  # noqa: BLE001
+        detail = getattr(exc, "detail", None) or str(exc)
+        raise WorkflowExecutionError(f"Facebook send failed: {detail}") from exc
+    return {
+        "sent": True,
+        "target": "facebook",
+        "conversation_id": conv.get("id"),
+        "external_id": conv.get("external_id"),
+        "result": result,
+    }
+
+
+def _execute_facebook_page_post_node(config: dict, node_input):
+    message = str(config.get("message") or "").strip() or _input_message(node_input)
+    if not message:
+        message = json.dumps(node_input, ensure_ascii=False, indent=2)
+
+    page_id = str(config.get("page_id") or os.getenv("FACEBOOK_PAGE_ID") or "").strip()
+    access_token = str(
+        config.get("page_access_token")
+        or config.get("access_token")
+        or os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN")
+        or ""
+    ).strip()
+    graph_version = str(config.get("graph_version") or os.getenv("FACEBOOK_GRAPH_VERSION") or "v24.0").strip()
+    link = str(config.get("link") or "").strip()
+    published = config.get("published", True)
+
+    if not page_id:
+        raise WorkflowExecutionError("Facebook Page Post requires config.page_id or FACEBOOK_PAGE_ID")
+    if not access_token:
+        raise WorkflowExecutionError("Facebook Page Post requires config.page_access_token or FACEBOOK_PAGE_ACCESS_TOKEN")
+
+    payload = {
+        "message": message[:60000],
+        "access_token": access_token,
+        "published": "true" if bool(published) else "false",
+    }
+    if link:
+        payload["link"] = link
+
+    endpoint = f"https://graph.facebook.com/{graph_version}/{parse.quote(page_id)}/feed"
+    req = request.Request(
+        endpoint,
+        data=parse.urlencode(payload).encode("utf-8"),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=float(config.get("timeout") or 45)) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        body_text = exc.read().decode("utf-8", errors="replace")
+        raise WorkflowExecutionError(f"Facebook Page post failed: HTTP {exc.code}: {body_text[:500]}") from exc
+    except (OSError, ValueError) as exc:
+        raise WorkflowExecutionError(f"Facebook Page post failed: {exc}") from exc
+
+    post_id = data.get("id") or data.get("post_id")
+    if not post_id:
+        raise WorkflowExecutionError(f"Facebook Page post returned no post id: {data}")
+    return {
+        "posted": True,
+        "target": "facebook_page",
+        "page_id": page_id,
+        "post_id": post_id,
+        "graph_version": graph_version,
+    }
+
+
+def _load_cached_jobs() -> list[dict]:
+    with get_connection() as conn:
+        try:
+            rows = conn.execute(
+                """
+                SELECT url, title, company, location, salary, salary_min, salary_max, source,
+                       posted_date, skills, description_snippet, created_at, updated_at
+                FROM cached_jobs
+                ORDER BY updated_at DESC
+                LIMIT 500
+                """
+            ).fetchall()
+        except Exception:
+            rows = []
+    jobs = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["skills"] = json.loads(item.get("skills") or "[]")
+        except json.JSONDecodeError:
+            item["skills"] = []
+        jobs.append(item)
+    if jobs:
+        return jobs
+    if JOB_CACHE_FILE.exists():
+        try:
+            data = json.loads(JOB_CACHE_FILE.read_text())
+            return data if isinstance(data, list) else []
+        except (OSError, json.JSONDecodeError):
+            return []
+    return []
+
+
+def _parse_loose_datetime(value) -> datetime | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    for candidate in (text, text[:19], text[:10]):
+        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(candidate.replace("Z", ""), fmt)
+            except ValueError:
+                continue
+    return None
+
+
+def _format_job_search_message(jobs: list[dict], keywords: list) -> str:
+    lines = [f"💼 Job mới: {', '.join(str(item) for item in keywords[:5])}"]
+    if not jobs:
+        lines.append("Chưa tìm thấy job phù hợp trong cache hiện tại.")
+        return "\n".join(lines)
+    for idx, job in enumerate(jobs[:10], start=1):
+        title = job.get("title") or "Không tiêu đề"
+        company = job.get("company") or "Không rõ công ty"
+        salary = job.get("salary") or "Thỏa thuận"
+        source = job.get("source") or ""
+        url = job.get("url") or ""
+        lines.append(f"{idx}. {title} — {company}")
+        lines.append(f"   {salary}{f' · {source}' if source else ''}")
+        if url:
+            lines.append(f"   {url}")
+    return "\n".join(lines)
+
+
+def _extract_hot_terms(texts: list[str], *, max_topics: int = 8) -> list[dict]:
+    stopwords = {
+        "mình", "minh", "bạn", "ban", "anh", "chị", "chi", "em", "của", "cua", "cho", "với", "voi",
+        "là", "la", "thì", "thi", "mà", "ma", "được", "duoc", "không", "khong", "này", "nay",
+        "đang", "dang", "trong", "các", "cac", "những", "nhung", "một", "mot", "the", "and",
+        "that", "this", "you", "your", "http", "https", "com", "www",
+    }
+    counter: Counter[str] = Counter()
+    for text in texts:
+        normalized = _normalize_vietnamese(text)
+        words = [word for word in re.findall(r"[a-z0-9]{3,}", normalized) if word not in stopwords]
+        counter.update(words)
+        for idx in range(len(words) - 1):
+            phrase = f"{words[idx]} {words[idx + 1]}"
+            if not any(part in stopwords for part in phrase.split()):
+                counter[phrase] += 2
+    return [{"topic": topic, "score": score} for topic, score in counter.most_common(max_topics)]
+
+
+def _format_hot_topics_message(topics: list[dict]) -> str:
+    lines = ["🔥 Chủ đề hot Facebook"]
+    for idx, item in enumerate(topics, start=1):
+        lines.append(f"{idx}. {item.get('topic')} ({item.get('score')})")
+    return "\n".join(lines)
+
+
+def _input_message(node_input) -> str:
+    if isinstance(node_input, dict):
+        if node_input.get("content"):
+            return str(node_input["content"])
+        if node_input.get("message"):
+            return str(node_input["message"])
+        if isinstance(node_input.get("payload"), dict):
+            return _input_message(node_input["payload"])
+    return ""
+
+
+def _resolve_facebook_target(user_id: str, *, conversation_id: str = "", external_id: str = "", target_name: str = "") -> dict | None:
+    from api.services.omni_store import ensure_conversation, get_conversation
+
+    if conversation_id:
+        conv = get_conversation(conversation_id)
+        if conv and conv.get("user_id") == user_id and conv.get("platform") == "facebook":
+            return conv
+
+    with get_connection() as conn:
+        row = None
+        if external_id:
+            row = conn.execute(
+                "SELECT * FROM omni_conversations WHERE user_id = ? AND platform = 'facebook' AND external_id = ? LIMIT 1",
+                (user_id, external_id),
+            ).fetchone()
+        if not row and target_name:
+            like = f"%{target_name}%"
+            row = conn.execute(
+                """
+                SELECT * FROM omni_conversations
+                WHERE user_id = ? AND platform = 'facebook'
+                  AND (title LIKE ? OR custom_name LIKE ?)
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (user_id, like, like),
+            ).fetchone()
+        if row:
+            return dict(row)
+    if external_id:
+        return ensure_conversation(user_id, "facebook", target_name or external_id, external_id, "user", "")
+    return None
 
 
 def _node_text(parent, name: str) -> str:

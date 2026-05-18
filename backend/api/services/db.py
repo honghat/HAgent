@@ -154,6 +154,25 @@ def init_db() -> None:
                 FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS user_cv_profile (
+                user_id TEXT PRIMARY KEY,
+                skills TEXT NOT NULL DEFAULT '',
+                roles TEXT NOT NULL DEFAULT '',
+                experience TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS cv_documents (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                content_type TEXT NOT NULL DEFAULT '',
+                extracted_text TEXT NOT NULL DEFAULT '',
+                result_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS self_evolution_events (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Loader2, Briefcase, Download, Trash2, TrendingUp, Building2, Globe } from 'lucide-react'
+import { Search, Loader2, Briefcase, Download, Trash2, TrendingUp, Building2, Globe, FileText, Sparkles, ClipboardList } from 'lucide-react'
 
-const SOURCES = ['itviec', 'topdev', 'vietnamworks', 'careerlink']
+const SOURCES = ['itviec', 'topdev', 'vietnamworks', 'careerlink', 'careerviet']
+const DEFAULT_KEYWORDS = 'tài chính, kế toán, data, IT'
 
-export default function JobHunter({ token }) {
-  const [keywords, setKeywords] = useState('')
-  const [sources, setSources] = useState(['itviec', 'topdev'])
+export default function JobHunter({ token, provider, cxModel }) {
+  const [keywords, setKeywords] = useState(DEFAULT_KEYWORDS)
+  const [sources, setSources] = useState(['itviec', 'topdev', 'careerviet'])
   const [maxPages, setMaxPages] = useState(2)
   const [keywordSearch, setKeywordSearch] = useState('')
   const [locationSearch, setLocationSearch] = useState('')
@@ -17,6 +18,11 @@ export default function JobHunter({ token }) {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
+  const [cvFile, setCvFile] = useState(null)
+  const [targetRole, setTargetRole] = useState('')
+  const [cvLocation, setCvLocation] = useState('TP. Hồ Chí Minh')
+  const [cvLoading, setCvLoading] = useState(false)
+  const [cvResult, setCvResult] = useState(null)
 
   const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
 
@@ -41,7 +47,7 @@ export default function JobHunter({ token }) {
   }
 
   const scrape = useCallback(async () => {
-    if (!keywords.trim()) { setError('Nhập từ khóa, ví dụ: python, react'); return }
+    if (!keywords.trim()) { setError('Nhập từ khóa, ví dụ: tài chính, kế toán, data, IT'); return }
     setLoading(true); setError(''); setStatus('')
     try {
       const res = await fetch('/api/job-hunter/scrape', {
@@ -144,6 +150,34 @@ export default function JobHunter({ token }) {
     }
   }, [jobs.length, headers])
 
+  const analyzeCv = useCallback(async () => {
+    if (!cvFile) {
+      setError('Chọn file CV PDF hoặc DOCX')
+      return
+    }
+    setCvLoading(true); setError(''); setStatus('')
+    try {
+      const form = new FormData()
+      form.append('file', cvFile)
+      if (provider) form.append('provider', provider)
+      if (provider === 'cx' && cxModel) form.append('model', cxModel)
+      if (targetRole) form.append('target_role', targetRole)
+      if (cvLocation) form.append('location', cvLocation)
+      const res = await fetch('/api/cv/analyze', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.detail || 'AI chưa đánh giá được CV')
+      setCvResult(data.result || null)
+      setStatus('Đã đánh giá CV và tạo bộ chuẩn bị phỏng vấn')
+    } catch (err) {
+      setError(err.message)
+    }
+    setCvLoading(false)
+  }, [cvFile, provider, cxModel, targetRole, cvLocation, token])
+
   function fmtSalary(job) {
     if (job.salary) return job.salary
     if (job.salary_min && job.salary_max && job.salary_min !== job.salary_max)
@@ -169,6 +203,7 @@ export default function JobHunter({ token }) {
     topdev: 'bg-emerald-50 text-emerald-700',
     vietnamworks: 'bg-amber-50 text-amber-700',
     careerlink: 'bg-sky-50 text-sky-700',
+    careerviet: 'bg-rose-50 text-rose-700',
   }
 
   return (
@@ -204,7 +239,7 @@ export default function JobHunter({ token }) {
             <input
               value={keywords}
               onChange={e => setKeywords(e.target.value)}
-              placeholder="Từ khóa, ví dụ: python, react, devops"
+              placeholder={DEFAULT_KEYWORDS}
               className="flex-1 min-w-[200px] px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-200 text-xs outline-none focus:ring-1 focus:ring-slate-400"
             />
             <input
@@ -232,6 +267,118 @@ export default function JobHunter({ token }) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* CV AI */}
+        <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-7 w-7 shrink-0 rounded-md bg-emerald-600 flex items-center justify-center">
+                <FileText className="h-3.5 w-3.5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xs font-semibold text-gray-800">CV AI</h2>
+                <p className="text-[10px] text-gray-400 truncate">Upload PDF/DOCX để sửa CV, tìm việc phù hợp và ôn phỏng vấn</p>
+              </div>
+            </div>
+            {cvResult?.score !== undefined && (
+              <div className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{cvResult.score}/100</div>
+            )}
+          </div>
+          <div className="grid gap-2 lg:grid-cols-[1.3fr_1fr_1fr_auto]">
+            <label className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-500 hover:border-emerald-300 hover:bg-emerald-50/50">
+              <FileText className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{cvFile ? cvFile.name : 'Chọn CV .pdf hoặc .docx'}</span>
+              <input
+                type="file"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={e => setCvFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+            </label>
+            <input
+              value={targetRole}
+              onChange={e => setTargetRole(e.target.value)}
+              placeholder="Vị trí mục tiêu"
+              className="px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-200 text-xs outline-none focus:ring-1 focus:ring-emerald-400"
+            />
+            <input
+              value={cvLocation}
+              onChange={e => setCvLocation(e.target.value)}
+              placeholder="Địa điểm mong muốn"
+              className="px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-200 text-xs outline-none focus:ring-1 focus:ring-emerald-400"
+            />
+            <button
+              onClick={analyzeCv}
+              disabled={cvLoading}
+              className="px-2.5 py-1.5 rounded-md bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 disabled:opacity-40 flex items-center justify-center gap-1.5"
+            >
+              {cvLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Đánh giá
+            </button>
+          </div>
+          {cvResult && (
+            <div className="grid gap-3 lg:grid-cols-3">
+              <div className="rounded-md border border-gray-100 bg-gray-50 p-2.5">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase text-gray-400">
+                  <Sparkles className="h-3 w-3" /> Đánh giá
+                </div>
+                <p className="text-xs leading-5 text-gray-700">{cvResult.summary}</p>
+                {cvResult.issues?.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-[11px] leading-4 text-red-600">
+                    {cvResult.issues.slice(0, 4).map((item, index) => <li key={index}>- {item}</li>)}
+                  </ul>
+                )}
+              </div>
+              <div className="rounded-md border border-gray-100 bg-gray-50 p-2.5">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase text-gray-400">
+                  <Briefcase className="h-3 w-3" /> Việc phù hợp
+                </div>
+                <div className="space-y-2">
+                  {(cvResult.matching_jobs || []).slice(0, 4).map((job, index) => (
+                    <a key={`${job.url || job.title}-${index}`} href={job.url} target="_blank" rel="noreferrer" className="block rounded-md bg-white p-2 hover:bg-emerald-50">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-gray-800">{job.title}</p>
+                          <p className="truncate text-[10px] text-gray-500">{job.company}</p>
+                        </div>
+                        {job.match_score !== undefined && <span className="shrink-0 text-[10px] font-semibold text-emerald-700">{job.match_score}%</span>}
+                      </div>
+                      {(job.reason || job.match_reasons?.length > 0) && (
+                        <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-gray-400">{job.reason || job.match_reasons.join(', ')}</p>
+                      )}
+                    </a>
+                  ))}
+                  {(!cvResult.matching_jobs || cvResult.matching_jobs.length === 0) && <p className="text-[11px] text-gray-400">Chưa có job cache phù hợp. Hãy quét việc theo từ khóa trước.</p>}
+                </div>
+              </div>
+              <div className="rounded-md border border-gray-100 bg-gray-50 p-2.5">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase text-gray-400">
+                  <ClipboardList className="h-3 w-3" /> Ôn phỏng vấn
+                </div>
+                <div className="space-y-2">
+                  {(cvResult.interview_plan || []).slice(0, 3).map((section, index) => (
+                    <div key={index} className="rounded-md bg-white p-2">
+                      <p className="text-[11px] font-semibold text-gray-700">{section.topic}</p>
+                      {(section.questions || []).slice(0, 2).map((qa, qaIndex) => (
+                        <div key={qaIndex} className="mt-1.5">
+                          <p className="text-[11px] text-gray-700">{qa.question}</p>
+                          <p className="mt-0.5 text-[10px] leading-4 text-gray-400">{qa.answer_hint}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {cvResult.improved_cv && (
+                <textarea
+                  value={cvResult.improved_cv}
+                  readOnly
+                  className="lg:col-span-3 min-h-56 w-full resize-y rounded-md border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-700 outline-none"
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Search / Filters */}

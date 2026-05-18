@@ -147,7 +147,7 @@ export default function App() {
         {view === 'chat' && <Chat key="chat" token={token} provider={provider} cxModel={cxModel} agents={agents} user={user} onProviderChange={saveProvider} onShowAgentManager={() => setView('agents')} onLogout={logout} />}
         {view === 'wiki' && <Wiki token={token} provider={provider} />}
         {view === 'omni' && <OmniChat token={token} provider={provider} />}
-        {view === 'job-hunter' && <JobHunter token={token} provider={provider} />}
+        {view === 'job-hunter' && <JobHunter token={token} provider={provider} cxModel={cxModel} />}
         {view === 'learn' && <Learn token={token} provider={provider} cxModel={cxModel} />}
         {view === 'english' && <English token={token} provider={provider} cxModel={cxModel} />}
         {view === 'agents' && <AgentSkillManager token={token} agents={agents} onUpdate={fetchAgents} />}

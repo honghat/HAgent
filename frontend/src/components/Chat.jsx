@@ -614,8 +614,9 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
     }
 
     let fullContent = msg
+    const imageDataUrls = hasImages ? pastedImages.map((img) => img.dataUrl).filter(Boolean) : []
     if (hasImages) {
-      const imageMarkdown = pastedImages.map((img) => `![screenshot](${img.dataUrl})`).join('\n')
+      const imageMarkdown = imageDataUrls.map((dataUrl) => `![screenshot](${dataUrl})`).join('\n')
       fullContent = imageMarkdown + (fullContent ? '\n\n' + fullContent : '')
     }
 
@@ -639,6 +640,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           content: fullContent, 
+          images: imageDataUrls,
           provider, 
           model: providerConfigs[provider]?.model 
         }),
@@ -967,7 +969,7 @@ export default function Chat({ token, provider, cxModel, agents, user }) {
                 {loading ? (
                   <button onClick={stopChat} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500 text-white shadow-sm transition-all hover:bg-red-600">■</button>
                 ) : (
-                  <button onClick={send} disabled={!input.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gray-950 text-white shadow-sm transition-all hover:bg-black disabled:bg-gray-200 disabled:text-gray-400">➤</button>
+                  <button onClick={send} disabled={!input.trim() && pastedImages.length === 0} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gray-950 text-white shadow-sm transition-all hover:bg-black disabled:bg-gray-200 disabled:text-gray-400">➤</button>
                 )}
               </div>
             </div>

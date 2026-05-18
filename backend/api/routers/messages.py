@@ -240,6 +240,22 @@ def _sse(event: dict) -> bytes:
     return f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode("utf-8")
 
 
+def _build_agent_message(content: str, images: list[str] | None):
+    valid_images = [
+        image
+        for image in (images or [])
+        if isinstance(image, str) and image.startswith("data:image/") and "," in image
+    ]
+    if not valid_images:
+        return content
+
+    text = re.sub(r"!\[[^\]]*\]\(data:image/[^)\s]+\)", "", content or "").strip()
+    text = text or "Hãy đọc và phân tích ảnh màn hình này."
+    parts = [{"type": "text", "text": text}]
+    parts.extend({"type": "image_url", "image_url": {"url": image}} for image in valid_images)
+    return parts
+
+
 @router.post("/sessions/{session_id}/messages")
 def create_message(session_id: str, payload: MessageRequest, request: Request) -> StreamingResponse:
     record = get_session(session_id)
@@ -331,9 +347,10 @@ def create_message(session_id: str, payload: MessageRequest, request: Request) -
                 emit("done", {"messageId": message_id, "usage": {}})
                 return
 
+            agent_message = _build_agent_message(payload.content, payload.images)
             reply, usage = run_source_agent(
                 session_id=session_id,
-                user_message=payload.content,
+                user_message=agent_message,
                 provider_name=payload.provider,
                 model_override=payload.model,
                 stream_callback=stream_content,

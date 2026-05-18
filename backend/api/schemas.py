@@ -22,6 +22,7 @@ class SessionListItem(BaseModel):
 
 class MessageRequest(BaseModel):
     content: str = Field(min_length=1)
+    images: list[str] = Field(default_factory=list)
     provider: str | None = None
     model: str | None = Field(default=None, max_length=200)
 

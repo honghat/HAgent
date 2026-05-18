@@ -131,6 +131,38 @@ def normalize_friend(item):
     }
 
 
+def normalize_profile(item, fallback_id=""):
+    if not isinstance(item, dict):
+        return None
+    user_id = str(pick(item, "userId", "uid", "id", "user_id") or fallback_id)
+    if not user_id:
+        return None
+    name = str(pick(item, "displayName", "zaloName", "name", "dName", "fullname", "fullName") or user_id)
+    avatar = str(pick(item, "avatar", "avt", "thumbnail", "photo") or "")
+    return {
+        "friend_id": user_id,
+        "name": name,
+        "avatar": avatar,
+    }
+
+
+def profile_from_user_info(raw, user_id):
+    if isinstance(raw, dict):
+        changed = raw.get("changed_profiles")
+        if isinstance(changed, dict):
+            profile = normalize_profile(changed.get(str(user_id)), user_id)
+            if profile:
+                return profile
+        for key in ("profile", "user", "data", "info"):
+            profile = normalize_profile(raw.get(key), user_id)
+            if profile:
+                return profile
+        profile = normalize_profile(raw, user_id)
+        if profile:
+            return profile
+    return None
+
+
 def normalize_group(item):
     if not isinstance(item, dict):
         return None
@@ -144,6 +176,26 @@ def normalize_group(item):
         "name": name,
         "avatar": avatar,
     }
+
+
+def group_from_group_info(raw, group_id):
+    if isinstance(raw, dict):
+        removed = raw.get("removedsGroup")
+        if isinstance(removed, list) and str(group_id) in {str(item) for item in removed}:
+            return {"group_id": str(group_id), "name": str(group_id), "avatar": "", "removed": True}
+        grid = raw.get("gridInfoMap")
+        if isinstance(grid, dict):
+            group = normalize_group(grid.get(str(group_id)))
+            if group:
+                return group
+        for key in ("group", "data", "info"):
+            group = normalize_group(raw.get(key))
+            if group:
+                return group
+        group = normalize_group(raw)
+        if group:
+            return group
+    return None
 
 
 def collect_group_ids(node):
@@ -167,17 +219,18 @@ def collect_group_ids(node):
     return list(dict.fromkeys(ids))
 
 
-def thread_from_marker(item, friend_names, group_names):
+def thread_from_marker(item, friend_profiles, group_profiles):
     if not isinstance(item, dict):
         return None
     thread_id = str(pick(item, "idTo", "threadId", "uid", "id"))
     if not thread_id:
         return None
     is_group = str(pick(item, "isGroup", "type", "threadType")).lower() in ("1", "group", "true")
+    profile = group_profiles.get(thread_id) if is_group else friend_profiles.get(thread_id)
     return {
         "thread_id": thread_id,
-        "name": group_names.get(thread_id) if is_group else friend_names.get(thread_id, thread_id),
-        "avatar": "",
+        "name": (profile or {}).get("name") or thread_id,
+        "avatar": (profile or {}).get("avatar") or "",
         "last_message": "",
         "unread": 0,
         "thread_type": "group" if is_group else "user",
@@ -240,6 +293,88 @@ def enrich_recent_messages(bot, threads, own_id=""):
     return enriched
 
 
+def enrich_user_profiles(bot, threads, friends):
+    profiles = {item["friend_id"]: item for item in friends if item.get("friend_id")}
+    lookup_ids = []
+    for thread in threads:
+        if not isinstance(thread, dict) or thread.get("thread_type") == "group":
+            continue
+        thread_id = str(thread.get("thread_id") or "")
+        if not thread_id:
+            continue
+        profile = profiles.get(thread_id)
+        if not profile or not profile.get("avatar") or profile.get("name") == thread_id:
+            lookup_ids.append(thread_id)
+    for user_id in list(dict.fromkeys(lookup_ids))[:80]:
+        try:
+            profile = profile_from_user_info(plain(bot.fetchUserInfo(user_id)), user_id)
+        except Exception:
+            profile = None
+        if profile:
+            profiles[user_id] = profile
+    enriched = []
+    for thread in threads:
+        copy = dict(thread)
+        if copy.get("thread_type") != "group":
+            profile = profiles.get(str(copy.get("thread_id") or ""))
+            if profile:
+                copy["name"] = profile.get("name") or copy.get("name")
+                copy["avatar"] = profile.get("avatar") or copy.get("avatar", "")
+        enriched.append(copy)
+    return enriched, list(profiles.values())
+
+
+def fetch_group_profiles(bot):
+    profiles = {}
+    try:
+        groups_raw = plain(bot.fetchAllGroups())
+    except Exception as exc:
+        return profiles, str(exc)
+    for group_id in collect_group_ids(groups_raw)[:80]:
+        group = None
+        try:
+            group = group_from_group_info(plain(bot.fetchGroupInfo(group_id)), group_id)
+        except Exception:
+            group = None
+        if not group:
+            group = {"group_id": group_id, "name": group_id, "avatar": ""}
+        profiles[group_id] = group
+    return profiles, ""
+
+
+def enrich_group_profiles(bot, threads, group_profiles):
+    profiles = dict(group_profiles)
+    lookup_ids = []
+    for thread in threads:
+        if not isinstance(thread, dict) or thread.get("thread_type") != "group":
+            continue
+        thread_id = str(thread.get("thread_id") or "")
+        if not thread_id:
+            continue
+        profile = profiles.get(thread_id)
+        if not profile or not profile.get("avatar") or profile.get("name") == thread_id:
+            lookup_ids.append(thread_id)
+    for group_id in list(dict.fromkeys(lookup_ids))[:80]:
+        try:
+            group = group_from_group_info(plain(bot.fetchGroupInfo(group_id)), group_id)
+        except Exception:
+            group = None
+        if group:
+            profiles[group_id] = group
+    enriched = []
+    for thread in threads:
+        copy = dict(thread)
+        if copy.get("thread_type") == "group":
+            profile = profiles.get(str(copy.get("thread_id") or ""))
+            if profile:
+                if profile.get("removed"):
+                    copy["_removed"] = True
+                copy["name"] = profile.get("name") or copy.get("name")
+                copy["avatar"] = profile.get("avatar") or profile.get("avatar", "")
+        enriched.append(copy)
+    return enriched, list(profiles.values())
+
+
 def main():
     payload = json.loads(sys.stdin.read() or "{}")
     cookie = payload.get("cookie", "")
@@ -260,22 +395,15 @@ def main():
     except Exception as exc:
         friends_error = str(exc)
 
-    friend_names = {item["friend_id"]: item["name"] for item in friends}
-    group_names = {}
-    groups_error = ""
-    try:
-        groups_raw = plain(bot.fetchAllGroups())
-        for group_id in collect_group_ids(groups_raw):
-            group_names[group_id] = group_id
-    except Exception as exc:
-        groups_error = str(exc)
+    friend_profiles = {item["friend_id"]: item for item in friends}
+    group_profiles, groups_error = fetch_group_profiles(bot)
 
     threads = collect_threads(raw, own_id=own_id)
     marker_threads = []
     if isinstance(raw, dict):
         for key in ("clearUnreads", "clearUnreadsReact"):
             for item in raw.get(key) or []:
-                thread = thread_from_marker(item, friend_names, group_names)
+                thread = thread_from_marker(item, friend_profiles, group_profiles)
                 if thread:
                     marker_threads.append(thread)
 
@@ -285,10 +413,23 @@ def main():
             by_id[thread["thread_id"]] = {**by_id.get(thread["thread_id"], {}), **thread}
     threads = list(by_id.values())
     threads = enrich_recent_messages(bot, threads, own_id=own_id)
+    threads, friends = enrich_user_profiles(bot, threads, friends)
+    threads, groups = enrich_group_profiles(bot, threads, group_profiles)
+    threads = [
+        thread for thread in threads
+        if not thread.get("_removed")
+        and not (
+            thread.get("thread_type") == "group"
+            and str(thread.get("name") or "") == str(thread.get("thread_id") or "")
+            and not thread.get("avatar")
+            and not thread.get("messages")
+        )
+    ]
     print(json.dumps({
         "own_id": own_id,
         "threads": threads,
         "friends": friends,
+        "groups": groups,
         "friends_error": friends_error,
         "groups_error": groups_error,
         "raw_type": type(raw).__name__,

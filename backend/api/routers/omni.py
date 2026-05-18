@@ -654,6 +654,28 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
     return True
 
 
+def _cleanup_stale_zalo_group_conversations(user_id: str, active_thread_ids: set[str]) -> int:
+    placeholders = ",".join("?" for _ in active_thread_ids)
+    keep_clause = f"AND external_id NOT IN ({placeholders})" if active_thread_ids else ""
+    params = [user_id]
+    params.extend(sorted(active_thread_ids))
+    with get_connection() as conn:
+        result = conn.execute(
+            f"""DELETE FROM omni_conversations
+                WHERE user_id = ?
+                  AND platform = 'zalo'
+                  AND thread_type = 'group'
+                  AND title = external_id
+                  AND NOT EXISTS (
+                      SELECT 1 FROM omni_messages
+                      WHERE omni_messages.conversation_id = omni_conversations.id
+                  )
+                  {keep_clause}""",
+            params,
+        )
+        return result.rowcount
+
+
 @router.post("/sync/zalo/qr/start")
 async def start_zalo_qr(request: Request):
     user_id = _get_user_id(request)
@@ -808,19 +830,32 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
     synced_conversations = 0
     synced_messages = 0
     touched_conversations: set[str] = set()
+    active_thread_ids: set[str] = set()
     own_id = str(data.get("own_id") or "")
     for friend in data.get("friends") or []:
         if not friend.get("friend_id"):
             continue
         upsert_contact(user_id, "zalo", str(friend["friend_id"]), str(friend.get("name") or friend["friend_id"]), friend.get("avatar") or "")
         synced_contacts += 1
+    for group in data.get("groups") or []:
+        if not group.get("group_id"):
+            continue
+        upsert_contact(user_id, "zalo", str(group["group_id"]), str(group.get("name") or group["group_id"]), group.get("avatar") or "")
 
     for thread in (data.get("threads") or [])[: payload.maxThreads]:
         thread_id = str(thread.get("thread_id") or "")
         if not thread_id:
             continue
+        active_thread_ids.add(thread_id)
         thread_type = str(thread.get("thread_type") or "user")
-        conv = ensure_conversation(user_id, "zalo", str(thread.get("name") or thread_id), thread_id, thread_type)
+        conv = ensure_conversation(
+            user_id,
+            "zalo",
+            str(thread.get("name") or thread_id),
+            thread_id,
+            thread_type,
+            str(thread.get("avatar") or ""),
+        )
         conv_id = conv["id"]
         touched_conversations.add(conv_id)
         synced_conversations += 1
@@ -844,6 +879,7 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
             "conversationIds": list(touched_conversations),
             "messages": synced_messages,
         })
+    _cleanup_stale_zalo_group_conversations(user_id, active_thread_ids)
     _ensure_zalo_listener(user_id, cookie, imei)
 
     return {

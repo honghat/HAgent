@@ -17,7 +17,7 @@ def _row_to_conversation(row) -> dict:
         "sender": row["custom_name"] or row["title"],
         "content": row["last_message_preview"] or "",
         "channel": row["platform"],
-        "avatar": "",
+        "avatar": row["avatar_url"] or "",
         "is_pinned": bool(row["pinned"]),
         "unread": bool(row["unread_count"] > 0),
         "thread_type": row["thread_type"] or "user",
@@ -71,9 +71,18 @@ def _get_message_preview(message_id: str) -> str:
 def list_conversations(user_id: str) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
-            """SELECT * FROM omni_conversations
-               WHERE user_id = ?
-               ORDER BY pinned DESC, last_message_at DESC, created_at DESC""",
+            """SELECT conv.id, conv.user_id, conv.platform, conv.external_id, conv.title,
+                      conv.custom_name, conv.pinned, conv.unread_count,
+                      conv.last_message_preview, conv.last_message_sender, conv.last_message_at,
+                      conv.created_at, conv.updated_at, conv.thread_type,
+                      COALESCE(NULLIF(conv.avatar_url, ''), NULLIF(contact.avatar_url, ''), '') AS avatar_url
+               FROM omni_conversations conv
+               LEFT JOIN omni_contacts contact
+                 ON contact.user_id = conv.user_id
+                AND contact.platform = conv.platform
+                AND contact.external_id = conv.external_id
+               WHERE conv.user_id = ?
+               ORDER BY conv.pinned DESC, conv.last_message_at DESC, conv.created_at DESC""",
             (user_id,),
         ).fetchall()
     return [_row_to_conversation(r) for r in rows]
@@ -92,15 +101,16 @@ def create_conversation(
     platform: str,
     title: str,
     external_id: str | None = None,
+    avatar_url: str | None = None,
 ) -> dict:
     conv_id = str(uuid4())
     now = datetime.now().isoformat()
     with get_connection() as conn:
         conn.execute(
             """INSERT INTO omni_conversations
-               (id, user_id, platform, external_id, title, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (conv_id, user_id, platform, external_id, title, now, now),
+               (id, user_id, platform, external_id, title, avatar_url, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (conv_id, user_id, platform, external_id, title, avatar_url or "", now, now),
         )
     conv = get_conversation(conv_id)
     return _row_to_conversation(dict(conv)) if conv else {}
@@ -112,6 +122,7 @@ def ensure_conversation(
     title: str,
     external_id: str | None = None,
     thread_type: str = "user",
+    avatar_url: str | None = None,
 ) -> dict:
     """Find existing conversation by platform+external_id, or create new one."""
     if external_id:
@@ -124,12 +135,16 @@ def ensure_conversation(
             with get_connection() as conn:
                 conn.execute(
                     """UPDATE omni_conversations
-                       SET title = ?, thread_type = ?, updated_at = datetime('now', 'localtime')
+                       SET title = ?,
+                           thread_type = ?,
+                           avatar_url = COALESCE(NULLIF(?, ''), avatar_url),
+                           updated_at = datetime('now', 'localtime')
                        WHERE id = ?""",
-                    (title, thread_type, row["id"]),
+                    (title, thread_type, avatar_url or "", row["id"]),
                 )
-            return _row_to_conversation(dict(row))
-    conv = create_conversation(user_id, platform, title, external_id)
+            fresh = get_conversation(row["id"])
+            return _row_to_conversation(dict(fresh)) if fresh else _row_to_conversation(dict(row))
+    conv = create_conversation(user_id, platform, title, external_id, avatar_url)
     with get_connection() as conn:
         conn.execute(
             "UPDATE omni_conversations SET thread_type = ? WHERE id = ?",

@@ -115,6 +115,30 @@ def _load_channel(user_id: str) -> str:
         return ""
 
 
+
+
+def _mark_channel_inactive(user_id: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE omni_channels
+               SET is_active = 0, updated_at = ?
+               WHERE user_id = ? AND platform = 'telegram'""",
+            (datetime.now().isoformat(), user_id),
+        )
+
+
+def disconnect_listener(user_id: str) -> bool:
+    with _listeners_lock:
+        state = _listeners.pop(user_id, None)
+    client = state.get("client") if state else None
+    if client:
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+    return bool(state)
+
+
 def restore_active_listeners() -> None:
     with get_connection() as conn:
         rows = conn.execute(
@@ -280,6 +304,10 @@ async def _listener_loop(user_id: str, session_string: str) -> None:
     api_id, api_hash = _api_config()
     client = TelegramClient(StringSession(session_string), api_id, api_hash)
     await client.connect()
+    with _listeners_lock:
+        state = _listeners.get(user_id)
+        if state is not None:
+            state["client"] = client
     me = await client.get_me()
     own_id = str(me.id)
 
@@ -495,6 +523,14 @@ def _ensure_listener(user_id: str, session_string: str) -> None:
         thread = threading.Thread(target=runner, daemon=True)
         _listeners[user_id] = {"thread": thread, "started_at": datetime.now().isoformat(), "error": ""}
         thread.start()
+
+
+@router.post("/logout")
+async def logout_telegram(request: Request):
+    user_id = _get_user_id(request)
+    disconnect_listener(user_id)
+    _mark_channel_inactive(user_id)
+    return {"ok": True, "status": "Đã logout Telegram."}
 
 
 @router.post("/qr/start")

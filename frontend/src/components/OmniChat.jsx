@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Pencil, Pin, PinOff, QrCode, RefreshCw, Reply, Send, Settings, Smile, Trash2, UserRound, X, Paperclip, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, Check, EyeOff, Globe, LogOut, Pencil, Pin, PinOff, QrCode, RefreshCw, Reply, Send, Settings, Smile, Trash2, UserRound, X, Paperclip, Image as ImageIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 const AUTO_REFRESH_MS = 5000
@@ -28,6 +28,23 @@ function displayErrorMessage(err, fallback = '') {
   const message = typeof err === 'string' ? err : (err?.message || '')
   if (message === 'OmniChat request failed') return fallback || 'Không gọi được OmniChat.'
   return message === 'Không tìm thấy hội thoại.' ? fallback : (message || fallback)
+}
+
+function withTimeout(ms) {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), ms)
+  return { signal: controller.signal, cancel: () => window.clearTimeout(timer) }
+}
+
+async function runTimed(label, fn, ms) {
+  const timeout = withTimeout(ms)
+  try {
+    return { label, ok: true, data: await fn(timeout.signal) }
+  } catch (err) {
+    return { label, ok: false, error: err }
+  } finally {
+    timeout.cancel()
+  }
 }
 
 async function telegramApi(path, token, options = {}) {
@@ -362,8 +379,11 @@ export default function OmniChat({ token, provider }) {
   const [agentAutoState, setAgentAutoState] = useState({ enabled: false, session_id: '', last_error: '' })
   const [agentAutoSaving, setAgentAutoSaving] = useState(false)
   const [savingFacebook, setSavingFacebook] = useState(false)
+  const [omniBrowserBusy, setOmniBrowserBusy] = useState(false)
+  const [syncingAllChannels, setSyncingAllChannels] = useState(false)
   const [facebookBrowserSession, setFacebookBrowserSession] = useState('')
   const [todayStats, setTodayStats] = useState({ sent: 0, received: 0, total: 0 })
+  const [notificationToasts, setNotificationToasts] = useState([])
   const [replyTo, setReplyTo] = useState(null)
   const [reactionMenuId, setReactionMenuId] = useState('')
   const [telegramCommands, setTelegramCommands] = useState([])
@@ -380,6 +400,21 @@ export default function OmniChat({ token, provider }) {
   const notificationsReadyRef = useRef(false)
 
   const selected = conversations.find(item => item.id === selectedId) || contacts.find(item => item.id === selectedId) || null
+
+  function pushIncomingNotificationToast(event) {
+    const conv = conversationsRef.current.find(item => item.id === event.conversationId) || {}
+    const channel = String(conv.channel || event.platform || '').toUpperCase() || 'OMNI'
+    const title = conv.sender || conv.title || 'Tin nhắn mới'
+    const body = messagePreview(event.message?.content || '') || 'Bạn có tin nhắn mới'
+    const id = `${event.conversationId || 'omni'}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    setNotificationToasts(current => [
+      { id, conversationId: event.conversationId, channel, title, body },
+      ...current,
+    ].slice(0, 3))
+    window.setTimeout(() => {
+      setNotificationToasts(current => current.filter(item => item.id !== id))
+    }, 6500)
+  }
 
   useEffect(() => {
     conversationsRef.current = conversations
@@ -532,6 +567,7 @@ export default function OmniChat({ token, provider }) {
           const incoming = event.message?.status === 'received' || event.message?.sender_type !== 'user'
           if (incoming) {
             playIncomingChime(audioContextRef)
+            pushIncomingNotificationToast(event)
             if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
               const conv = conversationsRef.current.find(item => item.id === event.conversationId)
               const title = conv?.sender || 'Tin nhắn mới'
@@ -797,6 +833,20 @@ export default function OmniChat({ token, provider }) {
         loadConversations({ quiet: true }),
         loadTodayStats()
       ])
+      if (selected.channel === 'facebook') {
+        omniApi('/sync/facebook/messages', token, {
+          method: 'POST',
+          body: JSON.stringify({ maxThreads: 4, maxMessages: 1 }),
+        }).then(async data => {
+          if ((data.synced_messages || 0) > 0) {
+            await Promise.all([
+              loadMessages(selected.id, { stickToBottom: true }),
+              loadConversations({ quiet: true }),
+              loadTodayStats(),
+            ])
+          }
+        }).catch(() => {})
+      }
       
       // Ensure draft stays cleared after reload
       setDraft('')
@@ -1058,16 +1108,117 @@ export default function OmniChat({ token, provider }) {
     }
   }
 
+  async function logoutChannel(channel) {
+    const label = channel === 'telegram' ? 'Telegram' : channel === 'zalo' ? 'Zalo' : 'Facebook'
+    if (!window.confirm(`Logout ${label}?`)) return
+    setChannelStatus(`Đang logout ${label}...`)
+    try {
+      const data = channel === 'telegram'
+        ? await telegramApi('/logout', token, { method: 'POST', body: JSON.stringify({}) })
+        : await omniApi(`/channels/${channel}/logout`, token, { method: 'POST', body: JSON.stringify({}) })
+      setChannelStatus(data.status || `Đã logout ${label}.`)
+      await Promise.all([loadConversations({ quiet: true }), loadContacts(), loadTodayStats()])
+    } catch (err) {
+      setChannelStatus(displayErrorMessage(err))
+    }
+  }
+
+  async function syncAllChannels() {
+    setSyncingAllChannels(true)
+    setChannelStatus('Đang Omni sync...')
+    try {
+      const data = await omniApi('/sync/omni/messages', token, {
+        method: 'POST',
+        body: JSON.stringify({ maxThreads: 80, maxMessages: 30 }),
+      })
+      const per = data.per_channel || {}
+      const tele = per.telegram?.ok ? (per.telegram?.data?.synced_messages ?? 0) : 'lỗi'
+      const zalo = per.zalo?.ok ? (per.zalo?.data?.synced_messages ?? 0) : 'lỗi'
+      const fb = per.facebook?.ok ? (per.facebook?.data?.synced_messages ?? 0) : 'lỗi'
+      setChannelStatus(`Omni sync: Tele ${tele}, Zalo ${zalo}, FB ${fb}.`)
+      await Promise.all([loadConversations({ quiet: true }), loadContacts(), loadTodayStats()])
+    } catch (err) {
+      setChannelStatus(displayErrorMessage(err))
+    } finally {
+      setSyncingAllChannels(false)
+    }
+  }
+
+  async function startOmniBrowser() {
+    setOmniBrowserBusy(true)
+    setChannelStatus('Đang mở Omni Browser 3 tab...')
+    try {
+      const data = await omniApi('/connect/omni-browser/start', token, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      setChannelStatus(data.status || 'Đã mở Facebook, Zalo, Telegram.')
+    } catch (err) {
+      setChannelStatus(displayErrorMessage(err))
+    } finally {
+      setOmniBrowserBusy(false)
+    }
+  }
+
+  async function hideOmniBrowser() {
+    setOmniBrowserBusy(true)
+    setChannelStatus('Đang ẩn Omni Browser...')
+    try {
+      const data = await omniApi('/connect/omni-browser/hide', token, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      setChannelStatus(data.status || 'Đã ẩn Omni Browser.')
+    } catch (err) {
+      setChannelStatus(displayErrorMessage(err))
+    } finally {
+      setOmniBrowserBusy(false)
+    }
+  }
+
+  async function closeOmniBrowser() {
+    setOmniBrowserBusy(true)
+    setChannelStatus('Đang đóng Omni Browser...')
+    try {
+      const data = await omniApi('/connect/omni-browser/close', token, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      setChannelStatus(data.status || 'Đã đóng Omni Browser.')
+    } catch (err) {
+      setChannelStatus(displayErrorMessage(err))
+    } finally {
+      setOmniBrowserBusy(false)
+    }
+  }
+
   async function startFacebookBrowserLogin() {
     setSavingFacebook(true)
-    setChannelStatus('Đang mở cửa sổ Facebook...')
+    setChannelStatus('Đang mở Facebook bằng Playwright...')
     try {
       const data = await omniApi('/connect/facebook/browser/start', token, {
         method: 'POST',
         body: JSON.stringify({}),
       })
       setFacebookBrowserSession(data.session_id || '')
-      setChannelStatus('Đăng nhập Facebook trong cửa sổ vừa mở. Nếu có mã bảo mật, nhập trực tiếp ở đó.')
+      setChannelStatus(data.detail || 'Facebook đã mở bằng Playwright. Nếu có mã bảo mật, nhập trực tiếp ở đó.')
+    } catch (err) {
+      setChannelStatus(displayErrorMessage(err))
+    } finally {
+      setSavingFacebook(false)
+    }
+  }
+
+  async function hideFacebookBrowser() {
+    setSavingFacebook(true)
+    setChannelStatus('Đang ngắt điều khiển Facebook...')
+    try {
+      const data = await omniApi('/connect/facebook/browser/hide', token, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      setFacebookBrowserSession('')
+      setChannelStatus(data.status || 'Đã ngắt điều khiển Facebook, không đóng tab.')
     } catch (err) {
       setChannelStatus(displayErrorMessage(err))
     } finally {
@@ -1081,7 +1232,7 @@ export default function OmniChat({ token, provider }) {
     try {
       const data = await omniApi('/sync/facebook/messages', token, {
         method: 'POST',
-        body: JSON.stringify({ maxThreads: 8, maxMessages: 25 }),
+        body: JSON.stringify({ maxThreads: 8, maxMessages: 1 }),
       })
       setChannelStatus(`Facebook: ${data.synced_conversations || 0} hội thoại, ${data.synced_messages || 0} tin.`)
       await loadConversations({ quiet: true })
@@ -1176,6 +1327,31 @@ export default function OmniChat({ token, provider }) {
 
   return (
     <div className="h-full bg-[#f7f7f4] p-0 sm:p-3">
+      {notificationToasts.length > 0 && (
+        <div className="pointer-events-none fixed right-3 top-3 z-[80] flex w-[min(92vw,360px)] flex-col gap-2">
+          {notificationToasts.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setSelectedId(item.conversationId)
+                setNotificationToasts(current => current.filter(toast => toast.id !== item.id))
+              }}
+              className="pointer-events-auto rounded-xl border border-black/[0.08] bg-white/95 p-3 text-left shadow-2xl backdrop-blur transition hover:bg-white"
+            >
+              <div className="mb-1 flex items-center gap-2">
+                <span className="rounded-md bg-gray-950 px-1.5 py-0.5 text-[9px] font-black tracking-wide text-white">
+                  {item.channel}
+                </span>
+                <span className="min-w-0 truncate text-[12px] font-bold text-gray-950">
+                  🔔 {item.title}
+                </span>
+              </div>
+              <p className="line-clamp-2 text-[12px] leading-5 text-gray-600">{item.body}</p>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex h-full overflow-hidden border border-black/[0.06] bg-white sm:rounded-lg">
         <aside className={`${selected ? 'hidden sm:flex' : 'flex'} w-full sm:w-64 border-r border-black/[0.06] flex-col`}>
           <div className="border-b border-black/[0.06] p-2">
@@ -1267,17 +1443,27 @@ export default function OmniChat({ token, provider }) {
                     <button
                       type="button"
                       onClick={startTelegramQr}
-                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50"
+                      title="QR Telegram"
                     >
-                      QR
+                      <QrCode className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={syncTelegramMessages}
                       disabled={syncingTelegram}
-                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      title="Sync Telegram"
                     >
-                      {syncingTelegram ? '...' : 'Sync'}
+                      {syncingTelegram ? '...' : <RefreshCw className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => logoutChannel('telegram')}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-500 hover:bg-red-50 hover:text-red-600"
+                      title="Logout Telegram"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
                     </button>
                   </div>
 
@@ -1292,45 +1478,72 @@ export default function OmniChat({ token, provider }) {
                     <button
                       type="button"
                       onClick={startZaloQr}
-                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50"
+                      title="QR Zalo"
                     >
-                      QR
+                      <QrCode className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={syncZaloMessages}
                       disabled={syncingZalo}
-                      className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      title="Sync Zalo"
                     >
-                      {syncingZalo ? '...' : 'Sync'}
+                      {syncingZalo ? '...' : <RefreshCw className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => logoutChannel('zalo')}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-500 hover:bg-red-50 hover:text-red-600"
+                      title="Logout Zalo"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md bg-white p-2">
+                  <div className="flex items-center gap-2 rounded-md bg-white p-2">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
                       <Settings className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-gray-900">Facebook</p>
+                      <p className="truncate text-xs font-semibold text-gray-900">Facebook</p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={startFacebookBrowserLogin}
-                        disabled={savingFacebook}
-                        className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50"
-                      >
-                        Browser
-                      </button>
-                      <button
-                        type="button"
-                        onClick={syncFacebookMessages}
-                        disabled={syncingFacebook}
-                        className="h-6 rounded-md border border-black/[0.06] px-2 text-[9px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        {syncingFacebook ? '...' : 'Sync'}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={startFacebookBrowserLogin}
+                      disabled={savingFacebook}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      title="Mở Facebook bằng Playwright"
+                    >
+                      <Globe className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={hideFacebookBrowser}
+                      disabled={savingFacebook}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      title="Ngắt điều khiển, không đóng tab"
+                    >
+                      <EyeOff className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={syncFacebookMessages}
+                      disabled={syncingFacebook}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      title="Sync Facebook"
+                    >
+                      {syncingFacebook ? '...' : <RefreshCw className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => logoutChannel('facebook')}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-500 hover:bg-red-50 hover:text-red-600"
+                      title="Logout Facebook"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
 
@@ -1774,7 +1987,7 @@ export default function OmniChat({ token, provider }) {
               <img src={telegramQr.qr} alt="Telegram QR" className="h-[min(76vw,520px)] w-[min(76vw,520px)] object-contain" />
             )}
             {qr && (
-              <img src={qr} alt="Zalo QR" className="h-[min(76vw,520px)] w-[min(76vw,520px)] bg-white object-contain [image-rendering:pixelated]" />
+              <img src={qr} alt="Zalo QR" className="h-[min(76vw,520px)] w-[min(76vw,520px)] bg-white object-contain p-2 [image-rendering:pixelated]" />
             )}
             {qr && (
               <button

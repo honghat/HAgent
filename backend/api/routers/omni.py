@@ -8,12 +8,14 @@ import asyncio
 import base64
 import io
 import logging
+import os
 import re
 import sqlite3
 import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import uuid
 import hashlib
 from datetime import datetime
@@ -400,16 +402,20 @@ def _send_omni_text(
             cookie = _load_facebook_channel(uid)
             if not cookie:
                 raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
-            send_meta = _run_facebook_bridge(
-                FACEBOOK_SEND_BRIDGE,
-                {
-                    "cookie": cookie,
-                    "target": external_id,
-                    "text": content,
-                    "action": "send",
-                },
-                timeout=60,
-            )
+            try:
+                send_meta = _run_facebook_live_message_threadsafe(uid, external_id, content, timeout=60)
+            except Exception as live_exc:
+                logging.warning("Facebook live send failed, falling back to cookie bridge: %s", live_exc)
+                send_meta = _run_facebook_bridge(
+                    FACEBOOK_SEND_BRIDGE,
+                    {
+                        "cookie": cookie,
+                        "target": external_id,
+                        "text": content,
+                        "action": "send",
+                    },
+                    timeout=60,
+                )
     except Exception as e:
         delete_message(msg_id)
         logging.error("Failed to send message to %s: %s", platform, e)
@@ -944,18 +950,22 @@ async def send_media_to_conversation(
         if payload.file_url:
             raise HTTPException(status_code=400, detail="Facebook hiện chưa hỗ trợ file URL từ xa.")
 
-        result = _run_facebook_bridge(
-            FACEBOOK_SEND_BRIDGE,
-            {
-                "cookie": cookie,
-                "action": "send_images" if len(paths_to_send) > 1 else "send_image",
-                "target": external_id,
-                "image_path": paths_to_send[0] if len(paths_to_send) == 1 else "",
-                "image_paths": paths_to_send if len(paths_to_send) > 1 else [],
-                "text": payload.caption,
-            },
-            timeout=90,
-        )
+        try:
+            result = await _send_facebook_live_message(uid, external_id, payload.caption, paths_to_send)
+        except Exception as live_exc:
+            logging.warning("Facebook live media send failed, falling back to cookie bridge: %s", live_exc)
+            result = _run_facebook_bridge(
+                FACEBOOK_SEND_BRIDGE,
+                {
+                    "cookie": cookie,
+                    "action": "send_images" if len(paths_to_send) > 1 else "send_image",
+                    "target": external_id,
+                    "image_path": paths_to_send[0] if len(paths_to_send) == 1 else "",
+                    "image_paths": paths_to_send if len(paths_to_send) > 1 else [],
+                    "text": payload.caption,
+                },
+                timeout=90,
+            )
         if not result.get("ok"):
             raise HTTPException(status_code=500, detail=result.get("error", "Lỗi gửi media qua Facebook."))
 
@@ -1246,7 +1256,203 @@ _facebook_browser_sessions: dict[str, dict] = {}
 _facebook_live_sessions: dict[str, dict] = {}
 _facebook_sync_tasks: dict[str, asyncio.Task] = {}
 _facebook_sync_locks: dict[str, asyncio.Lock] = {}
+_omni_browser_sessions: dict[str, dict] = {}
 FACEBOOK_PROFILE_ROOT = BACKEND_ROOT / "data" / "facebook_profiles"
+OMNI_BROWSER_PROFILE_ROOT = BACKEND_ROOT / "data" / "omni_browser_profiles"
+DEFAULT_BROWSER_CDP_URL = "http://127.0.0.1:9222"
+
+
+def _probe_cdp_http_url(url: str, timeout: float = 1.5) -> bool:
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/json/version", timeout=timeout) as resp:
+            return 200 <= int(resp.status) < 300
+    except Exception:
+        return False
+
+
+def _configured_default_browser_cdp_url() -> str:
+    """Return a reachable CDP endpoint for the user's normal browser."""
+    candidates = []
+    env_url = os.environ.get("BROWSER_CDP_URL", "").strip()
+    if env_url:
+        candidates.append(env_url)
+    try:
+        from hagent_cli.config import read_raw_config
+
+        cfg = read_raw_config()
+        browser_cfg = cfg.get("browser", {})
+        if isinstance(browser_cfg, dict):
+            cfg_url = str(browser_cfg.get("cdp_url") or "").strip()
+            if cfg_url:
+                candidates.append(cfg_url)
+    except Exception:
+        pass
+    candidates.append(DEFAULT_BROWSER_CDP_URL)
+
+    for url in candidates:
+        if url.startswith(("ws://", "wss://")):
+            return url
+        if url.startswith("http") and _probe_cdp_http_url(url):
+            return url
+    return ""
+
+
+def _default_browser_cdp_required_message() -> str:
+    return (
+        "Chưa kết nối được trình duyệt mặc định qua CDP/MCP. "
+        "Mở Chrome/Brave bằng remote debugging trước, ví dụ: "
+        "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome "
+        "--remote-debugging-port=9222"
+    )
+
+
+def _cookie_header_to_playwright(cookie: str, domain: str) -> list[dict]:
+    cookies = []
+    for item in (cookie or "").split(";"):
+        if "=" not in item:
+            continue
+        name, value = item.strip().split("=", 1)
+        name = name.strip()
+        value = value.strip()
+        if (
+            not name
+            or not value
+            or any(ch.isspace() for ch in name)
+            or name.startswith(("$", "__Host-"))
+        ):
+            continue
+        cookies.append({
+            "name": name,
+            "value": value,
+            "url": "https://www.facebook.com/" if "facebook.com" in domain else f"https://{domain.lstrip('.')}/",
+        })
+    return cookies
+
+
+async def _close_omni_browser_session(user_id: str) -> None:
+    sess = _omni_browser_sessions.pop(user_id, None)
+    if not sess:
+        return
+    try:
+        fb_cookie = await _get_facebook_cookie_header(sess["context"])
+        if "c_user=" in fb_cookie and "xs=" in fb_cookie:
+            _save_facebook_channel(user_id, fb_cookie)
+    except Exception:
+        pass
+    try:
+        await sess["context"].close()
+    except Exception:
+        pass
+    try:
+        await sess["playwright"].stop()
+    except Exception:
+        pass
+
+
+async def _save_omni_browser_channels(user_id: str) -> dict:
+    sess = _omni_browser_sessions.get(user_id)
+    if not sess:
+        return {"facebook": False, "zalo": False}
+    saved = {"facebook": False, "zalo": False}
+    context = sess.get("context")
+    pages = sess.get("pages") or []
+    if not context:
+        return saved
+    try:
+        fb_cookie = await _get_facebook_cookie_header(context)
+        if "c_user=" in fb_cookie and "xs=" in fb_cookie:
+            _save_facebook_channel(user_id, fb_cookie)
+            saved["facebook"] = True
+    except Exception:
+        pass
+    try:
+        cookies = await context.cookies()
+        zalo_cookie = "; ".join(
+            f"{c['name']}={c['value']}"
+            for c in cookies
+            if c.get("name") and ("zalo" in str(c.get("domain") or "") or "zlogin" in str(c.get("domain") or ""))
+        )
+        zalo_page = next((page for page in pages if "zalo" in (getattr(page, "url", "") or "")), None)
+        imei = ""
+        if zalo_page:
+            imei = await _read_zalo_imei(zalo_page)
+        if zalo_cookie and not imei:
+            imei = str(uuid.uuid4())
+        if zalo_cookie and imei:
+            _save_zalo_channel(user_id, zalo_cookie, imei)
+            _ensure_zalo_listener(user_id, zalo_cookie, imei)
+            saved["zalo"] = True
+    except Exception:
+        pass
+    return saved
+
+
+def _save_omni_browser_channels_threadsafe(user_id: str) -> dict:
+    sess = _omni_browser_sessions.get(user_id)
+    if not sess:
+        return {"facebook": False, "zalo": False}
+    loop = sess.get("loop")
+    if loop and loop.is_running():
+        return asyncio.run_coroutine_threadsafe(_save_omni_browser_channels(user_id), loop).result(timeout=15)
+    return asyncio.run(_save_omni_browser_channels(user_id))
+
+
+async def _launch_omni_browser_session(user_id: str, *, headless: bool = False) -> dict:
+    from playwright.async_api import async_playwright
+
+    profile_dir = OMNI_BROWSER_PROFILE_ROOT / user_id
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    playwright = await async_playwright().start()
+    context = await playwright.chromium.launch_persistent_context(
+        str(profile_dir),
+        headless=headless,
+        args=["--disable-blink-features=AutomationControlled"],
+        viewport={"width": 1360, "height": 920},
+        user_agent=(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        ),
+    )
+    fb_cookie = _load_facebook_channel(user_id)
+    if fb_cookie:
+        try:
+            await context.add_cookies(_cookie_header_to_playwright(fb_cookie, ".facebook.com"))
+        except Exception:
+            pass
+    # Do not inject saved Zalo cookies here. Stale/partial Zalo Web cookies can make
+    # chat.zalo.me show its generic "đang gặp sự cố" page instead of the QR login.
+    # Zalo Web is sensitive to rapid multi-tab navigation. Open tabs slowly and
+    # let Zalo settle first, otherwise it can show an invalid/error login state.
+    tab_specs = [
+        ("zalo", "https://id.zalo.me/account?continue=https%3A%2F%2Fchat.zalo.me%2F", 6500),
+        ("facebook", "https://www.facebook.com/messages/", 2500),
+        ("telegram", "https://web.telegram.org/k/", 2500),
+    ]
+    pages = []
+    first = context.pages[0] if context.pages else await context.new_page()
+    for idx, (_name, url, settle_ms) in enumerate(tab_specs):
+        page = first if idx == 0 else await context.new_page()
+        try:
+            await page.goto("about:blank", wait_until="domcontentloaded", timeout=10000)
+            await page.wait_for_timeout(700)
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            await page.wait_for_timeout(settle_ms)
+        except Exception:
+            pass
+        pages.append(page)
+    sess = {
+        "user_id": user_id,
+        "playwright": playwright,
+        "context": context,
+        "browser": context.browser,
+        "pages": pages,
+        "page": pages[0],
+        "headless": headless,
+        "loop": asyncio.get_running_loop(),
+        "created_at": datetime.now().isoformat(),
+    }
+    _omni_browser_sessions[user_id] = sess
+    return sess
 
 
 async def _close_zalo_qr_session(session_id: str) -> None:
@@ -1315,18 +1521,15 @@ async def _find_zalo_qr_data(page) -> str:
 def _normalize_qr_data_uri(data_uri: str) -> str:
     if not data_uri.startswith("data:image/") or "," not in data_uri:
         return data_uri
-    _header, encoded = data_uri.split(",", 1)
+    header, encoded = data_uri.split(",", 1)
     try:
         raw = base64.b64decode(encoded)
-        source = Image.open(io.BytesIO(raw)).convert("RGBA")
-        image = Image.new("RGBA", source.size, "white")
-        image.alpha_composite(source)
-        image = image.convert("RGB")
-        image = ImageOps.expand(image, border=max(32, image.width // 8), fill="white")
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        image = ImageOps.expand(image, border=max(24, image.width // 10), fill="white")
         image = image.resize((image.width * 2, image.height * 2), Image.Resampling.NEAREST)
         out = io.BytesIO()
         image.save(out, format="PNG")
-        return f"data:image/png;base64,{base64.b64encode(out.getvalue()).decode('utf-8')}"
+        return f"{header},{base64.b64encode(out.getvalue()).decode('utf-8')}"
     except Exception:
         return data_uri
 
@@ -1356,8 +1559,14 @@ async def _read_zalo_imei(page) -> str:
 
 
 async def _get_facebook_cookie_header(context) -> str:
-    cookies = await context.cookies()
-    return "; ".join(f"{c['name']}={c['value']}" for c in cookies if c.get("name"))
+    cookies = await context.cookies(["https://www.facebook.com", "https://messenger.com"])
+    return "; ".join(
+        f"{c['name']}={c['value']}"
+        for c in cookies
+        if c.get("name")
+        and c.get("value")
+        and any(host in str(c.get("domain") or "") for host in ("facebook.com", "messenger.com"))
+    )
 
 
 async def _facebook_page_is_connected(page, context) -> bool:
@@ -1389,27 +1598,99 @@ async def _facebook_page_needs_security_unlock(page) -> bool:
     return any(marker in body for marker in markers)
 
 
-async def _close_facebook_browser_session(session_id: str) -> None:
-    sess = _facebook_browser_sessions.pop(session_id, None)
+async def _close_facebook_playwright_session(sess: dict | None) -> None:
     if not sess:
         return
-    for key in ("context", "browser"):
+    if sess.get("external_cdp"):
+        # CDP/default-browser sessions belong to the user. Never close their
+        # tabs or browser windows from Omni; just detach our Playwright handle.
         try:
-            await sess[key].close()
+            await sess["playwright"].stop()
         except Exception:
             pass
+        return
+
+    try:
+        await sess["context"].close()
+    except Exception:
+        pass
+    try:
+        browser = sess.get("browser")
+        if browser:
+            await browser.close()
+    except Exception:
+        pass
     try:
         await sess["playwright"].stop()
     except Exception:
         pass
 
 
-async def _launch_facebook_persistent_session(user_id: str, *, headless: bool = False) -> dict:
+async def _close_facebook_browser_session(session_id: str) -> None:
+    sess = _facebook_browser_sessions.pop(session_id, None)
+    await _close_facebook_playwright_session(sess)
+
+
+async def _save_facebook_controlled_session_cookie(user_id: str) -> bool:
+    """Harvest Facebook cookies from any active controlled/default-browser session."""
+    sessions: list[dict] = []
+    sessions.extend(
+        sess for sess in _facebook_browser_sessions.values()
+        if sess.get("user_id") == user_id
+    )
+    live = _facebook_live_sessions.get(user_id)
+    if live and live.get("user_id") == user_id:
+        sessions.append(live)
+
+    for sess in sessions:
+        try:
+            cookie = await _get_facebook_cookie_header(sess["context"])
+            if "c_user=" in cookie and "xs=" in cookie:
+                _save_facebook_channel(user_id, cookie)
+                return True
+        except Exception:
+            continue
+    return False
+
+
+async def _launch_facebook_persistent_session(
+    user_id: str,
+    *,
+    headless: bool = False,
+    require_default_browser: bool = False,
+) -> dict:
     from playwright.async_api import async_playwright
+
+    playwright = await async_playwright().start()
+    if require_default_browser and not headless:
+        cdp_url = _configured_default_browser_cdp_url()
+        if cdp_url:
+            browser = await playwright.chromium.connect_over_cdp(cdp_url)
+            context = browser.contexts[0] if browser.contexts else await browser.new_context(
+                viewport={"width": 1280, "height": 900}
+            )
+            page = await context.new_page()
+            try:
+                await page.set_viewport_size({"width": 1280, "height": 900})
+            except Exception:
+                pass
+            return {
+                "user_id": user_id,
+                "playwright": playwright,
+                "context": context,
+                "browser": browser,
+                "page": page,
+                "loop": asyncio.get_running_loop(),
+                "headless": headless,
+                "external_cdp": True,
+                "cdp_url": cdp_url,
+            }
+        if require_default_browser:
+            await playwright.stop()
+            raise HTTPException(status_code=400, detail=_default_browser_cdp_required_message())
 
     profile_dir = FACEBOOK_PROFILE_ROOT / user_id
     profile_dir.mkdir(parents=True, exist_ok=True)
-    playwright = await async_playwright().start()
     context = await playwright.chromium.launch_persistent_context(
         str(profile_dir),
         headless=headless,
@@ -1427,6 +1708,9 @@ async def _launch_facebook_persistent_session(user_id: str, *, headless: bool = 
         "context": context,
         "browser": context.browser,
         "page": page,
+        "loop": asyncio.get_running_loop(),
+        "headless": headless,
+        "external_cdp": False,
     }
 
 
@@ -1445,12 +1729,143 @@ async def restore_facebook_live_session(user_id: str) -> dict | None:
         _facebook_live_sessions[user_id] = sess
         _ensure_facebook_sync_task(user_id)
         return sess
-    try:
-        await sess["context"].close()
-        await sess["playwright"].stop()
-    except Exception:
-        pass
+    await _close_facebook_playwright_session(sess)
     return None
+
+
+async def _first_visible_locator(page, selectors: list[str], timeout: int = 1200):
+    for selector in selectors:
+        locator = page.locator(selector).first
+        try:
+            if await locator.is_visible(timeout=timeout):
+                return locator
+        except Exception:
+            continue
+    return None
+
+
+async def _facebook_prepare_thread_page(page, target: str) -> None:
+    target = str(target or "").strip().strip("/")
+    urls = []
+    if target.startswith("http://") or target.startswith("https://"):
+        urls.append(target)
+    else:
+        urls.extend([
+            f"https://www.facebook.com/messages/t/{target}",
+            f"https://www.facebook.com/messages/e2ee/t/{target}",
+        ])
+    last_exc = None
+    for url in urls:
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            await page.wait_for_timeout(1800)
+            textbox = await _first_visible_locator(
+                page,
+                [
+                    'div[role="textbox"][contenteditable="true"]',
+                    'div[contenteditable="true"][data-lexical-editor="true"]',
+                    'div[contenteditable="true"]',
+                    '[aria-label="Message"][contenteditable="true"]',
+                    '[aria-label="Tin nhắn"][contenteditable="true"]',
+                ],
+            )
+            if textbox:
+                return
+        except Exception as exc:
+            last_exc = exc
+            continue
+    if last_exc:
+        raise last_exc
+
+
+async def _send_facebook_live_message(
+    user_id: str,
+    target: str,
+    text: str = "",
+    image_paths: list[str] | None = None,
+) -> dict:
+    lock = _facebook_sync_locks.setdefault(user_id, asyncio.Lock())
+    async with lock:
+        sess = _facebook_live_sessions.get(user_id) or await restore_facebook_live_session(user_id)
+        if not sess:
+            raise RuntimeError("Chưa có live session Facebook. Hãy mở Browser và đăng nhập lại.")
+        base_page = sess["page"]
+        if not await _facebook_page_is_connected(base_page, sess["context"]):
+            raise RuntimeError("Phiên Facebook live đã hết hạn. Hãy đăng nhập lại.")
+        page = await sess["context"].new_page()
+        try:
+            await _facebook_prepare_thread_page(page, target)
+
+            textbox = await _first_visible_locator(
+                page,
+                [
+                    'div[role="textbox"][contenteditable="true"]',
+                    'div[contenteditable="true"][data-lexical-editor="true"]',
+                    'div[contenteditable="true"]',
+                    '[aria-label="Message"][contenteditable="true"]',
+                    '[aria-label="Tin nhắn"][contenteditable="true"]',
+                ],
+                timeout=4000,
+            )
+            if not textbox:
+                raise RuntimeError(f"Không tìm thấy ô nhập Messenger cho thread {target}.")
+
+            files = [str(p).strip() for p in (image_paths or []) if str(p).strip()]
+            if files:
+                file_input = await _first_visible_locator(page, ['input[type="file"]'], timeout=1000)
+                if not file_input:
+                    file_input = page.locator('input[type="file"]').first
+                await file_input.set_input_files(files)
+                await page.wait_for_timeout(2500)
+
+            if text:
+                await textbox.click(timeout=5000)
+                try:
+                    await textbox.fill(text)
+                except Exception:
+                    await page.keyboard.insert_text(text)
+                await page.wait_for_timeout(350)
+
+            send_button = await _first_visible_locator(
+                page,
+                [
+                    'div[aria-label="Send"]',
+                    'button[aria-label="Send"]',
+                    'div[aria-label="Gửi"]',
+                    'button[aria-label="Gửi"]',
+                    '[data-testid="send"]',
+                ],
+                timeout=1500,
+            )
+            if send_button:
+                await send_button.click(timeout=5000)
+            else:
+                await textbox.press("Enter")
+            await page.wait_for_timeout(1800)
+            return {"ok": True, "target": target, "cli_msg_id": f"fb_live_{uuid.uuid4().hex}", "msg_type": "webchat"}
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
+
+
+def _run_facebook_live_message_threadsafe(
+    user_id: str,
+    target: str,
+    text: str = "",
+    image_paths: list[str] | None = None,
+    timeout: int = 60,
+) -> dict:
+    sess = _facebook_live_sessions.get(user_id)
+    loop = sess.get("loop") if sess else None
+    if loop and loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(
+            _send_facebook_live_message(user_id, target, text, image_paths),
+            loop,
+        )
+        return future.result(timeout=timeout)
+    return asyncio.run(_send_facebook_live_message(user_id, target, text, image_paths))
 
 
 async def _sync_facebook_live_session(user_id: str, max_threads: int) -> dict | None:
@@ -1487,28 +1902,34 @@ async def _sync_facebook_live_session(user_id: str, max_threads: int) -> dict | 
             "preview": lines[1] if len(lines) > 1 else "",
             "href": href,
         })
-    if not threads:
-        with get_connection() as conn:
-            saved_threads = conn.execute(
-                """SELECT external_id, title
-                   FROM omni_conversations
-                   WHERE user_id = ? AND platform = 'facebook'
-                     AND COALESCE(external_id, '') <> ''
-                   ORDER BY COALESCE(last_message_at, updated_at, created_at) DESC
-                   LIMIT ?""",
-                (user_id, max_threads),
-            ).fetchall()
-        threads = [
-            {
-                "external_id": str(row["external_id"]),
-                "title": str(row["title"]),
-                "preview": "",
-                "href": f"/messages/e2ee/t/{row['external_id']}/",
-            }
-            for row in saved_threads
-        ]
+    with get_connection() as conn:
+        saved_threads = conn.execute(
+            """SELECT external_id, title
+               FROM omni_conversations
+               WHERE user_id = ? AND platform = 'facebook'
+                 AND COALESCE(external_id, '') <> ''
+               ORDER BY CASE WHEN lower(title) = 'meta ai' THEN 0 ELSE 1 END,
+                        COALESCE(last_message_at, updated_at, created_at) DESC
+               LIMIT ?""",
+            (user_id, max(max_threads, 8)),
+        ).fetchall()
+    existing_thread_ids = {thread["external_id"] for thread in threads}
+    for row in saved_threads:
+        external_id = str(row["external_id"])
+        if external_id in existing_thread_ids:
+            continue
+        threads.append({
+            "external_id": external_id,
+            "title": str(row["title"]),
+            "preview": "",
+            "href": f"/messages/e2ee/t/{external_id}/",
+        })
+        existing_thread_ids.add(external_id)
+        if len(threads) >= max(max_threads, 8):
+            break
+    threads.sort(key=lambda thread: 0 if str(thread.get("title") or "").strip().lower() == "meta ai" else 1)
     thread_messages = {}
-    for thread in threads[: min(max_threads, 8)]:
+    for thread in threads[: max(1, min(max_threads, 20))]:
         href = thread["href"]
         if href.startswith("/"):
             href = f"https://www.facebook.com{href}"
@@ -1522,59 +1943,67 @@ async def _sync_facebook_live_session(user_id: str, max_threads: int) -> dict | 
         for candidate_href in candidate_hrefs:
             try:
                 await page.goto(candidate_href, wait_until="domcontentloaded", timeout=60000)
-                await page.wait_for_timeout(3500 if "/messages/e2ee/t/" in candidate_href else 1800)
-                await page.evaluate(
-                    """() => {
-                        for (const el of document.querySelectorAll('div')) {
-                            if (el.scrollHeight > el.clientHeight + 120) {
-                                el.scrollTop = el.scrollHeight;
-                            }
-                        }
-                    }"""
-                )
-                await page.wait_for_timeout(600)
+                # Messenger renders the thread shell before the actual message bubbles.
+                # If we scrape immediately, Facebook often returns an empty/partial DOM.
+                await page.wait_for_timeout(6500 if "/messages/e2ee/t/" in candidate_href else 4500)
             except Exception:
                 continue
-            items = await page.locator('div[dir="auto"]').evaluate_all(
-                """nodes => nodes.map(node => {
-                    const rect = node.getBoundingClientRect();
-                    const text = (node.innerText || '').trim();
-                    let align = '';
-                    let timestampText = '';
-                    let messageLabel = '';
-                    let el = node;
-                    for (let depth = 0; el && depth < 14; depth += 1, el = el.parentElement) {
-                        const currentAlign = getComputedStyle(el).alignItems;
-                        if (currentAlign === 'flex-start' || currentAlign === 'flex-end') {
-                            align = currentAlign;
+            for _attempt in range(6):
+                try:
+                    await page.evaluate(
+                        """() => {
+                            for (const el of document.querySelectorAll('div')) {
+                                if (el.scrollHeight > el.clientHeight + 120) {
+                                    el.scrollTop = el.scrollHeight;
+                                }
+                            }
+                        }"""
+                    )
+                except Exception:
+                    pass
+                await page.wait_for_timeout(1200)
+                items = await page.locator('div[dir="auto"]').evaluate_all(
+                    """nodes => nodes.map(node => {
+                        const rect = node.getBoundingClientRect();
+                        const text = (node.innerText || '').trim();
+                        let align = '';
+                        let timestampText = '';
+                        let messageLabel = '';
+                        let el = node;
+                        for (let depth = 0; el && depth < 14; depth += 1, el = el.parentElement) {
+                            const currentAlign = getComputedStyle(el).alignItems;
+                            if (currentAlign === 'flex-start' || currentAlign === 'flex-end') {
+                                align = currentAlign;
+                            }
+                            const aria = el.getAttribute('aria-label') || '';
+                            if (!messageLabel && /^Lúc \\d{1,2}:\\d{2}, /.test(aria)) {
+                                messageLabel = aria;
+                            }
+                            timestampText ||= el.getAttribute('data-tooltip-content') || aria || el.getAttribute('title') || '';
                         }
-                        const aria = el.getAttribute('aria-label') || '';
-                        if (!messageLabel && /^Lúc \\d{1,2}:\\d{2}, /.test(aria)) {
-                            messageLabel = aria;
-                        }
-                        timestampText ||= el.getAttribute('data-tooltip-content') || aria || el.getAttribute('title') || '';
-                    }
-                    return {
-                        text,
-                        align,
-                        timestampText,
-                        messageLabel,
-                        x: rect.x,
-                        right: rect.right,
-                        y: rect.y,
-                        width: rect.width,
-                        height: rect.height
-                    };
-                }).filter(item =>
-                    item.text &&
-                    item.x > 300 &&
-                    item.y > 120 &&
-                    item.width > 10 &&
-                    item.width < 700 &&
-                    item.height > 10 &&
-                    item.height < 220
-                )"""
-            )
+                        return {
+                            text,
+                            align,
+                            timestampText,
+                            messageLabel,
+                            x: rect.x,
+                            right: rect.right,
+                            y: rect.y,
+                            width: rect.width,
+                            height: rect.height
+                        };
+                    }).filter(item =>
+                        item.text &&
+                        item.x > 300 &&
+                        item.y > 120 &&
+                        item.width > 10 &&
+                        item.width < 700 &&
+                        item.height > 10 &&
+                        item.height < 220
+                    )"""
+                )
+                if items:
+                    break
             if items:
                 break
         seen_messages = set()
@@ -1638,6 +2067,230 @@ def _insert_facebook_message_once(
     return message_id
 
 
+async def _sync_facebook_exact_thread_cookie(
+    user_id: str,
+    thread_id: str,
+    title: str = "",
+    max_messages: int = 30,
+) -> dict:
+    cookie = _load_facebook_channel(user_id)
+    if not cookie or not thread_id:
+        return {"synced_conversations": 0, "synced_messages": 0}
+    from playwright.async_api import async_playwright
+
+    items = []
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        context = await browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1440, "height": 900},
+        )
+        await context.add_cookies(_cookie_header_to_playwright(cookie, ".facebook.com"))
+        page = await context.new_page()
+        for url in (
+            f"https://www.facebook.com/messages/t/{thread_id}",
+            f"https://www.facebook.com/messages/e2ee/t/{thread_id}",
+        ):
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                await page.wait_for_timeout(6500 if "/messages/e2ee/t/" in url else 4500)
+                body = await page.locator("body").inner_text(timeout=5000)
+                if "login" in page.url.lower() or "Đăng nhập" in body or "Log in" in body:
+                    continue
+                for _attempt in range(6):
+                    try:
+                        await page.evaluate(
+                            """() => {
+                                for (const el of document.querySelectorAll('div')) {
+                                    if (el.scrollHeight > el.clientHeight + 120) el.scrollTop = el.scrollHeight;
+                                }
+                            }"""
+                        )
+                    except Exception:
+                        pass
+                    await page.wait_for_timeout(1200)
+                    items = await page.locator('div[dir="auto"]').evaluate_all(
+                        """nodes => nodes.map(node => {
+                            const rect = node.getBoundingClientRect();
+                            const text = (node.innerText || '').trim();
+                            let align = '';
+                            let messageLabel = '';
+                            let el = node;
+                            for (let depth = 0; el && depth < 14; depth += 1, el = el.parentElement) {
+                                const currentAlign = getComputedStyle(el).alignItems;
+                                if (currentAlign === 'flex-start' || currentAlign === 'flex-end') align = currentAlign;
+                                const aria = el.getAttribute('aria-label') || '';
+                                if (!messageLabel && /^Lúc \d{1,2}:\d{2}, /.test(aria)) messageLabel = aria;
+                            }
+                            return {text, align, messageLabel, x: rect.x, y: rect.y, width: rect.width, height: rect.height};
+                        }).filter(item => item.text && item.x > 250 && item.y > 100 && item.width > 10 && item.width < 760 && item.height > 10 && item.height < 260)"""
+                    )
+                    if items:
+                        break
+                if items:
+                    break
+            except Exception:
+                continue
+        await browser.close()
+
+    conv = ensure_conversation(user_id, "facebook", title or thread_id, thread_id, "user", "")
+    synced = 0
+    touched = False
+    seen_messages = set()
+    for item in items[-max_messages:]:
+        text = str(item.get("text") or "").strip()
+        if not text or text in seen_messages:
+            continue
+        seen_messages.add(text)
+        label = str(item.get("messageLabel") or "")
+        role = "user" if ", Bạn" in label or str(item.get("align") or "") == "flex-end" else "assistant"
+        message_id = _insert_facebook_message_once(
+            user_id,
+            conv["id"],
+            thread_id,
+            role,
+            text,
+            _facebook_created_at_from_label(label),
+        )
+        if message_id:
+            synced += 1
+            touched = True
+            if role != "user":
+                _broadcast({
+                    "type": "message",
+                    "conversationId": conv["id"],
+                    "message": {"id": message_id, "sender_type": "assistant", "content": text, "status": "received"},
+                })
+    if touched:
+        _broadcast({"type": "sync", "platform": "facebook", "conversationIds": [conv["id"]], "messages": synced})
+    return {"synced_conversations": 1, "synced_messages": synced}
+
+
+async def _sync_facebook_exact_thread_live(
+    user_id: str,
+    thread_id: str,
+    title: str = "",
+    max_messages: int = 30,
+) -> dict:
+    """Read a specific Messenger thread from the logged-in Playwright profile.
+
+    Meta AI often renders differently or fails in a fresh cookie-only headless
+    context. This uses the persistent Playwright Facebook context that the user
+    logged into, but opens a temporary page so it does not disturb the visible
+    Facebook page.
+    """
+    sess = _facebook_live_sessions.get(user_id)
+    if not sess:
+        for candidate in _facebook_browser_sessions.values():
+            if candidate.get("user_id") == user_id:
+                sess = candidate
+                break
+    if not sess:
+        sess = await restore_facebook_live_session(user_id)
+    if not sess or not thread_id:
+        return {"synced_conversations": 0, "synced_messages": 0}
+
+    context = sess["context"]
+    page = await context.new_page()
+    items = []
+    try:
+        for url in (
+            f"https://www.facebook.com/messages/t/{thread_id}",
+            f"https://www.facebook.com/messages/e2ee/t/{thread_id}",
+        ):
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                await page.wait_for_timeout(7000)
+                body = await page.locator("body").inner_text(timeout=7000)
+                if "login" in page.url.lower() or "Đăng nhập" in body or "Log in" in body:
+                    continue
+                for _attempt in range(8):
+                    try:
+                        await page.evaluate(
+                            """() => {
+                                for (const el of document.querySelectorAll('div')) {
+                                    if (el.scrollHeight > el.clientHeight + 120) el.scrollTop = el.scrollHeight;
+                                }
+                            }"""
+                        )
+                    except Exception:
+                        pass
+                    await page.wait_for_timeout(1200)
+                    items = await page.locator('div[dir="auto"], span[dir="auto"]').evaluate_all(
+                        """nodes => nodes.map(node => {
+                            const rect = node.getBoundingClientRect();
+                            const text = (node.innerText || node.textContent || '').trim();
+                            let align = '';
+                            let messageLabel = '';
+                            let el = node;
+                            for (let depth = 0; el && depth < 16; depth += 1, el = el.parentElement) {
+                                const style = getComputedStyle(el);
+                                if (style.alignItems === 'flex-start' || style.alignItems === 'flex-end') align = style.alignItems;
+                                const aria = el.getAttribute('aria-label') || '';
+                                if (!messageLabel && (/^Lúc \\d{1,2}:\\d{2}, /.test(aria) || aria.includes('Bạn đã gửi'))) messageLabel = aria;
+                            }
+                            return {text, align, messageLabel, x: rect.x, y: rect.y, width: rect.width, height: rect.height};
+                        }).filter(item =>
+                            item.text &&
+                            item.y > 80 &&
+                            item.width > 10 &&
+                            item.width < 900 &&
+                            item.height > 8 &&
+                            item.height < 320 &&
+                            !['Meta AI', 'Messenger', 'Search', 'Tìm kiếm', 'Đoạn chat', 'Chats'].includes(item.text)
+                        )"""
+                    )
+                    if items:
+                        break
+                if items:
+                    break
+            except Exception:
+                continue
+    finally:
+        try:
+            await page.close()
+        except Exception:
+            pass
+
+    conv = ensure_conversation(user_id, "facebook", title or thread_id, thread_id, "user", "")
+    synced = 0
+    touched = False
+    seen_messages = set()
+    for item in items[-max_messages:]:
+        text = str(item.get("text") or "").strip()
+        if not text or text in seen_messages:
+            continue
+        seen_messages.add(text)
+        label = str(item.get("messageLabel") or "")
+        role = "user" if ", Bạn" in label or "Bạn đã gửi" in label or str(item.get("align") or "") == "flex-end" else "assistant"
+        message_id = _insert_facebook_message_once(
+            user_id,
+            conv["id"],
+            thread_id,
+            role,
+            text,
+            _facebook_created_at_from_label(label),
+        )
+        if message_id:
+            synced += 1
+            touched = True
+            if role != "user":
+                _broadcast({
+                    "type": "message",
+                    "conversationId": conv["id"],
+                    "message": {"id": message_id, "sender_type": "assistant", "content": text, "status": "received"},
+                })
+    if touched:
+        _broadcast({"type": "sync", "platform": "facebook", "conversationIds": [conv["id"]], "messages": synced})
+    return {"synced_conversations": 1, "synced_messages": synced}
+
+
 def _facebook_created_at_from_label(label: str) -> str | None:
     match = re.search(r"Lúc\s+(\d{1,2}):(\d{2})", label or "")
     if not match:
@@ -1651,22 +2304,24 @@ def _facebook_created_at_from_label(label: str) -> str | None:
     ).isoformat()
 
 
-async def _sync_facebook_for_user(user_id: str, max_threads: int) -> dict:
+async def _sync_facebook_for_user(user_id: str, max_threads: int, max_messages: int = 1) -> dict:
     lock = _facebook_sync_locks.setdefault(user_id, asyncio.Lock())
     async with lock:
         cookie = _load_facebook_channel(user_id)
         if not cookie:
             return {"ok": False, "synced_conversations": 0, "synced_messages": 0}
-        data = await _sync_facebook_live_session(user_id, max_threads)
-        if data is None:
-            data = _run_facebook_bridge(
-                FACEBOOK_SYNC_BRIDGE,
-                {"cookie": cookie, "max_threads": max_threads},
-                timeout=90,
-            )
+
+        # Important: never scrape through the visible/live Facebook tab.
+        # Using the live Playwright page here caused the user's Messenger window
+        # to jump/reload while sync was running. Keep sync isolated in a hidden
+        # cookie-based browser instead.
+        data = _run_facebook_bridge(
+            FACEBOOK_SYNC_BRIDGE,
+            {"cookie": cookie, "max_threads": max_threads},
+            timeout=90,
+        )
         synced_conversations = 0
         synced_messages = 0
-        touched_conversations = set()
         conv_by_external_id = {}
         for thread in data.get("threads") or []:
             external_id = str(thread.get("external_id") or "").strip()
@@ -1682,40 +2337,24 @@ async def _sync_facebook_for_user(user_id: str, max_threads: int) -> dict:
             )
             conv_by_external_id[external_id] = conv
             synced_conversations += 1
-        for thread_id, messages in (data.get("thread_messages") or {}).items():
-            active_conv = conv_by_external_id.get(str(thread_id))
-            if not active_conv:
+
+        # The bridge above is intentionally only for the conversation list.
+        # Fetch messages in hidden cookie sessions too, never by navigating the
+        # visible Messenger tab. Limit the number per run so sync stays bounded.
+        for thread in (data.get("threads") or [])[: max(1, min(max_threads, 4))]:
+            thread_id = str(thread.get("external_id") or "").strip()
+            if not thread_id:
                 continue
-            for msg in messages or []:
-                message_id = _insert_facebook_message_once(
+            try:
+                thread_data = await _sync_facebook_exact_thread_cookie(
                     user_id,
-                    active_conv["id"],
-                    str(thread_id),
-                    str(msg.get("role") or "assistant"),
-                    str(msg.get("content") or ""),
-                    _facebook_created_at_from_label(str(msg.get("timestamp_text") or "")),
+                    thread_id,
+                    str(thread.get("title") or thread_id),
+                    max(1, min(max_messages, 3)),
                 )
-                if message_id:
-                    touched_conversations.add(active_conv["id"])
-                    synced_messages += 1
-                    if str(msg.get("role") or "") != "user":
-                        _broadcast({
-                            "type": "message",
-                            "conversationId": active_conv["id"],
-                            "message": {
-                                "id": message_id,
-                                "sender_type": "assistant",
-                                "content": str(msg.get("content") or ""),
-                                "status": "received",
-                            },
-                        })
-        if touched_conversations:
-            _broadcast({
-                "type": "sync",
-                "platform": "facebook",
-                "conversationIds": list(touched_conversations),
-                "messages": synced_messages,
-            })
+                synced_messages += int(thread_data.get("synced_messages") or 0)
+            except Exception as exc:
+                logging.warning("Facebook hidden thread sync skipped for %s: %s", thread_id, exc)
         return {
             "ok": True,
             "synced_conversations": synced_conversations,
@@ -1728,7 +2367,7 @@ async def _facebook_sync_loop(user_id: str) -> None:
     try:
         while user_id in _facebook_live_sessions:
             try:
-                await _sync_facebook_for_user(user_id, 1)
+                await _sync_facebook_for_user(user_id, 4, 1)
             except Exception:
                 logging.exception("Facebook realtime sync failed for user %s", user_id)
             await asyncio.sleep(8)
@@ -1798,6 +2437,75 @@ def _mark_zalo_channel_inactive(user_id: str) -> None:
                WHERE user_id = ? AND platform = ?""",
             (datetime.now().isoformat(), user_id, "zalo"),
         )
+
+
+def _mark_omni_channel_inactive(user_id: str, platform: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE omni_channels
+               SET is_active = 0, updated_at = ?
+               WHERE user_id = ? AND platform = ?""",
+            (datetime.now().isoformat(), user_id, platform),
+        )
+
+
+def _stop_zalo_listener(user_id: str) -> None:
+    with _zalo_listeners_lock:
+        state = _zalo_listeners.pop(user_id, None)
+    proc = state.get("proc") if state else None
+    if proc and proc.poll() is None:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+
+
+def _clear_chromium_profile_cookies(profile_dir: Path, domains: list[str]) -> int:
+    removed = 0
+    if not profile_dir.exists():
+        return 0
+    cookie_files = [
+        profile_dir / "Default" / "Cookies",
+        profile_dir / "Default" / "Network" / "Cookies",
+    ]
+    for cookie_file in cookie_files:
+        if not cookie_file.exists():
+            continue
+        try:
+            with sqlite3.connect(str(cookie_file)) as conn:
+                for domain in domains:
+                    pattern = f"%{domain.lstrip('.')}%"
+                    for table in ("cookies",):
+                        try:
+                            cur = conn.execute(f"DELETE FROM {table} WHERE host_key LIKE ?", (pattern,))
+                            removed += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+                        except sqlite3.Error:
+                            pass
+                conn.commit()
+        except sqlite3.Error:
+            pass
+    for lock_name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        try:
+            (profile_dir / lock_name).unlink(missing_ok=True)
+        except Exception:
+            pass
+    return removed
+
+
+async def _clear_omni_browser_cookies_for_platform(user_id: str, platform: str) -> None:
+    sess = _omni_browser_sessions.get(user_id)
+    context = sess.get("context") if sess else None
+    if not context:
+        return
+    domains = {
+        "facebook": ["facebook.com", ".facebook.com", "messenger.com", ".messenger.com"],
+        "zalo": ["zalo.me", ".zalo.me", "id.zalo.me", ".id.zalo.me", "zlogin.zalo.me", ".zlogin.zalo.me"],
+    }.get(platform, [])
+    for domain in domains:
+        try:
+            await context.clear_cookies(domain=domain)
+        except Exception:
+            pass
 
 
 def _zalo_error_needs_reauth(message: str) -> bool:
@@ -2566,7 +3274,11 @@ async def check_zalo_qr_status(session: str, request: Request):
 @router.post("/sync/zalo/messages")
 def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
     user_id = _get_user_id(request)
+    _save_omni_browser_channels_threadsafe(user_id)
     cookie, imei = _load_zalo_channel(user_id)
+    if not cookie or not imei:
+        _save_omni_browser_channels_threadsafe(user_id)
+        cookie, imei = _load_zalo_channel(user_id)
     if not cookie or not imei:
         return {
             "synced_contacts": 0,
@@ -2679,6 +3391,46 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
     }
 
 
+@router.post("/channels/{platform}/logout")
+async def logout_omni_channel(platform: str, request: Request):
+    user_id = _get_user_id(request)
+    platform = platform.lower().strip()
+    if platform not in {"facebook", "zalo", "telegram"}:
+        raise HTTPException(status_code=400, detail="Kênh không hợp lệ.")
+
+    if platform == "zalo":
+        _stop_zalo_listener(user_id)
+        _mark_omni_channel_inactive(user_id, "zalo")
+        await _clear_omni_browser_cookies_for_platform(user_id, "zalo")
+        return {"ok": True, "status": "Đã logout Zalo."}
+
+    if platform == "facebook":
+        _mark_omni_channel_inactive(user_id, "facebook")
+        task = _facebook_sync_tasks.pop(user_id, None)
+        if task:
+            task.cancel()
+        live = _facebook_live_sessions.pop(user_id, None)
+        await _close_facebook_playwright_session(live)
+        for session_id, sess in list(_facebook_browser_sessions.items()):
+            if sess.get("user_id") == user_id:
+                await _close_facebook_browser_session(session_id)
+        # Important: this is the per-channel Facebook logout. Do not clear the
+        # shared Omni Browser profile here; users expect Omni to keep its session.
+        domains = ["facebook.com", "messenger.com", "fbcdn.net", "fbsbx.com"]
+        removed = _clear_chromium_profile_cookies(FACEBOOK_PROFILE_ROOT / user_id, domains)
+        return {"ok": True, "status": f"Đã logout Facebook riêng. Đã xoá {removed} cookie."}
+
+    # Telegram's live listener is managed by api.routers.telegram; mark the
+    # channel inactive here so future sends/syncs require QR again.
+    _mark_omni_channel_inactive(user_id, "telegram")
+    try:
+        from api.routers.telegram import disconnect_listener
+        disconnect_listener(user_id)
+    except Exception:
+        pass
+    return {"ok": True, "status": "Đã logout Telegram."}
+
+
 @router.post("/connect/facebook")
 def connect_facebook(payload: OmniConnectFacebookRequest, request: Request):
     user_id = _get_user_id(request)
@@ -2691,22 +3443,61 @@ def connect_facebook(payload: OmniConnectFacebookRequest, request: Request):
     return {"connected": True, "status": "Đã lưu phiên Facebook."}
 
 
+@router.post("/connect/omni-browser/start")
+async def start_omni_browser(request: Request):
+    user_id = _get_user_id(request)
+    await _close_omni_browser_session(user_id)
+    sess = await _launch_omni_browser_session(user_id, headless=False)
+    return {
+        "ok": True,
+        "status": "Đã mở Omni Browser: Facebook, Zalo, Telegram.",
+        "tabs": len(sess.get("pages") or []),
+    }
+
+
+@router.post("/connect/omni-browser/hide")
+async def hide_omni_browser(request: Request):
+    user_id = _get_user_id(request)
+    await _save_omni_browser_channels(user_id)
+    had_visible = user_id in _omni_browser_sessions
+    await _close_omni_browser_session(user_id)
+    return {
+        "ok": True,
+        "hidden": True,
+        "status": "Đã ẩn Omni Browser. Bấm 🌐 để mở lại." if had_visible else "Không có Omni Browser đang mở.",
+    }
+
+
+@router.post("/connect/omni-browser/close")
+async def close_omni_browser(request: Request):
+    user_id = _get_user_id(request)
+    await _close_omni_browser_session(user_id)
+    return {"ok": True, "status": "Đã đóng Omni Browser."}
+
+
+@router.post("/connect/omni-browser/save-sessions")
+async def save_omni_browser_sessions(request: Request):
+    user_id = _get_user_id(request)
+    saved = await _save_omni_browser_channels(user_id)
+    return {"ok": True, "saved": saved, "status": "Đã cập nhật session từ Omni Browser."}
+
+
 @router.post("/connect/facebook/browser/start")
 async def start_facebook_browser_login(request: Request):
     user_id = _get_user_id(request)
     session_id = str(uuid.uuid4())
     existing = _facebook_live_sessions.pop(user_id, None)
-    if existing:
-        try:
-            await existing["context"].close()
-            await existing["playwright"].stop()
-        except Exception:
-            pass
-    sess = await _launch_facebook_persistent_session(user_id, headless=False)
+    await _close_facebook_playwright_session(existing)
+    sess = await _launch_facebook_persistent_session(user_id, headless=False, require_default_browser=False)
     page = sess["page"]
     _facebook_browser_sessions[session_id] = sess
     await page.goto("https://www.facebook.com/messages/", wait_until="domcontentloaded", timeout=60000)
-    return {"session_id": session_id, "status": "pending"}
+    return {
+        "session_id": session_id,
+        "status": "pending",
+        "source": "playwright",
+        "detail": "Đã mở Facebook bằng Playwright riêng.",
+    }
 
 
 @router.get("/connect/facebook/browser/{session_id}/status")
@@ -2736,20 +3527,144 @@ async def facebook_browser_login_status(session_id: str, request: Request):
     }
 
 
+@router.post("/connect/facebook/browser/hide")
+async def hide_facebook_browser(request: Request):
+    user_id = _get_user_id(request)
+    saved_cookie = ""
+    converted = False
+
+    for session_id, sess in list(_facebook_browser_sessions.items()):
+        if sess.get("user_id") != user_id:
+            continue
+        try:
+            saved_cookie = await _get_facebook_cookie_header(sess["context"])
+            if saved_cookie:
+                _save_facebook_channel(user_id, saved_cookie)
+        except Exception:
+            pass
+        await _close_facebook_browser_session(session_id)
+        converted = True
+
+    live = _facebook_live_sessions.pop(user_id, None)
+    if live:
+        try:
+            saved_cookie = await _get_facebook_cookie_header(live["context"])
+            if saved_cookie:
+                _save_facebook_channel(user_id, saved_cookie)
+        except Exception:
+            pass
+        await _close_facebook_playwright_session(live)
+        converted = True
+
+    if saved_cookie or _load_facebook_channel(user_id):
+        restored = await restore_facebook_live_session(user_id)
+        if restored:
+            return {"ok": True, "hidden": True, "status": "Đã ngắt điều khiển Facebook; tab/browser của anh vẫn giữ nguyên."}
+
+    return {
+        "ok": converted,
+        "hidden": converted,
+        "status": "Đã ngắt điều khiển Facebook; không đóng tab nào." if converted else "Không có phiên điều khiển Facebook đang mở.",
+    }
+
+
+@router.post("/sync/omni/messages")
+async def sync_omni_messages(payload: OmniSyncMessagesRequest, request: Request):
+    """Fast shared sync for Omni Browser.
+
+    This endpoint is intentionally separate from the per-channel sync buttons:
+    it first harvests sessions from the shared Omni Browser, then runs bounded
+    channel syncs and returns one combined result.
+    """
+    user_id = _get_user_id(request)
+    saved = await _save_omni_browser_channels(user_id)
+
+    async def run_telegram():
+        from api.routers import telegram as telegram_router
+        fast_payload = OmniSyncMessagesRequest(maxThreads=min(payload.maxThreads, 80), maxMessages=min(payload.maxMessages, 30))
+        return await asyncio.wait_for(telegram_router.sync_messages(fast_payload, request), timeout=12)
+
+    async def run_zalo():
+        fast_payload = OmniSyncMessagesRequest(maxThreads=min(payload.maxThreads, 80), maxMessages=min(payload.maxMessages, 30))
+        return await asyncio.wait_for(asyncio.to_thread(sync_zalo_messages, fast_payload, request), timeout=15)
+
+    async def run_facebook():
+        fast_payload = OmniSyncMessagesRequest(maxThreads=3, maxMessages=min(payload.maxMessages, 20))
+        return await asyncio.wait_for(sync_facebook_messages(fast_payload, request), timeout=12)
+
+    async def capture(label: str, coro):
+        try:
+            data = await coro
+            return {"label": label, "ok": True, "data": data}
+        except Exception as exc:
+            logging.warning("Omni shared sync %s failed: %s", label, exc)
+            return {"label": label, "ok": False, "error": str(exc), "data": {}}
+
+    results = await asyncio.gather(
+        capture("telegram", run_telegram()),
+        capture("zalo", run_zalo()),
+        capture("facebook", run_facebook()),
+    )
+    per_channel = {item["label"]: item for item in results}
+    total_messages = sum(int((item.get("data") or {}).get("synced_messages") or 0) for item in results)
+    total_conversations = sum(int((item.get("data") or {}).get("synced_conversations") or 0) for item in results)
+    failures = [item["label"] for item in results if not item.get("ok")]
+    return {
+        "ok": not failures,
+        "source": "omni-browser",
+        "saved_sessions": saved,
+        "synced_conversations": total_conversations,
+        "synced_messages": total_messages,
+        "per_channel": per_channel,
+        "status": "Omni sync xong." if not failures else f"Omni sync xong, lỗi: {', '.join(failures)}.",
+    }
+
+
 @router.post("/sync/facebook/messages")
 async def sync_facebook_messages(payload: OmniSyncMessagesRequest, request: Request):
     user_id = _get_user_id(request)
+    await _save_facebook_controlled_session_cookie(user_id)
+    await _save_omni_browser_channels(user_id)
     cookie = _load_facebook_channel(user_id)
     if not cookie:
+        await _save_facebook_controlled_session_cookie(user_id)
+        await _save_omni_browser_channels(user_id)
+        cookie = _load_facebook_channel(user_id)
+    if not cookie:
         raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
+    latest_messages = max(1, min(payload.maxMessages, 3))
     try:
-        data = await _sync_facebook_for_user(user_id, payload.maxThreads)
+        meta_data = await asyncio.wait_for(
+            _sync_facebook_exact_thread_live(user_id, "156025504001094", "Meta AI", latest_messages),
+            timeout=45,
+        )
     except Exception as exc:
-        logging.exception("Facebook sync request failed for user %s", user_id)
-        raise HTTPException(status_code=502, detail=f"Đồng bộ Facebook lỗi: {exc}") from exc
+        logging.warning("Facebook Meta AI live exact sync failed for user %s: %s", user_id, exc)
+        try:
+            meta_data = await asyncio.wait_for(
+                _sync_facebook_exact_thread_cookie(user_id, "156025504001094", "Meta AI", latest_messages),
+                timeout=25,
+            )
+        except Exception as cookie_exc:
+            logging.warning("Facebook Meta AI cookie exact sync skipped for user %s: %s", user_id, cookie_exc)
+            meta_data = {"synced_conversations": 0, "synced_messages": 0}
+
+    data = {"synced_conversations": 0, "synced_messages": 0}
+    if payload.maxThreads <= 3:
+        # Fast path used by Omni sync-all: do not block on broad Messenger scraping.
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_sync_facebook_for_user(user_id, payload.maxThreads, latest_messages))
+        except Exception:
+            pass
+    else:
+        try:
+            data = await asyncio.wait_for(_sync_facebook_for_user(user_id, payload.maxThreads, latest_messages), timeout=90)
+        except Exception as exc:
+            logging.warning("Facebook broad sync skipped/failed after Meta AI exact sync for user %s: %s", user_id, exc)
     _ensure_facebook_sync_task(user_id)
     return {
-        "synced_conversations": data["synced_conversations"],
-        "synced_messages": data["synced_messages"],
-        "status": "Đồng bộ Facebook xong danh sách hội thoại gần đây.",
+        "synced_conversations": data["synced_conversations"] + meta_data["synced_conversations"],
+        "synced_messages": data["synced_messages"] + meta_data["synced_messages"],
+        "status": "Đồng bộ Facebook nhanh xong; broad sync chạy nền nếu cần.",
     }

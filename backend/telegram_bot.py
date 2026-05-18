@@ -14,7 +14,48 @@ from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
+
+_TELEGRAM_TOKEN_RE = re.compile(r"/bot\d+:[A-Za-z0-9_-]+")
+_LOG_RECORD_FACTORY = logging.getLogRecordFactory()
+
+
+class _RedactTelegramTokenFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = self._redact(record.msg)
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {k: self._redact(v) for k, v in record.args.items()}
+            else:
+                record.args = tuple(self._redact(v) for v in record.args)
+        return True
+
+    @staticmethod
+    def _redact(value):
+        if isinstance(value, str):
+            return _TELEGRAM_TOKEN_RE.sub("/bot<redacted>", value)
+        text = str(value)
+        if _TELEGRAM_TOKEN_RE.search(text):
+            return _TELEGRAM_TOKEN_RE.sub("/bot<redacted>", text)
+        return value
+
+
+def _redacting_log_record_factory(*args, **kwargs):
+    record = _LOG_RECORD_FACTORY(*args, **kwargs)
+    record.msg = _RedactTelegramTokenFilter._redact(record.msg)
+    if record.args:
+        if isinstance(record.args, dict):
+            record.args = {k: _RedactTelegramTokenFilter._redact(v) for k, v in record.args.items()}
+        else:
+            record.args = tuple(_RedactTelegramTokenFilter._redact(v) for v in record.args)
+    return record
+
+
+logging.setLogRecordFactory(_redacting_log_record_factory)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+_token_filter = _RedactTelegramTokenFilter()
+logging.getLogger().addFilter(_token_filter)
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(_token_filter)
 logger = logging.getLogger(__name__)
 
 import html as _html

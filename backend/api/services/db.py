@@ -202,6 +202,10 @@ def init_db() -> None:
                 reply_to_id TEXT,
                 platform TEXT,
                 external_id TEXT,
+                external_cli_msg_id TEXT,
+                external_msg_type TEXT,
+                external_author_id TEXT,
+                external_author_name TEXT,
                 reactions_json TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (conversation_id) REFERENCES omni_conversations(id) ON DELETE CASCADE
@@ -230,6 +234,10 @@ def init_db() -> None:
         _ensure_column(conn, "omni_conversations", "thread_type", "TEXT DEFAULT 'user'")
         _ensure_column(conn, "omni_conversations", "avatar_url", "TEXT DEFAULT ''")
         _ensure_column(conn, "omni_messages", "external_id", "TEXT")
+        _ensure_column(conn, "omni_messages", "external_cli_msg_id", "TEXT")
+        _ensure_column(conn, "omni_messages", "external_msg_type", "TEXT")
+        _ensure_column(conn, "omni_messages", "external_author_id", "TEXT")
+        _ensure_column(conn, "omni_messages", "external_author_name", "TEXT")
         _ensure_column(conn, "omni_messages", "reactions_json", "TEXT")
         conn.executescript(
             """

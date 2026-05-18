@@ -57,6 +57,42 @@ function stickerFromRawText(text = '') {
   }
 }
 
+function zaloJsonMediaFromRawText(text = '') {
+  const raw = String(text || '').trim()
+  if (!raw.startsWith('{') || !raw.endsWith('}')) return null
+  try {
+    const data = JSON.parse(raw)
+    const urls = new Set()
+    const captions = []
+    const visit = value => {
+      if (!value) return
+      if (typeof value === 'string') {
+        for (const match of value.matchAll(IMAGE_URL_RE)) urls.add(match[0])
+        return
+      }
+      if (Array.isArray(value)) {
+        value.forEach(visit)
+        return
+      }
+      if (typeof value === 'object') {
+        for (const key of ['title', 'description']) {
+          const textValue = value[key]
+          if (typeof textValue === 'string' && textValue.trim()) captions.push(textValue.trim())
+        }
+        Object.values(value).forEach(visit)
+      }
+    }
+    visit(data)
+    if (!urls.size) return null
+    return {
+      text: captions.find(Boolean) || '',
+      media: [...urls].map(url => ({ type: 'image', url, label: 'Ảnh' })),
+    }
+  } catch {
+    return null
+  }
+}
+
 function MessageBody({ content = '' }) {
   const markerMedia = String(content)
     .split('\n')
@@ -77,16 +113,22 @@ function MessageBody({ content = '' }) {
     .filter(url => !markerUrls.has(url))
     .map(url => ({ type: 'image', url, label: 'Ảnh' }))
   const rawSticker = stickerFromRawText(visibleText)
+  const rawJsonMedia = rawSticker ? null : zaloJsonMediaFromRawText(visibleText)
   const textWithoutInlineImages = visibleText
     .replace(IMAGE_URL_RE, ' ')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-  const media = [...markerMedia, ...(rawSticker ? [rawSticker] : []), ...inlineImages]
+  const visibleCleanText = rawJsonMedia ? rawJsonMedia.text : textWithoutInlineImages
+  const media = [
+    ...markerMedia,
+    ...(rawSticker ? [rawSticker] : []),
+    ...(rawJsonMedia ? rawJsonMedia.media : inlineImages),
+  ]
 
   return (
     <div className="space-y-2">
-      {textWithoutInlineImages && !rawSticker && <p className="whitespace-pre-wrap break-words">{textWithoutInlineImages}</p>}
+      {visibleCleanText && !rawSticker && <p className="whitespace-pre-wrap break-words">{visibleCleanText}</p>}
       {media.map((item, index) => (
         item.type === 'image' ? (
           <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl">
@@ -107,13 +149,15 @@ function MessageBody({ content = '' }) {
           </div>
         )
       ))}
-      {(!textWithoutInlineImages || rawSticker) && media.length === 0 && <p>File phương tiện</p>}
+      {(!visibleCleanText || rawSticker) && media.length === 0 && <p>File phương tiện</p>}
     </div>
   )
 }
 
 function messagePreview(content = '') {
   const raw = String(content || '')
+  const jsonMedia = zaloJsonMediaFromRawText(raw)
+  if (jsonMedia) return jsonMedia.text || 'Ảnh'
   const markers = raw
     .split('\n')
     .filter(line => line.startsWith('__OMNI_MEDIA__'))

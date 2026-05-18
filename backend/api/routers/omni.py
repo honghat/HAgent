@@ -144,6 +144,8 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
                 "target": external_id,
                 "text": payload.content,
                 "thread_type": conv.get("thread_type") or "user",
+                "action": "reply" if payload.reply_to_id else "send",
+                "reply_to": _get_zalo_reply_meta(payload.reply_to_id, uid),
             },
             timeout=45,
         )
@@ -157,11 +159,18 @@ def send_message(id: str, payload: OmniSendMessageRequest, request: Request):
         platform=platform,
     )
     external_msg_id = send_meta.get("msg_id") or send_meta.get("cli_msg_id") or ""
+    external_cli_msg_id = send_meta.get("cli_msg_id") or ""
+    external_msg_type = send_meta.get("msg_type") or "webchat"
     if external_msg_id:
         with get_connection() as conn:
             conn.execute(
-                "UPDATE omni_messages SET external_id = ? WHERE id = ?",
-                (external_msg_id, msg_id),
+                """UPDATE omni_messages
+                   SET external_id = ?,
+                       external_cli_msg_id = ?,
+                       external_msg_type = ?,
+                       external_author_id = ?
+                   WHERE id = ?""",
+                (external_msg_id, external_cli_msg_id, external_msg_type, uid, msg_id),
             )
 
     _broadcast({
@@ -209,7 +218,24 @@ def rename(id: str, payload: OmniRenameRequest, request: Request):
 
 @router.delete("/messages/{id}")
 def delete_message_endpoint(id: str, request: Request):
-    _get_user_id(request)
+    uid = _get_user_id(request)
+    row, meta = _get_zalo_message_context(id, uid)
+    if meta and row.get("role") == "user":
+        cookie, imei = _load_zalo_channel(uid)
+        if not cookie or not imei:
+            raise HTTPException(status_code=400, detail="Chưa có phiên Zalo. Hãy quét QR trước.")
+        _run_zalo_bridge(
+            ZALO_SEND_BRIDGE,
+            {
+                "cookie": cookie,
+                "imei": imei,
+                "action": "undo",
+                "target": meta["target"],
+                "thread_type": meta["thread_type"],
+                "message": meta["message"],
+            },
+            timeout=45,
+        )
     if not delete_message(id):
         raise HTTPException(status_code=404, detail="Message not found")
     return {"deleted": True}
@@ -218,6 +244,24 @@ def delete_message_endpoint(id: str, request: Request):
 @router.post("/messages/{id}/reaction")
 def react_to_message(id: str, payload: OmniReactionRequest, request: Request):
     uid = _get_user_id(request)
+    _row, meta = _get_zalo_message_context(id, uid)
+    if meta:
+        cookie, imei = _load_zalo_channel(uid)
+        if not cookie or not imei:
+            raise HTTPException(status_code=400, detail="Chưa có phiên Zalo. Hãy quét QR trước.")
+        _run_zalo_bridge(
+            ZALO_SEND_BRIDGE,
+            {
+                "cookie": cookie,
+                "imei": imei,
+                "action": "react",
+                "target": meta["target"],
+                "thread_type": meta["thread_type"],
+                "message": meta["message"],
+                "emoji": payload.emoji,
+            },
+            timeout=45,
+        )
     if not add_reaction(id, payload.emoji, uid):
         raise HTTPException(status_code=404, detail="Message not found")
     return {"emoji": payload.emoji, "added": True}
@@ -516,6 +560,93 @@ def _zalo_event_content(event: dict) -> str:
     return json.dumps(content or obj or "", ensure_ascii=False)
 
 
+def _zalo_message_meta_from_row(row) -> dict:
+    if not row:
+        return {}
+    return {
+        "msgId": row["external_id"] or "",
+        "cliMsgId": row["external_cli_msg_id"] or "",
+        "msgType": row["external_msg_type"] or "webchat",
+        "uidFrom": row["external_author_id"] or "",
+        "content": row["content"] or "",
+        "ts": row["created_at"] or "",
+    }
+
+
+def _get_zalo_message_context(message_id: str, user_id: str) -> tuple[dict, dict]:
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT m.*, c.external_id AS thread_id, c.thread_type, c.platform
+               FROM omni_messages m
+               JOIN omni_conversations c ON c.id = m.conversation_id
+               WHERE m.id = ? AND m.user_id = ?""",
+            (message_id, user_id),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if row["platform"] != "zalo":
+        return dict(row), {}
+    message = _zalo_message_meta_from_row(row)
+    if not message.get("msgId") or not message.get("cliMsgId"):
+        return dict(row), {}
+    meta = {
+        "target": row["thread_id"] or "",
+        "thread_type": row["thread_type"] or "user",
+        "message": message,
+    }
+    return dict(row), meta
+
+
+def _get_zalo_reply_meta(reply_to_id: str | None, user_id: str) -> dict:
+    if not reply_to_id:
+        return {}
+    try:
+        _row, meta = _get_zalo_message_context(reply_to_id, user_id)
+    except HTTPException:
+        return {}
+    return meta.get("message") or {}
+
+
+def _apply_zalo_reaction_event(user_id: str, message_object: dict, author_id: str) -> bool:
+    try:
+        payload = json.loads(str(message_object.get("content") or ""))
+    except (TypeError, json.JSONDecodeError):
+        return False
+    targets = payload.get("rMsg") if isinstance(payload, dict) else None
+    emoji = str(payload.get("rIcon") or "") if isinstance(payload, dict) else ""
+    if not isinstance(targets, list) or not targets or not emoji:
+        return False
+    target = targets[0] if isinstance(targets[0], dict) else {}
+    msg_id = str(target.get("gMsgID") or "")
+    cli_msg_id = str(target.get("cMsgID") or "")
+    if not msg_id and not cli_msg_id:
+        return False
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT id, reactions_json FROM omni_messages
+               WHERE user_id = ?
+                 AND platform = 'zalo'
+                 AND (external_id = ? OR external_cli_msg_id = ?)
+               ORDER BY created_at DESC LIMIT 1""",
+            (user_id, msg_id, cli_msg_id),
+        ).fetchone()
+        if not row:
+            return False
+        try:
+            reactions = json.loads(row["reactions_json"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            reactions = {}
+        users = reactions.setdefault(emoji, [])
+        reactor = author_id or "__zalo__"
+        if reactor not in users:
+            users.append(reactor)
+        conn.execute(
+            "UPDATE omni_messages SET reactions_json = ? WHERE id = ?",
+            (json.dumps(reactions, ensure_ascii=False), row["id"]),
+        )
+    return True
+
+
 def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
     if event.get("event") == "ready":
         state["own_id"] = str(event.get("own_id") or "")
@@ -532,10 +663,22 @@ def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
     else:
         thread_type = "user"
 
+    message_object = event.get("message_object") or {}
+    if str(message_object.get("msgType") or "").lower() == "chat.reaction":
+        _apply_zalo_reaction_event(
+            user_id,
+            message_object,
+            str(event.get("author_id") or ""),
+        )
+        return
+
     conv = ensure_conversation(user_id, "zalo", thread_id, thread_id, thread_type)
     msg = {
         "external_id": str(event.get("mid") or f"{thread_id}:{time.time()}"),
+        "cli_msg_id": str(message_object.get("cliMsgId") or ""),
+        "msg_type": str(message_object.get("msgType") or "webchat"),
         "author_id": str(event.get("author_id") or ""),
+        "author_name": str(message_object.get("dName") or ""),
         "content": _zalo_event_content(event),
     }
     if _insert_zalo_message_once(user_id, conv["id"], msg, own_id=str(state.get("own_id") or "")):
@@ -637,8 +780,10 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
         created_at = datetime.now().isoformat()
         conn.execute(
             """INSERT INTO omni_messages
-               (id, conversation_id, user_id, role, content, platform, external_id, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (id, conversation_id, user_id, role, content, platform, external_id,
+                external_cli_msg_id, external_msg_type, external_author_id,
+                external_author_name, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(uuid.uuid4()),
                 conversation_id,
@@ -647,6 +792,10 @@ def _insert_zalo_message_once(user_id: str, conversation_id: str, msg: dict, own
                 str(msg.get("content") or ""),
                 "zalo",
                 external_id,
+                str(msg.get("cli_msg_id") or ""),
+                str(msg.get("msg_type") or "webchat"),
+                author_id,
+                str(msg.get("author_name") or ""),
                 created_at,
             ),
         )
@@ -689,6 +838,18 @@ def _cleanup_stale_zalo_contacts(user_id: str, active_external_ids: set[str]) ->
                   AND platform = 'zalo'
                   AND external_id NOT IN ({placeholders})""",
             params,
+        )
+        return result.rowcount
+
+
+def _cleanup_zalo_reaction_messages(user_id: str) -> int:
+    with get_connection() as conn:
+        result = conn.execute(
+            """DELETE FROM omni_messages
+               WHERE user_id = ?
+                 AND platform = 'zalo'
+                 AND external_msg_type = 'chat.reaction'""",
+            (user_id,),
         )
         return result.rowcount
 
@@ -947,6 +1108,7 @@ def sync_zalo_messages(payload: OmniSyncMessagesRequest, request: Request):
         })
     _cleanup_stale_zalo_contacts(user_id, active_contact_ids)
     _cleanup_stale_zalo_group_conversations(user_id, active_thread_ids)
+    _cleanup_zalo_reaction_messages(user_id)
     _ensure_zalo_listener(user_id, cookie, imei)
 
     return {

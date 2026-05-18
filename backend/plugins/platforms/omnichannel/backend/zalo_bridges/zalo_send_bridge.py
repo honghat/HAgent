@@ -3,7 +3,7 @@ import json
 import sys
 
 from zlapi import ZaloAPI
-from zlapi.models import Message, ThreadType
+from zlapi.models import Message, MessageObject, ThreadType
 
 
 def parse_cookie(cookie):
@@ -43,8 +43,27 @@ def pick(obj, *keys):
     return ""
 
 
+def message_object_from_payload(data):
+    if not isinstance(data, dict):
+        return None
+    msg_id = str(pick(data, "msgId", "msg_id", "external_id") or "")
+    cli_msg_id = str(pick(data, "cliMsgId", "cli_msg_id", "external_cli_msg_id") or "")
+    msg_type = pick(data, "msgType", "msg_type", "external_msg_type") or "webchat"
+    if not msg_id or not cli_msg_id:
+        return None
+    return MessageObject.fromDict({
+        "msgId": msg_id,
+        "cliMsgId": cli_msg_id,
+        "msgType": msg_type,
+        "uidFrom": str(pick(data, "uidFrom", "author_id", "external_author_id") or ""),
+        "content": str(pick(data, "content", "text") or ""),
+        "ts": pick(data, "ts", "created_at", "timestamp") or 0,
+    }, None)
+
+
 def main():
     payload = json.loads(sys.stdin.read() or "{}")
+    action = str(payload.get("action", "send")).lower()
     cookie = payload.get("cookie", "")
     imei = payload.get("imei", "")
     target = str(payload.get("target", "")).strip()
@@ -57,12 +76,30 @@ def main():
         raise RuntimeError("Missing Zalo IMEI. Reconnect Zalo QR to capture IMEI.")
     if not target:
         raise RuntimeError("Missing Zalo target")
-    if not text:
+    if action in ("send", "reply") and not text:
         raise RuntimeError("Missing Zalo text")
 
     bot = ZaloAPI("</>", "</>", imei, parse_cookie(cookie))
     t_type = ThreadType.GROUP if thread_type == "group" else ThreadType.USER
-    result = bot.send(Message(text=text), thread_id=target, thread_type=t_type)
+    if action == "react":
+        reaction = str(payload.get("emoji", "")).strip()
+        message_object = message_object_from_payload(payload.get("message") or {})
+        if not reaction:
+            raise RuntimeError("Missing reaction emoji")
+        if not message_object:
+            raise RuntimeError("Thiếu metadata Zalo của tin nhắn nên chưa gửi cảm xúc được.")
+        result = bot.sendReaction(message_object, reaction, thread_id=target, thread_type=t_type)
+    elif action == "undo":
+        message_object = message_object_from_payload(payload.get("message") or {})
+        if not message_object:
+            raise RuntimeError("Thiếu metadata Zalo của tin nhắn nên chưa thu hồi được.")
+        result = bot.undoMessage(message_object.msgId, message_object.cliMsgId, thread_id=target, thread_type=t_type)
+    else:
+        reply_object = message_object_from_payload(payload.get("reply_to") or {})
+        if action == "reply" and reply_object:
+            result = bot.replyTo(reply_object, Message(text=text), thread_id=target, thread_type=t_type)
+        else:
+            result = bot.send(Message(text=text), thread_id=target, thread_type=t_type)
     data = plain(result)
     print(json.dumps({
         "ok": True,

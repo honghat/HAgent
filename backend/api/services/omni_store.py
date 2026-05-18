@@ -34,6 +34,10 @@ def _row_to_message(row) -> dict:
             reactions = json.loads(row["reactions_json"])
         except (json.JSONDecodeError, TypeError):
             reactions = {}
+    reactions = {
+        emoji: len(users) if isinstance(users, list) else int(users or 0)
+        for emoji, users in reactions.items()
+    }
 
     reply_to = None
     if row["reply_to_id"]:
@@ -47,7 +51,7 @@ def _row_to_message(row) -> dict:
         "sender_type": row["role"],
         "content": row["content"] or "",
         "reply_to": reply_to,
-        "external_author_name": None,
+        "external_author_name": row["external_author_name"] or None,
         "reactions": reactions,
         "status": "sent",
         "created_at": row["created_at"],
@@ -386,28 +390,33 @@ def get_today_stats(user_id: str) -> dict:
             (user_id,),
         ).fetchall()
 
+        conv_rows = conn.execute(
+            """SELECT m.conversation_id,
+                      SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) AS sent,
+                      SUM(CASE WHEN m.role != 'user' THEN 1 ELSE 0 END) AS received,
+                      COUNT(*) AS total
+               FROM omni_messages m
+               JOIN omni_conversations c ON c.id = m.conversation_id
+               WHERE m.user_id = ? AND date(m.created_at) = date('now', 'localtime')
+               GROUP BY m.conversation_id
+               ORDER BY total DESC LIMIT 20""",
+            (user_id,),
+        ).fetchall()
+
     sent = 0
     received = 0
     for r in rows:
         if r["role"] == "user":
-            sent = r["cnt"]
+            sent += r["cnt"]
         else:
-            received = r["cnt"]
-
-    # Per-conversation stats
-    conv_rows = conn.execute(
-        """SELECT m.conversation_id, COUNT(*) as total FROM omni_messages m
-           JOIN omni_conversations c ON c.id = m.conversation_id
-           WHERE m.user_id = ? AND date(m.created_at) = date('now', 'localtime')
-           GROUP BY m.conversation_id
-           ORDER BY total DESC LIMIT 20""",
-        (user_id,),
-    ).fetchall()
+            received += r["cnt"]
 
     by_conversation = []
     for r in conv_rows:
         by_conversation.append({
             "conversation_id": r["conversation_id"],
+            "sent": r["sent"] or 0,
+            "received": r["received"] or 0,
             "total": r["total"],
         })
 

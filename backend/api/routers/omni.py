@@ -754,6 +754,8 @@ def _handle_zalo_listener_event(user_id: str, state: dict, event: dict) -> None:
     thread_id = str(event.get("thread_id") or "")
     if not thread_id:
         return
+    state["last_event_at"] = datetime.now().isoformat()
+    state["last_thread_id"] = thread_id
     thread_type = str(event.get("thread_type") or "user").lower()
     if "group" in thread_type:
         thread_type = "group"
@@ -839,7 +841,7 @@ def _ensure_zalo_listener(user_id: str, cookie: str, imei: str) -> bool:
         assert proc.stdin is not None
         proc.stdin.write(payload)
         proc.stdin.close()
-        state = {"proc": proc, "own_id": "", "error": ""}
+        state = {"proc": proc, "own_id": "", "error": "", "last_event_at": "", "last_thread_id": ""}
         _zalo_listeners[user_id] = state
         thread = threading.Thread(
             target=_zalo_listener_reader,
@@ -861,6 +863,8 @@ def zalo_listener_status(request: Request):
     return {
         "running": bool(proc and proc.poll() is None),
         "own_id": state.get("own_id") or "",
+        "last_event_at": state.get("last_event_at") or "",
+        "last_thread_id": state.get("last_thread_id") or "",
         "error": state.get("error") or "",
     }
 

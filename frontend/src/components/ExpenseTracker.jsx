@@ -1077,7 +1077,7 @@ const ExpenseTracker = ({ user, token }) => {
                                                 </td>
                                                 <td className="p-3 text-center">
                                                     <span 
-                                                        className="px-2.5 py-1 rounded-full text-xs font-bold"
+                                                        className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap"
                                                         style={{
                                                             backgroundColor: `${categoryColors[e.category] || "#6b7280"}15`,
                                                             color: categoryColors[e.category] || "#6b7280"

@@ -1,0 +1,78 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": { "ckpt_name": "dreamshaper_8.safetensors" }
+  },
+  "2": {
+    "class_type": "ADE_AnimateDiffLoaderGen1",
+    "inputs": {
+      "model": ["1", 0],
+      "model_name": "mm_sd_v15_v2.ckpt",
+      "beta_schedule": "autoselect"
+    }
+  },
+  "3": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "${image_name}" }
+  },
+  "4": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["3", 0],
+      "upscale_method": "lanczos",
+      "width": "${w}",
+      "height": "${h}",
+      "crop": "center"
+    }
+  },
+  "5": {
+    "class_type": "RepeatImageBatch",
+    "inputs": { "image": ["4", 0], "amount": "${length}" }
+  },
+  "6": {
+    "class_type": "VAEEncode",
+    "inputs": { "pixels": ["5", 0], "vae": ["1", 2] }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "clip": ["1", 1], "text": "${prompt}" }
+  },
+  "8": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "clip": ["1", 1], "text": "${neg}" }
+  },
+  "9": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["2", 0],
+      "positive": ["7", 0],
+      "negative": ["8", 0],
+      "latent_image": ["6", 0],
+      "seed": "${seed}",
+      "steps": "${steps}",
+      "cfg": "${cfg}",
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": "${denoise}"
+    }
+  },
+  "10": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["9", 0], "vae": ["1", 2] }
+  },
+  "11": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["10", 0],
+      "frame_rate": 8,
+      "loop_count": 0,
+      "filename_prefix": "ad_i2v",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "pingpong": false,
+      "save_output": true
+    }
+  }
+}

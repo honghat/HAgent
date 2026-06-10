@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hagent.keepalive-remote</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/nguyenhat/HAgent/scripts/keepalive-remote.sh</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>120</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/nguyenhat/HAgent/logs/keepalive-remote.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/nguyenhat/HAgent/logs/keepalive-remote.log</string>
+</dict>
+</plist>

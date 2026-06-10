@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kết nối ChatGPT — HAgent</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f5;
+    color: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    max-width: 480px;
+    width: 100%;
+    padding: 32px;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h1 svg { width: 24px; height: 24px; }
+  .step {
+    background: #f9f9f9;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .step h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .step p, .step ol {
+    font-size: 13px;
+    color: #555;
+    line-height: 1.6;
+  }
+  .step ol {
+    padding-left: 20px;
+  }
+  .step code {
+    background: #eee;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+  textarea {
+    width: 100%;
+    min-height: 80px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 13px;
+    font-family: monospace;
+    resize: vertical;
+    outline: none;
+  }
+  textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #1d4ed8; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    background: #e5e7eb;
+    color: #374151;
+  }
+  .btn-secondary:hover { background: #d1d5db; }
+  .btn-success {
+    background: #059669;
+  }
+  .btn-success:hover { background: #047857; }
+  .status {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    display: none;
+  }
+  .status.success { display: block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+  .status.error { display: block; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+  .meta { margin-top: 24px; padding-top: 16px; border-top: 1px solid #eee; }
+  .meta p { font-size: 12px; color: #888; }
+  .meta a { color: #2563eb; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    </svg>
+    Kết nối tài khoản ChatGPT
+  </h1>
+
+  <div class="step">
+    <h3>1️⃣ Lấy access token từ ChatGPT</h3>
+    <ol>
+      <li>Mở tab <code>chatgpt.com</code> trong Chrome, đã đăng nhập</li>
+      <li>F12 → Console</li>
+      <li>Paste: <code>copy(localStorage.getItem('accessToken'))</code> và Enter</li>
+      <li>Nếu thấy thông báo "Copied", token đã vào clipboard</li>
+    </ol>
+  </div>
+
+  <div class="step">
+    <h3>2️⃣ Dán token vào form</h3>
+    <p>Nhập email gợi nhớ (VD: <code>hat.hopnhat2</code>) và token vào ô dưới:</p>
+    <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+      <input
+        id="emailHint"
+        type="text"
+        placeholder="Email gợi nhớ (VD: hat.hopnhat2)"
+        style="width: 100%; border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px; font-size: 13px; outline: none;"
+      />
+      <textarea id="tokenInput" placeholder="Paste access token vào đây..."></textarea>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+    <button class="btn" id="submitBtn" onclick="submitToken()">
+      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7" /></svg>
+      Kết nối tài khoản
+    </button>
+    <button class="btn btn-secondary" onclick="window.close()">Đóng</button>
+  </div>
+
+  <div id="status" class="status"></div>
+
+  <div class="meta">
+    <p>Sau khi kết nối, token được lưu vào <code>tokens/chatgpt2api_accounts.json</code>.</p>
+    <p>Token không bao giờ gửi ra ngoài — chỉ dùng gọi ChatGPT API locally.</p>
+  </div>
+</div>
+
+<script>
+async function submitToken() {
+  const token = document.getElementById('tokenInput').value.trim()
+  const emailHint = document.getElementById('emailHint').value.trim()
+  const status = document.getElementById('status')
+  const btn = document.getElementById('submitBtn')
+
+  if (!token) {
+    status.className = 'status error'
+    status.textContent = 'Vui lòng dán access token vào ô trên'
+    return
+  }
+
+  btn.disabled = true
+  btn.textContent = 'Đang kết nối...'
+  status.className = 'status'
+
+  try {
+    const res = await fetch('/api/photo/import-chatgpt-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token: token,
+        email_hint: emailHint || 'ChatGPT account',
+      }),
+    })
+    const data = await res.json()
+
+    if (data.success) {
+      status.className = 'status success'
+      status.innerHTML = `✅ Kết nối thành công (${data.total_accounts} tài khoản trong pool).<br>Bạn có thể đóng tab này và quay lại Photo Tab để tạo ảnh.`
+      btn.className = 'btn btn-success'
+      btn.disabled = false
+      btn.innerHTML = '✅ Đã kết nối'
+
+      // Auto-close after 3s
+      setTimeout(() => window.close(), 3000)
+    } else {
+      status.className = 'status error'
+      status.textContent = 'Lỗi: ' + (data.error || data.detail || 'Không rõ lỗi')
+      btn.disabled = false
+      btn.textContent = 'Thử lại'
+    }
+  } catch (e) {
+    status.className = 'status error'
+    status.textContent = 'Lỗi kết nối: ' + e.message + '. Backend có đang chạy ở port 8010 không?'
+    btn.disabled = false
+    btn.textContent = 'Thử lại'
+  }
+}
+</script>
+
+</body>
+</html>

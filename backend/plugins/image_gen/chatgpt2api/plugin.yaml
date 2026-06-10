@@ -1,0 +1,7 @@
+name: chatgpt2api
+version: 1.0.0
+description: "ChatGPT2API image generation backend using ChatGPT Plus/Pro/Team accounts (via proxy or direct bridge)."
+author: NousResearch
+kind: backend
+requires_env:
+  - CHATGPT2API_AUTH_KEY

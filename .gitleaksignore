@@ -1,0 +1,6 @@
+# Fingerprints các leak đã review và xác nhận là false positive HOẶC đã rotate.
+# Định dạng: <commit>:<file>:<rule>:<line>
+# Lấy fingerprint từ output `gitleaks detect`.
+
+# Auth-key public của proxy chatgpt2api local (không phải secret)
+backend/skills/hagent/chatgpt2api-ops/references/docker-setup-auth.md:curl-auth-header:32

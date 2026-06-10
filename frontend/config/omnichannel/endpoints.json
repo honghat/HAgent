@@ -1,0 +1,79 @@
+{
+  "name": "omnichannel-backend",
+  "version": "1.0.0",
+  "description": "OmniChat Backend Integration - Zalo/Facebook Messenger API Server",
+  "endpoints": {
+    "authentication": {
+      "initOmniAuth": {
+        "method": "POST",
+        "path": "/api/v1/omnichannel/init",
+        "description": "Initialize OmniAuth session"
+      },
+      "initZaloQRCode": {
+        "method": "POST",
+        "path": "/api/v1/auth/zalo/qrcode/init?chat_id={chatId}",
+        "description": "Initialize Zalo QR code login",
+        "response": {
+          "type": "object",
+          "properties": {
+            "qr_code_url": "string",
+            "status": "string",
+            "chat_id": "string"
+          }
+        }
+      },
+      "pollZaloQRCode": {
+        "method": "GET",
+        "path": "/api/v1/auth/zalo/qrcode/poll/{chatId}",
+        "description": "Poll QR code login status",
+        "response": {
+          "status": "string (success|logged_in|expired)",
+          "user_info": "object|null"
+        }
+      }
+    },
+    "conversations": {
+      "getConversations": {
+        "method": "GET",
+        "path": "/api/v1/omni/conversations",
+        "description": "List all conversations"
+      },
+      "getChatMessages": {
+        "method": "GET",
+        "path": "/api/v1/omni/conversations/{chatId}/messages?limit={limit}",
+        "description": "Get chat history messages"
+      },
+      "sendMessage": {
+        "method": "POST",
+        "path": "/api/v1/omni/conversations/{chatId}/messages",
+        "description": "Send a new message",
+        "body": {
+          "message": "string"
+        }
+      },
+      "markAllAsRead": {
+        "method": "POST",
+        "path": "/api/v1/omni/conversations/{chatId}/read-all",
+        "description": "Mark all messages as read"
+      }
+    },
+    "health": {
+      "getStatus": {
+        "method": "GET",
+        "path": "/api/v1/status",
+        "description": "Platform status check"
+      }
+    }
+  },
+  "usage": {
+    "example_request": "POST /api/v1/omnichannel/init",
+    "example_response": {
+      "status": "success",
+      "session_id": "uuid",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.8.1"
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 123456789,
+      "steps": 25,
+      "cfg": 7,
+      "sampler_name": "euler",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": ["44", 0],
+      "positive": ["55", 0],
+      "negative": ["56", 0],
+      "latent_image": ["42", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {"title": "KSampler"}
+  },
+  "5": {
+    "inputs": {
+      "width": 512,
+      "height": 768,
+      "batch_size": 16
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {"title": "Empty Latent Image"}
+  },
+  "8": {
+    "inputs": {
+      "samples": ["3", 0]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {"title": "VAE Decode"}
+  },
+  "35": {
+    "inputs": {
+      "ckpt_name": "dreamshaper_8_safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {"title": "Load Checkpoint"}
+  },
+  "42": {
+    "inputs": {
+      "latents": ["5", 0]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {"title": "VAE Encode"}
+  },
+  "44": {
+    "inputs": {
+      "lora_hook": ["49", 0],
+      "timesteps": ["47", 0],
+      "context_opts": ["46", 0],
+      "scale_multival": ["43", 0],
+      "effect_opts": ["48", 0],
+      "model": ["35", 0]
+    },
+    "class_type": "ADE_ApplyAnimateDiffModelSimple",
+    "_meta": {"title": "Apply AnimateDiff Model"}
+  },
+  "43": {
+    "inputs": {
+      "all_equal_multival": 1
+    },
+    "class_type": "ADE_MultivalDynamic",
+    "_meta": {"title": "Scale Multival"}
+  },
+  "46": {
+    "inputs": {
+      "context_length": 16,
+      "context_stride": 1,
+      "context_overlap": 4,
+      "context_schedule": "uniform",
+      "closed_loop": "R+P",
+      "view_opts": ["45", 0]
+    },
+    "class_type": "ADE_StandardUniformContextOptions",
+    "_meta": {"title": "Context Options"}
+  },
+  "45": {
+    "inputs": {
+      "view_length": 16,
+      "view_stride": 1,
+      "view_overlap": 4,
+      "view_schedule": "uniform"
+    },
+    "class_type": "ADE_StandardUniformViewOptions",
+    "_meta": {"title": "View Options"}
+  },
+  "47": {
+    "inputs": {
+      "start_percent": 0.0,
+      "end_percent": 1.0
+    },
+    "class_type": "ADE_AnimateDiffSamplingSettings",
+    "_meta": {"title": "Sampling Settings"}
+  },
+  "48": {
+    "inputs": {
+      "pe_stretch": 1
+    },
+    "class_type": "ADE_AnimateDiffSettings",
+    "_meta": {"title": "Simple Settings"}
+  },
+  "49": {
+    "inputs": {
+      "model": ["50", 0]
+    },
+    "class_type": "ADE_LoadAnimateDiffModel",
+    "_meta": {"title": "Load AnimateDiff Model"}
+  },
+  "50": {
+    "inputs": {
+      "model_name": "mm_sd_v15_v2.ckpt",
+      "ad_keyframe": null,
+      "default_model_settings": "Simple"
+    },
+    "class_type": "ADE_AnimateDiffLoaderGen1",
+    "_meta": {"title": "AnimateDiff Loader"}
+  },
+  "55": {
+    "inputs": {
+      "text": "cinematic shot, beautiful woman walking in a flower field, golden hour, flowing dress, highly detailed, sharp focus, 4k, masterpiece",
+      "clip": ["35", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Positive Prompt"}
+  },
+  "56": {
+    "inputs": {
+      "text": "bad quality, ugly, distorted, watermark, text, blurry, low resolution, deformed, disfigured",
+      "clip": ["35", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Negative Prompt"}
+  },
+  "61": {
+    "inputs": {
+      "images": ["8", 0],
+      "filename_prefix": "AnimateDiff_",
+      "fps": 8,
+      "compression": 9,
+      "quality": 90,
+      "lossless": false,
+      "optimize": true
+    },
+    "class_type": "SaveAnimatedWEBP",
+    "_meta": {"title": "Save Animated WEBP"}
+  }
+}

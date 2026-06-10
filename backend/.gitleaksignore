@@ -1,0 +1,11 @@
+
+# Backend API key and secrets
+backend/api/routers/auth.py
+backend/cli.py
+backend/run_agent.py
+backend/skills/hagent/cron-jobs/SKILL.md
+backend/skills/hagent/tin-tuc/SKILL.md
+backend/skills/social-media-scraping/SKILL.md
+
+# All SKILL.md files (treat as containing sensitive info)
+backend/skills/**/*.SKILL.md

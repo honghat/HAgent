@@ -1,0 +1,29 @@
+# gitleaks config for HAgent
+# Path-based allowlist (proper format).
+# https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist cho HAgent"
+paths = [
+  '''\.env\.example$''',
+  '''SECURITY\.md$''',
+  '''README\.md$''',
+  '''(^|/)fixtures/''',
+  '''(^|/)__tests__/''',
+  # auto-generated skill manifests chứa OAuth client_id PUBLIC (Linear/GitHub OSS CLI)
+  '''\.bundled_manifest$''',
+  # regex patterns dùng để redact, không phải secret thật
+  '''(^|/)agent/redact\.py$''',
+  # SKILL doc chứa URL openrouter có ?sort=... bị nhận nhầm là curl-auth-header
+  '''autonomous-ai-agents/.*SKILL\.md$''',
+]
+regexes = [
+  # OAuth public client_id/secret của CLI OSS (claude-code, codex, gemini-cli)
+  '''_OAUTH_CLIENT_(ID|SECRET)\s*=\s*["'][^"']+["']''',
+  '''_PUBLIC_CLIENT_SECRET_SUFFIX''',
+  '''COPILOT_OAUTH_CLIENT_ID''',
+  '''MINIMAX_OAUTH_CLIENT_ID''',
+]

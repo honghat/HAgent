@@ -1,0 +1,7 @@
+# Zalo Cookie Configuration
+# Extract from browser DevTools (Application → Cookies) or use existing session
+export ZALO_COOKIE_STRING=""
+
+# To extract: Open https://chat.zalo.me/messages, F12 → Application → Cookies
+# Copy the full cookie string as a single line (without the "Cookie:" prefix)
+# Paste here, then run: python3 send_zalo.py <phone> '<message>'

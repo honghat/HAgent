@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# svc — bật/tắt service HAgent qua PM2.
+# Dùng: ./scripts/svc {list|on|off|restart|logs} [name...]
+# Tên có thể bỏ tiền tố "hagent-" (vd: svc on tts-lux).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CONFIG="$ROOT/ecosystem.config.cjs"
+
+normalize() { case "$1" in hagent-*|pm2-*|9router) echo "$1";; *) echo "hagent-$1";; esac; }
+
+cmd="${1:-list}"; shift || true
+
+case "$cmd" in
+  list|ls|status)
+    pm2 jlist 2>/dev/null | python3 -c "
+import json, sys
+apps = json.load(sys.stdin)
+print(f'{\"NAME\":<22} {\"STATUS\":>10} {\"MEM\":>8} {\"CPU\":>5} {\"↺\":>4}')
+print('-'*54)
+for p in sorted(apps, key=lambda x: x['name']):
+    s = p['pm2_env']['status']; m = p['monit']['memory']/1024/1024
+    c = p['monit']['cpu']; r = p['pm2_env']['restart_time']
+    print(f'{p[\"name\"]:<22} {s:>10} {m:>7.0f}M {c:>4}% {r:>4}')
+"
+    ;;
+  on|start)
+    [[ $# -gt 0 ]] || { echo "cần tên service"; exit 1; }
+    for n in "$@"; do
+      name="$(normalize "$n")"
+      if pm2 describe "$name" >/dev/null 2>&1; then
+        pm2 start "$name"
+      else
+        pm2 start "$CONFIG" --only "$name"
+      fi
+    done
+    pm2 save >/dev/null
+    ;;
+  off|stop)
+    [[ $# -gt 0 ]] || { echo "cần tên service"; exit 1; }
+    for n in "$@"; do pm2 stop "$(normalize "$n")"; done
+    pm2 save >/dev/null
+    ;;
+  restart|r)
+    [[ $# -gt 0 ]] || { echo "cần tên service"; exit 1; }
+    for n in "$@"; do pm2 restart "$(normalize "$n")"; done
+    ;;
+  logs)
+    [[ $# -gt 0 ]] || { echo "cần tên service"; exit 1; }
+    pm2 logs "$(normalize "$1")" --lines 50
+    ;;
+  *)
+    cat <<EOF
+svc — quản lý service HAgent.
+
+  ./scripts/svc list                      # xem trạng thái
+  ./scripts/svc on tts-piper tts-lux      # bật
+  ./scripts/svc off stt omni              # tắt
+  ./scripts/svc restart fastapi
+  ./scripts/svc logs telegram
+
+Tên rút gọn (bỏ "hagent-") hoặc đầy đủ đều được.
+EOF
+    exit 1
+    ;;
+esac

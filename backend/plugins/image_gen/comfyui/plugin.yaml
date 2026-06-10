@@ -1,0 +1,5 @@
+name: comfyui
+version: 1.0.0
+description: "ComfyUI image generation backend — sử dụng SDXL-Lightning GGUF qua SSH tunnel tới Hat-Linux (100.69.50.64:8188)."
+author: HAgent
+kind: backend

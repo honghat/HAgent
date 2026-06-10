@@ -1,0 +1,972 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --color-bg: #fbfbf9;
+  --color-bg-secondary: #f7f7f4;
+  background: #fdfdfc;
+  color: #1a1a1a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(240, 240, 255, 0.5) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(255, 245, 240, 0.5) 0%, transparent 50%),
+    #fdfdfc;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+
+/* Tự động phóng UI ~125% trên màn hình lớn (≥ 1600px).
+ * Dùng font-size scale thay vì zoom để layout fixed/absolute không bị tràn viewport. */
+@media (min-width: 1600px) {
+  html {
+    font-size: 16.25px; /* base 13px × 1.25 */
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.01em;
+}
+
+button,
+textarea,
+input,
+select {
+  font-family: inherit;
+}
+
+.hagent-chat-header-select {
+  font-size: 10px !important;
+  line-height: 16px;
+}
+
+.hagent-code-terminal-input {
+  font-size: 11px !important;
+  line-height: 16px;
+}
+
+.hagent-code-editor,
+.hagent-code-editor .cm-editor {
+  background:
+    linear-gradient(90deg, rgba(34, 211, 238, 0.035), transparent 30%),
+    #07111f !important;
+  color: #e8eef7 !important;
+  height: 100%;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.hagent-code-editor .cm-scroller {
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 500;
+  line-height: 1.55;
+  overflow-anchor: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.hagent-code-editor .cm-content {
+  caret-color: #fbbf24;
+  color: #e8eef7;
+  line-height: 1.55;
+  tab-size: 2;
+  cursor: text;
+  box-sizing: content-box;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.hagent-code-editor .cm-content ::selection,
+.hagent-code-editor .cm-content::selection {
+  background: rgba(14, 165, 233, 0.62) !important;
+  color: #ffffff !important;
+}
+
+.hagent-code-editor .cm-line {
+  color: #e8eef7;
+  min-height: 1.55em;
+  padding: 0 8px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.hagent-code-editor .cm-gutters {
+  background-color: #0b1424 !important;
+  border-right: 1px solid #1e293b;
+  color: #94a3b8 !important;
+}
+
+.hagent-code-editor .cm-lineNumbers .cm-gutterElement {
+  min-width: 42px;
+  padding: 0 10px;
+}
+
+.hagent-code-editor .cm-activeLine,
+.hagent-code-editor .cm-activeLineGutter {
+  background-color: #132036 !important;
+}
+
+.hagent-code-editor .cm-activeLineGutter {
+  color: #f8fafc;
+}
+
+.hagent-code-editor .cm-cursor,
+.hagent-code-editor .cm-dropCursor {
+  border-left-color: #fbbf24 !important;
+  border-left-width: 2px !important;
+}
+
+.hagent-code-editor .cm-matchingBracket,
+.hagent-code-editor .cm-nonmatchingBracket {
+  background-color: rgba(251, 191, 36, 0.16);
+  color: #fef3c7;
+  outline: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.hagent-code-editor .cm-selectionBackground,
+.hagent-code-editor .cm-focused .cm-selectionBackground {
+  background-color: rgba(14, 165, 233, 0.55) !important;
+  outline: 1px solid rgba(14, 165, 233, 0.75);
+}
+
+.hagent-code-editor .cm-selectionMatch {
+  background-color: rgba(14, 165, 233, 0.22) !important;
+  outline: 1px solid rgba(14, 165, 233, 0.38);
+}
+
+.hagent-code-editor .cm-focused {
+  outline: none;
+}
+
+.hagent-code-editor .cm-scroller::-webkit-scrollbar,
+.hagent-pty-terminal .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.hagent-pty-terminal .xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: #22d3ee #0b1424;
+  background: transparent !important;
+}
+
+.hagent-pty-terminal .xterm-viewport::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 999px;
+}
+
+.hagent-code-editor .cm-scroller::-webkit-scrollbar-thumb,
+.hagent-pty-terminal .xterm-viewport::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, #22d3ee, #a78bfa);
+  border: 2px solid #0b1424;
+  box-shadow: 0 0 6px rgba(34, 211, 238, 0.5);
+}
+
+.hagent-pty-terminal .xterm {
+  padding: 12px 14px;
+}
+
+/* Luôn hiện scrollbar xám rõ cho xterm v6 */
+.hagent-pty-terminal .xterm .xterm-scrollable-element > .invisible,
+.hagent-pty-terminal .xterm .xterm-scrollable-element > .invisible.fade {
+  opacity: 0.85 !important;
+  pointer-events: auto !important;
+}
+.hagent-pty-terminal .xterm .xterm-scrollable-element > .scrollbar {
+  background: rgba(15, 23, 42, 0.5) !important;
+  border-radius: 999px !important;
+  width: 12px !important;
+}
+.hagent-pty-terminal .xterm .xterm-scrollable-element > .scrollbar > .slider {
+  background: linear-gradient(180deg, #94a3b8, #64748b) !important;
+  border-radius: 999px !important;
+  width: 8px !important;
+}
+.hagent-pty-terminal .xterm .xterm-scrollable-element > .scrollbar > .slider:hover {
+  background: linear-gradient(180deg, #cbd5e1, #94a3b8) !important;
+}
+.hagent-pty-terminal .xterm .xterm-scrollable-element > .scrollbar > .scra {
+  background: rgba(148, 163, 184, 0.6) !important;
+  color: transparent !important;
+}
+
+.hagent-pty-terminal .xterm-screen {
+  filter: saturate(1.08);
+}
+
+@media (max-width: 640px) {
+  html {
+    touch-action: manipulation;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  .hagent-chat-header-select {
+    font-size: 10px !important;
+    line-height: 16px;
+  }
+
+  .hagent-chat-header-title,
+  .hagent-chat-header button {
+    font-size: 10px !important;
+  }
+
+  .hagent-code-terminal-input {
+    font-size: 11px !important;
+    line-height: 16px;
+  }
+
+  .hagent-code-editor-textarea {
+    font-size: 9px !important;
+    line-height: 20px;
+  }
+
+  .hagent-code-mobile-select {
+    font-size: 10px !important;
+  }
+
+  .hagent-code-git-input {
+    font-size: 9px !important;
+  }
+
+  /* Mobile: ensure xterm terminal stays above keyboard */
+  .hagent-pty-terminal {
+    min-height: 0;
+    flex-shrink: 1;
+  }
+  .hagent-pty-terminal .xterm {
+    padding: 6px 8px;
+  }
+
+  /* DriveSync mobile: tăng touch targets, giảm padding bảng */
+  .hagent-drive-row-actions button {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  /* Đảm bảo form mapping không bị ép quá nhỏ */
+  .hagent-map-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Safe-area cho iPhone có notch/home indicator */
+  .hagent-bottom-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+.hagent-editor-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(167, 139, 250, 0.38) rgba(255, 255, 255, 0.04);
+}
+
+.hagent-editor-scrollbar::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.hagent-editor-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 999px;
+}
+
+.hagent-editor-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.65), rgba(34, 211, 238, 0.35));
+  border: 2px solid rgba(16, 16, 19, 0.95);
+  border-radius: 999px;
+}
+
+.hagent-editor-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(196, 181, 253, 0.9), rgba(103, 232, 249, 0.55));
+}
+
+.hagent-editor-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@media (min-width: 1024px) {
+  .job-hunter-layout {
+    display: grid;
+    grid-template-columns: clamp(320px, 24vw, 380px) minmax(0, 1fr);
+    gap: 24px;
+    width: 100%;
+    max-width: 1480px;
+    margin: 0 auto;
+  }
+}
+
+/* New job hunter body layout — sidebar + flex main */
+.job-hunter-body {
+  display: flex;
+}
+
+.job-hunter-sidebar {
+  width: 100%;
+  max-width: 22rem;
+}
+
+@media (min-width: 1024px) {
+  .job-hunter-sidebar {
+    width: clamp(280px, 22vw, 360px);
+  }
+}
+
+.hagent-files-light {
+  color-scheme: light;
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+.hagent-files-light [class*="bg-[#"],
+.hagent-files-light [class*="bg-slate"],
+.hagent-files-light [class*="bg-cyan-500/15"],
+.hagent-files-light [class*="bg-cyan-500\\/15"],
+.hagent-files-light [class*="bg-emerald-"],
+.hagent-files-light [class*="bg-amber-"],
+.hagent-files-light [class*="bg-black"] {
+  background-color: #ffffff !important;
+}
+
+.hagent-files-light [class*="text-slate"],
+.hagent-files-light [class*="text-cyan"],
+.hagent-files-light [class*="text-emerald"],
+.hagent-files-light [class*="text-purple"],
+.hagent-files-light [class*="text-amber"],
+.hagent-files-light [class*="text-sky"],
+.hagent-files-light [class*="text-pink"],
+.hagent-files-light [class*="text-orange"],
+.hagent-files-light [class*="text-white"] {
+  color: #111827 !important;
+}
+
+.hagent-files-light [class*="border-slate"],
+.hagent-files-light [class*="border-cyan"],
+.hagent-files-light [class*="border-amber"],
+.hagent-files-light [class*="border-gray-200"] {
+  border-color: #e5e7eb !important;
+}
+
+.hagent-files-light [class*="hover:bg-slate"]:hover,
+.hagent-files-light [class*="hover:bg-gray"]:hover,
+.hagent-files-light [class*="hover:bg-cyan"]:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.hagent-files-light input,
+.hagent-files-light textarea,
+.hagent-files-light select {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+
+.hagent-files-light input::placeholder,
+.hagent-files-light textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+.hagent-files-light .group\/row:hover,
+.hagent-files-light .group\/drive:hover {
+  background: #f9fafb !important;
+}
+
+.hagent-files-light .file-type-folder,
+.hagent-files-light .file-name-folder {
+  color: #b45309 !important;
+}
+
+.hagent-files-light .file-name-folder-apps {
+  color: #7c3aed !important;
+}
+
+.hagent-files-light .file-name-folder-desktop {
+  color: #2563eb !important;
+}
+
+.hagent-files-light .file-name-folder-documents {
+  color: #4f46e5 !important;
+}
+
+.hagent-files-light .file-name-folder-downloads {
+  color: #16a34a !important;
+}
+
+.hagent-files-light .file-name-folder-project {
+  color: #059669 !important;
+}
+
+.hagent-files-light .file-name-folder-library {
+  color: #64748b !important;
+}
+
+.hagent-files-light .file-name-folder-movies {
+  color: #db2777 !important;
+}
+
+.hagent-files-light .file-name-folder-music {
+  color: #9333ea !important;
+}
+
+.hagent-files-light .file-name-folder-pictures {
+  color: #e11d48 !important;
+}
+
+.hagent-files-light .file-name-folder-public {
+  color: #0891b2 !important;
+}
+
+.hagent-files-light .file-name-folder-mount {
+  color: #d97706 !important;
+}
+
+.hagent-files-light .file-name {
+  font-weight: 600;
+}
+
+.hagent-files-light .file-type-image,
+.hagent-files-light .file-name-image {
+  color: #be185d !important;
+}
+
+.hagent-files-light .file-type-video,
+.hagent-files-light .file-name-video {
+  color: #2563eb !important;
+}
+
+.hagent-files-light .file-type-audio,
+.hagent-files-light .file-name-audio {
+  color: #7c3aed !important;
+}
+
+.hagent-files-light .file-type-office,
+.hagent-files-light .file-name-office {
+  color: #dc2626 !important;
+}
+
+.hagent-files-light .file-type-code,
+.hagent-files-light .file-name-code {
+  color: #059669 !important;
+}
+
+.hagent-files-light .file-type-text,
+.hagent-files-light .file-name-text {
+  color: #0284c7 !important;
+}
+
+.hagent-files-light .file-type-archive,
+.hagent-files-light .file-name-archive {
+  color: #ea580c !important;
+}
+
+.hagent-files-light .file-type-link,
+.hagent-files-light .file-name-link {
+  color: #0891b2 !important;
+}
+
+.hagent-files-light .file-type-file,
+.hagent-files-light .file-name-file {
+  color: #475569 !important;
+}
+
+.hagent-files-light .volume-home .volume-icon,
+.hagent-files-light .volume-home .volume-name {
+  color: #0284c7 !important;
+}
+
+.hagent-files-light .volume-system .volume-icon,
+.hagent-files-light .volume-system .volume-name {
+  color: #334155 !important;
+}
+
+.hagent-files-light .volume-pishare .volume-icon,
+.hagent-files-light .volume-pishare .volume-name {
+  color: #16a34a !important;
+}
+
+.hagent-files-light .volume-windows .volume-icon,
+.hagent-files-light .volume-windows .volume-name {
+  color: #2563eb !important;
+}
+
+.hagent-files-light .volume-storage .volume-icon,
+.hagent-files-light .volume-storage .volume-name {
+  color: #7c3aed !important;
+}
+
+.hagent-files-light .volume-remote .volume-icon,
+.hagent-files-light .volume-remote .volume-name {
+  color: #0891b2 !important;
+}
+
+.hagent-files-light .volume-disk .volume-icon,
+.hagent-files-light .volume-disk .volume-name {
+  color: #d97706 !important;
+}
+
+.hagent-files-light .volume-meta {
+  color: #475569 !important;
+}
+
+.hagent-files-light .volume-capacity {
+  color: #64748b !important;
+}
+
+.hagent-files-light .current-volume-pill {
+  background-color: #f8fafc !important;
+  border: 1px solid #e2e8f0;
+}
+
+.hagent-files-light .current-volume-pill.volume-home {
+  background-color: #e0f2fe !important;
+  border-color: #7dd3fc;
+}
+
+.hagent-files-light .current-volume-pill.volume-system {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1;
+}
+
+.hagent-files-light .current-volume-pill.volume-pishare {
+  background-color: #dcfce7 !important;
+  border-color: #86efac;
+}
+
+.hagent-files-light .current-volume-pill.volume-windows {
+  background-color: #dbeafe !important;
+  border-color: #93c5fd;
+}
+
+.hagent-files-light .current-volume-pill.volume-storage {
+  background-color: #ede9fe !important;
+  border-color: #c4b5fd;
+}
+
+.hagent-files-light .current-volume-pill.volume-remote {
+  background-color: #cffafe !important;
+  border-color: #67e8f9;
+}
+
+.hagent-files-light .current-volume-pill.volume-disk {
+  background-color: #ffedd5 !important;
+  border-color: #fdba74;
+}
+
+.hagent-files-light .share-mounted .share-icon,
+.hagent-files-light .share-mounted .share-name {
+  color: #059669 !important;
+}
+
+.hagent-files-light .share-unmounted .share-icon,
+.hagent-files-light .share-unmounted .share-name {
+  color: #7c3aed !important;
+}
+
+.hagent-files-light .share-meta {
+  color: #64748b !important;
+}
+
+.hagent-files-light .file-source-tab {
+  background-color: #ffffff !important;
+  border: 1px solid transparent;
+}
+
+.hagent-files-light .file-source-local {
+  color: #2563eb !important;
+}
+
+.hagent-files-light .file-source-local:hover,
+.hagent-files-light .file-source-local.is-active {
+  background-color: #dbeafe !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+.hagent-files-light .file-source-drive {
+  color: #16a34a !important;
+}
+
+.hagent-files-light .file-source-drive:hover,
+.hagent-files-light .file-source-drive.is-active {
+  background-color: #dcfce7 !important;
+  border-color: #86efac !important;
+  color: #15803d !important;
+}
+
+.hagent-files-light .file-media-preview {
+  background-color: #0a0e1a !important;
+}
+
+@media (max-width: 767px) {
+  .hagent-files-light input:not([type="checkbox"]),
+  .hagent-files-light textarea,
+  .hagent-files-light select {
+    font-size: 16px !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .hagent-files-light .file-media-preview {
+    background-color: #0a0e1a !important;
+    background-image:
+      linear-gradient(45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%);
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-size: 16px 16px;
+  }
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.03);
+}
+
+.premium-shadow {
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08), 0 2px 10px -2px rgba(0, 0, 0, 0.04);
+}
+
+.learn-article {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #111827;
+}
+
+.learn-article h1,
+.learn-article h2,
+.learn-article h3 {
+  font-family: inherit;
+  letter-spacing: 0;
+  color: #111827;
+}
+
+.learn-article h1 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.learn-article h2 {
+  margin: 14px 0 6px;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.learn-article h3 {
+  margin: 12px 0 5px;
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.learn-article p,
+.learn-article li {
+  margin: 0 0 7px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.learn-article strong {
+  font-weight: 700;
+}
+
+.learn-article code {
+  border-radius: 4px;
+  background: #f3f4f6;
+  padding: 0.08rem 0.28rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.learn-article pre {
+  margin: 10px 0 12px;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: #0f172a;
+  padding: 12px;
+}
+
+.learn-article pre code {
+  display: block;
+  background: transparent;
+  padding: 0;
+  color: #e5e7eb;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.learn-article .learn-gap {
+  height: 6px;
+}
+
+@media (max-width: 767px) {
+  .learn-article {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .learn-article p,
+  .learn-article li {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .learn-article pre {
+    margin-left: -4px;
+    margin-right: -4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .learn-article pre code {
+    font-size: 13px;
+  }
+}
+
+/* Markdown Premium Styling */
+.prose {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: inherit;
+}
+
+.prose p {
+  margin-bottom: 1em;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+.prose strong {
+  color: inherit;
+  font-weight: 600;
+}
+
+.prose h1, .prose h2, .prose h3 {
+  color: inherit;
+  font-family: 'Outfit', sans-serif;
+  margin-top: 2em;
+  margin-bottom: 1em;
+  line-height: 1.3;
+}
+
+.prose h1 { font-size: 1.25em; }
+.prose h2 { font-size: 1.1em; }
+.prose h3 { font-size: 1em; }
+
+.prose ul, .prose ol {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-left: 1.6em;
+}
+
+.prose li {
+  margin-bottom: 0.5em;
+}
+
+.prose code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+  color: #d11149;
+}
+
+.prose pre {
+  background: #1a1a1b;
+  color: #e5e7eb;
+  padding: 1.25em;
+  border-radius: 16px;
+  overflow-x: auto;
+  margin: 1.5em 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.prose pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 0.85em;
+}
+
+.prose table {
+  width: 100%;
+  display: table;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 1.5em 0;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  table-layout: auto;
+}
+
+/* Ensure the container of the table handles overflow */
+.prose {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.prose pre, .prose table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.prose th {
+  background: rgba(0, 0, 0, 0.02);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75em 1em;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95em;
+}
+
+.prose td {
+  padding: 0.75em 1em;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  font-size: 0.9em;
+}
+
+.prose tr:last-child td {
+  border-bottom: none;
+}
+
+.prose blockquote {
+  border-left: 4px solid #1a1a1a;
+  padding-left: 1.5em;
+  margin: 1.5em 0;
+  font-style: italic;
+  color: #555;
+}
+
+.prose img {
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Dot flashing animation for premium typing indicator */
+.dot-flashing {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #4b5563;
+  color: #4b5563;
+  animation: dot-flashing 1s infinite linear alternate;
+  animation-delay: 0.5s;
+  display: inline-block;
+  margin: 0 12px;
+}
+.dot-flashing::before, .dot-flashing::after {
+  content: "";
+  display: inline-block;
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #4b5563;
+  color: #4b5563;
+}
+.dot-flashing::before {
+  left: -12px;
+  animation: dot-flashing 1s infinite alternate;
+  animation-delay: 0s;
+}
+.dot-flashing::after {
+  left: 12px;
+  animation: dot-flashing 1s infinite alternate;
+  animation-delay: 1s;
+}
+
+@keyframes dot-flashing {
+  0% {
+    background-color: #4b5563;
+  }
+  50%, 100% {
+    background-color: rgba(75, 85, 99, 0.25);
+  }
+}
+
+/* Video editor text animations */
+@keyframes hagentFadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes hagentFadeOut { from { opacity: 1 } to { opacity: 0 } }
+@keyframes hagentSlideUp { from { opacity: 0; transform: translate(-50%, calc(-50% + 40px)) } to { opacity: 1; transform: translate(-50%, -50%) } }
+@keyframes hagentSlideDown { from { opacity: 0; transform: translate(-50%, calc(-50% - 40px)) } to { opacity: 1; transform: translate(-50%, -50%) } }
+@keyframes hagentSlideLeft { from { opacity: 0; transform: translate(calc(-50% + 60px), -50%) } to { opacity: 1; transform: translate(-50%, -50%) } }
+@keyframes hagentSlideRight { from { opacity: 0; transform: translate(calc(-50% - 60px), -50%) } to { opacity: 1; transform: translate(-50%, -50%) } }
+@keyframes hagentZoomIn { from { opacity: 0; transform: translate(-50%, -50%) scale(0.6) } to { opacity: 1; transform: translate(-50%, -50%) scale(1) } }
+@keyframes hagentBounce {
+  0% { opacity: 0; transform: translate(-50%, calc(-50% + 80px)) }
+  60% { opacity: 1; transform: translate(-50%, calc(-50% - 12px)) }
+  80% { transform: translate(-50%, calc(-50% + 6px)) }
+  100% { transform: translate(-50%, -50%) }
+}
+@keyframes hagentType {
+  from { clip-path: inset(0 100% 0 0) }
+  to { clip-path: inset(0 0 0 0) }
+}
+@keyframes hagentGlow {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 4px currentColor) }
+  50% { filter: brightness(1.4) drop-shadow(0 0 14px currentColor) }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}

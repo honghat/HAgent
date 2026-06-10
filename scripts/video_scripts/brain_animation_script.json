@@ -1,0 +1,64 @@
+{
+  "title": "Não Bộ Hoạt Động Thế Nào?",
+  "topic": "Khoa học - Não bộ",
+  "overall_style": "người que hoạt hình, phong cách giáo dục vui nhộn, nền tối màu gradient xanh tím",
+  "total_duration_seconds": 60,
+  "scenes": [
+    {
+      "scene_number": 1,
+      "subtitle": "Chào mừng đến với Não Bộ!",
+      "duration_seconds": 8,
+      "scene_description": "Nền tối gradient xanh tím. Một người que hình dạng nửa bộ não màu hồng xuất hiện từ giữa màn hình, tay vẫy chào. Phía sau là hàng ngàn chấm sáng nhỏ li ti (nơ-ron) nhấp nháy. Xuất hiện chữ '86 TỶ NƠ-RON' bay lên.",
+      "camera_move": "Zoom nhẹ từ xa vào trung tâm",
+      "animation_hint": "Stick figure não bộ scale từ 0→1 với bounce ease. Các chấm sáng random opacity pulse. Chữ fly-in từ dưới lên."
+    },
+    {
+      "scene_number": 2,
+      "subtitle": "Nơ-ron giao tiếp! Tốc độ 120m/s",
+      "duration_seconds": 10,
+      "scene_description": "Cận cảnh hai nơ-ron người que (dạng sao nhỏ phát sáng) đối diện nhau. Nơ-ron A bắn một tia sáng xanh qua khoảng trống synapse sang nơ-ron B. Nơ-ron B rung lên nhận tín hiệu. Chữ 'SYNAPSE' hiện lên giữa khoảng trống.",
+      "camera_move": "Pan nhẹ từ nơ-ron A sang B rồi zoom ra",
+      "animation_hint": "Tia sáng là đường line vẽ từ A sang B. Nơ-ron B scale nhẹ 1→1.1 khi nhận tín hiệu. Chữ fade in ở synapse."
+    },
+    {
+      "scene_number": 3,
+      "subtitle": "4 Vùng Não Chính",
+      "duration_seconds": 12,
+      "scene_description": "Bản đồ não bộ với 4 vùng màu (đỏ - thùy trán, vàng - thùy thái dương, xanh lá - thùy chẩm, xanh dương - tiểu não). Que Não đứng giữa chỉ tay vào từng vùng. Mỗi vùng phát sáng khi được chỉ đến kèm icon tương ứng (suy nghĩ, âm thanh, thị giác, thăng bằng).",
+      "camera_move": "Fixed frame, từng vùng glow tuần tự",
+      "animation_hint": "Vẽ brain map từ dưới lên. Từng vùng glow với CSS filter drop-shadow. Icon hiện bên cạnh mỗi vùng khi glow."
+    },
+    {
+      "scene_number": 4,
+      "subtitle": "Học = Kết nối nơ-ron mới!",
+      "duration_seconds": 10,
+      "scene_description": "Que Não cầm một cuốn sách. Khi lật trang, các nơ-ron xuất hiện và kết nối với nhau bằng các đường tia sáng tạo thành mạng nhện phát sáng. Mạng lưới càng lúc càng dày đặc. Chữ 'TẠO KẾT NỐI MỚI' hiện lên.",
+      "camera_move": "Zoom từ sách ra toàn bộ mạng lưới",
+      "animation_hint": "Sách lật trang (CSS 3D flip). Các đường line nối giữa các dots ngẫu nhiên. Mỗi đường mới dày lên (stroke-width 1→3)."
+    },
+    {
+      "scene_number": 5,
+      "subtitle": "Giấc ngủ - Não dọn dẹp!",
+      "duration_seconds": 8,
+      "scene_description": "Que Não mặc đồ ngủ (mũ ngủ xanh), nến lung linh. Robot tí hon (người que mini) cầm chổi quét dọn các mảnh vụn (beta-amyloid). Mảnh vụn biến mất. Chữ 'DỌN DẸP CHẤT THẢI' rung nhẹ.",
+      "camera_move": "Pan từ Que Não sang các robot dọn dẹp",
+      "animation_hint": "Que Não mặc thêm mũ ngủ (overlay). Robot là stick figure siêu nhỏ di chuyển ngang. Mảnh vụn fade out khi robot chạm vào."
+    },
+    {
+      "scene_number": 6,
+      "subtitle": "Não cần nước và oxy!",
+      "duration_seconds": 6,
+      "scene_description": "Que Não uống một ly nước. Dòng chữ '75% LÀ NƯỚC' hiện ra. Sau đó Que Não thở sâu, xuất hiện icon oxy O2. Não chuyển từ màu xám sang hồng tươi.",
+      "camera_move": "Fixed frame, chữ xuất hiện tuần tự",
+      "animation_hint": "Ly nước nghiêng + nước chảy vào miệng. O2 icon xoay tròn. Não đổi màu gradient từ gray→pink qua 2s."
+    },
+    {
+      "scene_number": 7,
+      "subtitle": "HÃY DÙNG TAO THẬT TỐT!",
+      "duration_seconds": 6,
+      "scene_description": "Que Não đứng trên đỉnh não, tay giơ cao kiểu siêu anh hùng. Phía sau rực rỡ ánh sáng. Logo HAgent hoặc chữ 'THE END' xuất hiện. Credits nhỏ phía dưới.",
+      "camera_move": "Zoom từ từ ra xa (epic shot)",
+      "animation_hint": "Que Não pose hero (tay chống hông). Ánh sáng flare từ sau lưng. Text fade in từng dòng."
+    }
+  ]
+}

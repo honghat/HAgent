@@ -1,0 +1,5 @@
+name: chatgpt2api-provider
+kind: model-provider
+version: 1.0.0
+description: Local chatgpt2api proxy (basketikun) — ChatGPT models via OpenAI-compatible API
+author: HAgent

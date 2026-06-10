@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Pre-commit hook: chặn commit nếu phát hiện secret.
+# Cài: bash scripts/install-hooks.sh
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠️  gitleaks chưa cài. Cài: brew install gitleaks" >&2
+  echo "    Skip secret scan (KHÔNG khuyên dùng)." >&2
+  exit 0
+fi
+
+# Quét staged changes; --redact để không in giá trị secret.
+if ! gitleaks protect --staged --redact --no-banner --config "$(git rev-parse --show-toplevel)/.gitleaks.toml"; then
+  echo "" >&2
+  echo "❌ gitleaks phát hiện secret trong staged changes." >&2
+  echo "   Gỡ secret khỏi commit, hoặc thêm vào .gitleaksignore nếu là false positive." >&2
+  exit 1
+fi

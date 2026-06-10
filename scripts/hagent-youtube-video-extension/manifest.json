@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "HAgent YouTube Video",
+  "version": "1.1.0",
+  "description": "Một nút nổi để gửi video YouTube đang mở vào HAgent.",
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://youtube.com/*",
+    "https://youtu.be/*",
+    "https://hatai.io.vn/*",
+    "http://127.0.0.1:8010/*",
+    "http://localhost:8010/*",
+    "http://127.0.0.1:3004/*",
+    "http://localhost:3004/*"
+  ],
+  "action": {
+    "default_title": "Gửi YouTube sang HAgent",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://youtu.be/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icon-128.png"],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://youtu.be/*"
+      ]
+    }
+  ]
+}

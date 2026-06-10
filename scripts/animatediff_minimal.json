@@ -1,0 +1,88 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "dreamshaper_8_safetensors.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {"title": "Load Checkpoint"}
+  },
+  "2": {
+    "inputs": {
+      "seed": 1234567890,
+      "steps": 20,
+      "cfg": 7,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": ["4", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
+    },
+    "class_type": "KSamplerAnimateDiff",
+    "_meta": {"title": "KSampler (AnimateDiff)"}
+  },
+  "3": {
+    "inputs": {
+      "model_name": "mm_sd_v15_v2.ckpt",
+      "beta_schedule": "sqrt_linear (AnimateDiff)"
+    },
+    "class_type": "AnimateDiffLoaderV1",
+    "_meta": {"title": "AnimateDiff Loader V1"}
+  },
+  "4": {
+    "inputs": {
+      "motion_model": ["3", 0],
+      "model": ["1", 0],
+      "motion_lora": {}
+    },
+    "class_type": "AnimateDiffModelSettings",
+    "_meta": {"title": "Apply AnimateDiff"}
+  },
+  "5": {
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 16
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {"title": "Empty Latent Image"}
+  },
+  "6": {
+    "inputs": {
+      "text": "cinematic shot, beautiful woman walking in a park, autumn leaves, soft sunlight, high quality, detailed face, masterpiece",
+      "clip": ["1", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Positive Prompt"}
+  },
+  "7": {
+    "inputs": {
+      "text": "bad quality, blurry, distorted, ugly, deformed, text, watermark, lowres",
+      "clip": ["1", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Negative Prompt"}
+  },
+  "8": {
+    "inputs": {
+      "samples": ["2", 0],
+      "vae": ["1", 2]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {"title": "VAE Decode"}
+  },
+  "9": {
+    "inputs": {
+      "frame_rate": 8,
+      "loop_count": 0,
+      "filename_prefix": "animatediff_minimal",
+      "format": "video/webp",
+      "pingpong": false,
+      "save_output": true,
+      "images": ["8", 0]
+    },
+    "class_type": "VideoCombine",
+    "_meta": {"title": "Video Combine"}
+  }
+}

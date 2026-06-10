@@ -73,12 +73,12 @@ const ExpenseCard = ({ expense, handleEdit, openDeleteModal, categoryColors }) =
 
             <p className="text-sm text-slate-800 font-semibold">{expense.description}</p>
 
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
-                <div className="flex items-center gap-1.5">
-                    <Calendar size={13} className="text-blue-500" />
+            <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-1 pt-2 border-t border-slate-100 text-xs text-slate-500">
+                <div className="flex items-center gap-1">
+                    <Calendar size={13} className="text-blue-500 shrink-0" />
                     <span>{new Date(expense.date).toLocaleDateString("vi-VN")}</span>
                 </div>
-                <div className="flex items-center gap-1.5 overflow-hidden">
+                <div className="flex items-center gap-1 max-w-[120px] overflow-hidden">
                     <Tag size={13} className="text-indigo-500 shrink-0" />
                     <span 
                         className="truncate px-1.5 py-0.5 rounded font-bold text-[10px]"
@@ -90,9 +90,9 @@ const ExpenseCard = ({ expense, handleEdit, openDeleteModal, categoryColors }) =
                         {expense.category}
                     </span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                    <CreditCard size={13} className="text-violet-500" />
-                    <span>{expense.payment_method === "TM" ? "Tiền mặt" : "Chuyển khoản"}</span>
+                <div className="flex items-center gap-1">
+                    <CreditCard size={13} className="text-violet-500 shrink-0" />
+                    <span>{expense.payment_method === "TM" ? "Tiền mặt" : "CK"}</span>
                 </div>
             </div>
         </div>
@@ -935,17 +935,19 @@ const ExpenseTracker = ({ user, token }) => {
                                 </div>
                                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Nhập từ file Excel</h3>
                             </div>
-                            <input
-                                type="file"
-                                accept=".xlsx, .xls"
-                                onChange={handleImport}
-                                className="block w-full text-xs text-slate-500
-                                    file:mr-4 file:py-1.5 file:px-3
-                                    file:rounded-xl file:border-0
-                                    file:text-xs file:font-semibold
-                                    file:bg-slate-100 file:text-slate-700
-                                    hover:file:bg-slate-200 file:cursor-pointer transition"
-                            />
+                            <div className="relative group cursor-pointer border border-dashed border-slate-200 rounded-xl p-4 bg-slate-50/50 hover:bg-indigo-50/30 hover:border-indigo-300 transition duration-200 text-center">
+                                <input
+                                    type="file"
+                                    accept=".xlsx, .xls"
+                                    onChange={handleImport}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                />
+                                <div className="flex flex-col items-center justify-center gap-1">
+                                    <Upload size={18} className="text-slate-400 group-hover:text-indigo-500 transition duration-200" />
+                                    <span className="text-xs font-bold text-slate-700">Chọn file Excel dữ liệu</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">Hỗ trợ định dạng .xlsx, .xls</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -956,29 +958,29 @@ const ExpenseTracker = ({ user, token }) => {
                         {/* Filter bar */}
                         <div className="px-4 pt-3.5 pb-3 border-b border-black/[0.05]">
                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2.5">Bộ lọc</p>
-                            <div className="flex flex-wrap gap-2">
-                                <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
-                                    <span className="text-[10px] font-bold text-gray-400">NG</span>
-                                    <select value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none">
+                            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+                                <div className="h-9 flex items-center justify-between gap-1 bg-gray-50 border border-gray-200/80 rounded-xl px-2.5 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100/50 transition duration-200">
+                                    <span className="text-[10px] font-bold text-gray-400 shrink-0">NG</span>
+                                    <select value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none w-full text-right cursor-pointer">
                                         <option value="">—</option>
                                         {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
                                     </select>
                                 </div>
-                                <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
-                                    <span className="text-[10px] font-bold text-gray-400">TH</span>
-                                    <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none">
+                                <div className="h-9 flex items-center justify-between gap-1 bg-gray-50 border border-gray-200/80 rounded-xl px-2.5 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100/50 transition duration-200">
+                                    <span className="text-[10px] font-bold text-gray-400 shrink-0">TH</span>
+                                    <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none w-full text-right cursor-pointer">
                                         <option value="">—</option>
                                         {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}</option>)}
                                     </select>
                                 </div>
-                                <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
-                                    <span className="text-[10px] font-bold text-gray-400">NĂM</span>
-                                    <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none">
+                                <div className="h-9 flex items-center justify-between gap-1 bg-gray-50 border border-gray-200/80 rounded-xl px-2.5 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100/50 transition duration-200">
+                                    <span className="text-[10px] font-bold text-gray-400 shrink-0">NĂM</span>
+                                    <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none w-full text-right cursor-pointer">
                                         <option value="">—</option>
                                         {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => <option key={y} value={y}>{y}</option>)}
                                     </select>
                                 </div>
-                                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="flex-1 min-w-[120px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300">
+                                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="h-9 col-span-2 sm:flex-1 min-w-[120px] bg-gray-50 border border-gray-200/80 rounded-xl px-3 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-100/50 focus:border-indigo-400 transition duration-200 cursor-pointer">
                                     <option value="">Tất cả danh mục</option>
                                     {selectCategories.map((cat) => (
                                         <option key={cat.id || cat.name} value={cat.name}>
@@ -986,7 +988,7 @@ const ExpenseTracker = ({ user, token }) => {
                                         </option>
                                     ))}
                                 </select>
-                                <select value={filterPaymentMethod} onChange={(e) => setFilterPaymentMethod(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-100">
+                                <select value={filterPaymentMethod} onChange={(e) => setFilterPaymentMethod(e.target.value)} className="h-9 col-span-1 sm:flex-initial bg-gray-50 border border-gray-200/80 rounded-xl px-3 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-100/50 focus:border-indigo-400 transition duration-200 cursor-pointer">
                                     <option value="">Tất cả</option>
                                     <option value="TM">Tiền mặt</option>
                                     <option value="CK">CK</option>
@@ -996,26 +998,26 @@ const ExpenseTracker = ({ user, token }) => {
                                     placeholder="Tìm mô tả..."
                                     value={filterDescription}
                                     onChange={(e) => setFilterDescription(e.target.value)}
-                                    className="flex-1 min-w-[130px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300"
+                                    className="h-9 col-span-3 sm:flex-1 min-w-[130px] bg-gray-50 border border-gray-200/80 rounded-xl px-3 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-100/50 focus:border-indigo-400 transition duration-200"
                                 />
                             </div>
                         </div>
 
                         {/* Stats row */}
-                        <div className="grid grid-cols-3 divide-x divide-slate-100 bg-slate-50/50">
-                            <div className="px-4 py-4 text-center">
+                        <div className="flex flex-col md:grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100 bg-slate-50/50">
+                            <div className="flex md:flex-col justify-between md:justify-center items-center px-4 py-3.5 md:py-4 text-center">
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Số dư</p>
-                                <p className={`mt-1.5 text-lg font-extrabold tracking-tight tabular-nums whitespace-nowrap ${
+                                <p className={`mt-0 md:mt-1.5 text-sm md:text-lg font-extrabold tracking-tight tabular-nums whitespace-nowrap ${
                                     totalFilteredAmount >= 0 ? "text-indigo-600" : "text-rose-600"
                                 }`}>{totalFilteredAmount >= 0 ? "+" : ""}{totalFilteredAmount.toLocaleString()}&nbsp;<span className="text-xs font-semibold">₫</span></p>
                             </div>
-                            <div className="px-4 py-4 text-center">
+                            <div className="flex md:flex-col justify-between md:justify-center items-center px-4 py-3.5 md:py-4 text-center">
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Thu nhập</p>
-                                <p className="mt-1.5 text-lg font-extrabold tracking-tight tabular-nums text-emerald-600 whitespace-nowrap">+{totalIncome.toLocaleString()}&nbsp;<span className="text-xs font-semibold">₫</span></p>
+                                <p className="mt-0 md:mt-1.5 text-sm md:text-lg font-extrabold tracking-tight tabular-nums text-emerald-600 whitespace-nowrap">+{totalIncome.toLocaleString()}&nbsp;<span className="text-xs font-semibold">₫</span></p>
                             </div>
-                            <div className="px-4 py-4 text-center">
+                            <div className="flex md:flex-col justify-between md:justify-center items-center px-4 py-3.5 md:py-4 text-center">
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Chi tiêu</p>
-                                <p className="mt-1.5 text-lg font-extrabold tracking-tight tabular-nums text-rose-500 whitespace-nowrap">-{totalExpense.toLocaleString()}&nbsp;<span className="text-xs font-semibold">₫</span></p>
+                                <p className="mt-0 md:mt-1.5 text-sm md:text-lg font-extrabold tracking-tight tabular-nums text-rose-500 whitespace-nowrap">-{totalExpense.toLocaleString()}&nbsp;<span className="text-xs font-semibold">₫</span></p>
                             </div>
                         </div>
                     </div>

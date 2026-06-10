@@ -19,10 +19,10 @@ function TabLoading() {
 }
 
 const TABS = [
-    { id: "expenses", label: "Thu Chi", labelFull: "Thu Chi Cá Nhân", icon: DollarSign },
-    { id: "balance", label: "Tài khoản", labelFull: "Tài Khoản & Tiết Kiệm", icon: Wallet },
-    { id: "notes", label: "Ghi chú", labelFull: "Ghi Chú", icon: StickyNote },
-    { id: "tasks", label: "Tasks", labelFull: "Công Việc", icon: CheckSquare },
+    { id: "expenses", label: "Thu Chi", labelFull: "Thu Chi", icon: DollarSign },
+    { id: "balance", label: "Tài khoản", labelFull: "Tài khoản", icon: Wallet },
+    { id: "notes", label: "Ghi chú", labelFull: "Ghi chú", icon: StickyNote },
+    { id: "tasks", label: "Công việc", labelFull: "Công việc", icon: CheckSquare },
 ];
 
 const PersonalHub = ({ user, token }) => {

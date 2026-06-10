@@ -563,7 +563,7 @@ const AccountBalance = ({ user, token }) => {
                 <div className="relative bg-slate-900 px-5 pt-6 pb-6 sm:px-8 sm:pt-7 sm:pb-7 text-white overflow-hidden">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-[10px] font-bold text-slate-450 uppercase tracking-widest mb-1.5">Tổng tài sản ước tính</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tổng tài sản ước tính</p>
                             {showBalances ? (
                                 <div className="flex flex-col gap-0.5">
                                     <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-baseline gap-1">
@@ -677,7 +677,7 @@ const AccountBalance = ({ user, token }) => {
                                 <div className="hidden sm:block overflow-hidden border border-black/[0.05] rounded-2xl shadow-sm bg-white">
                                     <table className="w-full border-collapse text-xs">
                                         <thead>
-                                            <tr className="bg-slate-50 text-slate-650">
+                                            <tr className="bg-slate-50 text-slate-500">
                                                 <th className="p-3.5 font-bold uppercase tracking-wider text-left pl-5">Tên tài khoản</th>
                                                 <th className="p-3.5 font-bold uppercase tracking-wider text-right pr-5">Số dư khả dụng</th>
                                                 <th className="p-3.5 font-bold uppercase tracking-wider text-center w-28">Hành động</th>
@@ -744,7 +744,7 @@ const AccountBalance = ({ user, token }) => {
                                                 );
                                             })}
                                             <tr className="bg-emerald-50/20 font-bold text-emerald-950">
-                                                <td className="p-4 pl-5 text-left text-[10px] text-slate-450 uppercase tracking-wider">TỔNG SỐ DƯ TÀI KHOẢN</td>
+                                                <td className="p-4 pl-5 text-left text-[10px] text-slate-400 uppercase tracking-wider">TỔNG SỐ DƯ TÀI KHOẢN</td>
                                                 <td className="p-4 text-right pr-5 text-emerald-700 font-black text-sm whitespace-nowrap">
                                                     {showBalances ? `${totalAccountBalance.toLocaleString()} ₫` : "••••••"}
                                                 </td>
@@ -818,7 +818,7 @@ const AccountBalance = ({ user, token }) => {
                                                     </div>
                                                     
                                                     <div className="flex gap-0.5 border-l border-slate-100 pl-1.5 ml-1">
-                                                        <button onClick={() => startEditAccount(acc)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-650 transition-colors">
+                                                        <button onClick={() => startEditAccount(acc)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors">
                                                             <Edit2 size={12} />
                                                         </button>
                                                         <button onClick={() => deleteAccount(acc.id)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
@@ -832,7 +832,7 @@ const AccountBalance = ({ user, token }) => {
 
                                     {/* Small Mobile Total Account Balance Row */}
                                     <div className="flex items-center justify-between p-3.5 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl">
-                                        <span className="text-[9px] font-bold text-slate-450 uppercase tracking-widest">Tổng số dư tài khoản</span>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tổng số dư tài khoản</span>
                                         <span className="text-xs font-black text-slate-850">
                                             {showBalances ? formatVNDCompact(totalAccountBalance, false) : "••••••"}
                                         </span>
@@ -873,7 +873,7 @@ const AccountBalance = ({ user, token }) => {
                                                         addAccount();
                                                         setShowAddAccountForm(false);
                                                     }}
-                                                    className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-40 shadow-sm shrink-0"
+                                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-40 shadow-sm shrink-0"
                                                     disabled={!newAccount.name || !newAccount.balance}
                                                 >
                                                     Lưu
@@ -900,9 +900,9 @@ const AccountBalance = ({ user, token }) => {
                                 {showAddRecordForm && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end bg-slate-50/50 p-4 rounded-xl border border-slate-200 shadow-inner mb-4 animate-slide-down">
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-450">Tài khoản</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Tài khoản</label>
                                             <select
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 focus:border-indigo-550 focus:outline-none transition-all"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none transition-all"
                                                 value={newRecord.account_id}
                                                 onChange={(e) => setNewRecord({ ...newRecord, account_id: e.target.value })}
                                             >
@@ -913,29 +913,29 @@ const AccountBalance = ({ user, token }) => {
                                             </select>
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-450">Ngày ghi nhận</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ngày ghi nhận</label>
                                             <input
                                                 type="date"
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 focus:border-indigo-550 focus:outline-none transition-all"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none transition-all"
                                                 value={newRecord.date}
                                                 onChange={(e) => setNewRecord({ ...newRecord, date: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-450">Số dư mới (₫)</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Số dư mới (₫)</label>
                                             <input
                                                 type="number"
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 focus:border-indigo-550 focus:outline-none transition-all"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none transition-all"
                                                 placeholder="Số dư mới"
                                                 value={newRecord.balance}
                                                 onChange={(e) => setNewRecord({ ...newRecord, balance: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-450">Ghi chú</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ghi chú</label>
                                             <input
                                                 type="text"
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-750 focus:border-indigo-550 focus:outline-none transition-all"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-500 focus:border-indigo-500 focus:outline-none transition-all"
                                                 placeholder="Ví dụ: Chốt tháng, Lương về"
                                                 value={newRecord.note}
                                                 onChange={(e) => setNewRecord({ ...newRecord, note: e.target.value })}
@@ -1089,7 +1089,7 @@ const AccountBalance = ({ user, token }) => {
                                                         <label className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Ngày ghi nhận</label>
                                                         <input
                                                             type="date"
-                                                            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold focus:border-indigo-550 focus:outline-none"
+                                                            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                                                             value={editingRecord.date}
                                                             onChange={(e) => setEditingRecord({ ...editingRecord, date: e.target.value })}
                                                         />
@@ -1097,7 +1097,7 @@ const AccountBalance = ({ user, token }) => {
                                                     <div className="space-y-1">
                                                         <label className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Tài khoản</label>
                                                         <select
-                                                            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold focus:border-indigo-550 focus:outline-none"
+                                                            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                                                             value={editingRecord.account_id}
                                                             onChange={(e) => setEditingRecord({ ...editingRecord, account_id: e.target.value })}
                                                         >
@@ -1110,7 +1110,7 @@ const AccountBalance = ({ user, token }) => {
                                                         <label className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Số dư mới</label>
                                                         <input
                                                             type="number"
-                                                            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold focus:border-indigo-550 focus:outline-none"
+                                                            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold focus:border-indigo-500 focus:outline-none"
                                                             value={editingRecord.balance}
                                                             onChange={(e) => setEditingRecord({ ...editingRecord, balance: e.target.value })}
                                                         />
@@ -1119,7 +1119,7 @@ const AccountBalance = ({ user, token }) => {
                                                         <label className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Ghi chú</label>
                                                         <input
                                                             type="text"
-                                                            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold focus:border-indigo-550 focus:outline-none"
+                                                            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                                                             value={editingRecord.note}
                                                             onChange={(e) => setEditingRecord({ ...editingRecord, note: e.target.value })}
                                                         />
@@ -1192,7 +1192,7 @@ const AccountBalance = ({ user, token }) => {
                             <div className="flex flex-col sm:flex-row gap-2 justify-between items-stretch sm:items-center">
                                 <button
                                     onClick={() => setShowAddBookForm(!showAddBookForm)}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2.5 px-4 bg-indigo-650 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
                                 >
                                     <Plus size={14} className="stroke-[2.5]" />
                                     <span>Thêm sổ tiết kiệm mới</span>
@@ -1202,7 +1202,7 @@ const AccountBalance = ({ user, token }) => {
                                     onClick={() => setShowFilterPanel(!showFilterPanel)}
                                     className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-2.5 px-4 border rounded-xl text-xs font-bold transition-all ${
                                         showFilterPanel || savingsFilters.due_this_month || savingsFilters.book_number_search || savingsFilters.bank_name !== "all" || savingsFilters.status !== "active"
-                                            ? "border-indigo-600 bg-indigo-50/50 text-indigo-750"
+                                            ? "border-indigo-600 bg-indigo-50/50 text-indigo-700"
                                             : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
                                     }`}
                                 >
@@ -1215,69 +1215,69 @@ const AccountBalance = ({ user, token }) => {
                             {/* Collapsible Form Thêm Sổ */}
                             {showAddBookForm && (
                                 <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200/60 space-y-4 shadow-sm animate-slide-down">
-                                    <h4 className="text-[10px] font-bold text-slate-450 uppercase tracking-widest">Nhập thông tin sổ tiết kiệm mới</h4>
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nhập thông tin sổ tiết kiệm mới</h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-450">Số sổ / Mã sổ</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Số sổ / Mã sổ</label>
                                             <input
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-indigo-550 focus:outline-none"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
                                                 placeholder="Mã sổ..."
                                                 value={newBook.book_number}
                                                 onChange={(e) => setNewBook({ ...newBook, book_number: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-455">Ngân hàng phát hành</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ngân hàng phát hành</label>
                                             <input
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-indigo-550 focus:outline-none"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
                                                 placeholder="VCB, BIDV, Techcombank..."
                                                 value={newBook.bank_name}
                                                 onChange={(e) => setNewBook({ ...newBook, bank_name: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-455">Số tiền gốc (₫)</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Số tiền gốc (₫)</label>
                                             <input
                                                 type="number"
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-800 focus:border-indigo-550 focus:outline-none"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none"
                                                 placeholder="Số tiền gốc..."
                                                 value={newBook.amount}
                                                 onChange={(e) => setNewBook({ ...newBook, amount: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-455">Lãi suất (% / năm)</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Lãi suất (% / năm)</label>
                                             <input
                                                 type="number"
                                                 step="0.1"
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-800 focus:border-indigo-550 focus:outline-none"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none"
                                                 placeholder="5.5"
                                                 value={newBook.interest_rate}
                                                 onChange={(e) => setNewBook({ ...newBook, interest_rate: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-455">Ngày gửi</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ngày gửi</label>
                                             <input
                                                 type="date"
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-indigo-550 focus:outline-none"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
                                                 value={newBook.start_date} 
                                                 onChange={(e) => setNewBook({ ...newBook, start_date: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-455">Ngày đáo hạn</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ngày đáo hạn</label>
                                             <input
                                                 type="date"
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-indigo-550 focus:outline-none"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
                                                 value={newBook.end_date} 
                                                 onChange={(e) => setNewBook({ ...newBook, end_date: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-455">Trạng thái</label>
+                                            <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Trạng thái</label>
                                             <select
-                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-750 focus:border-indigo-550 focus:outline-none"
+                                                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 focus:border-indigo-500 focus:outline-none"
                                                 value={newBook.status}
                                                 onChange={(e) => setNewBook({ ...newBook, status: e.target.value })}
                                             >
@@ -1314,7 +1314,7 @@ const AccountBalance = ({ user, token }) => {
                                                 value={comparisonRate}
                                                 onChange={(e) => setComparisonRate(e.target.value)}
                                             />
-                                            <span className="text-[9px] font-bold text-blue-705 uppercase tracking-wide">% Lãi so sánh</span>
+                                            <span className="text-[9px] font-bold text-blue-700 uppercase tracking-wide">% Lãi so sánh</span>
                                         </div>
 
                                         <input
@@ -1351,7 +1351,7 @@ const AccountBalance = ({ user, token }) => {
                                                 type="checkbox"
                                                 checked={savingsFilters.due_this_month}
                                                 onChange={(e) => setSavingsFilters({ ...savingsFilters, due_this_month: e.target.checked })}
-                                                className="form-checkbox h-3.5 w-3.5 text-orange-650 rounded border-slate-200 focus:ring-orange-500/30"
+                                                className="form-checkbox h-3.5 w-3.5 text-orange-600 rounded border-slate-200 focus:ring-orange-500/30"
                                             />
                                             <span className="font-bold text-orange-850 text-[9px] uppercase tracking-wide">Đáo hạn tháng này</span>
                                         </label>
@@ -1428,7 +1428,7 @@ const AccountBalance = ({ user, token }) => {
                                                           <button onClick={saveEditBook} className="text-emerald-605 p-1.5 hover:bg-emerald-50 rounded-lg">
                                                                 <Check size={14} className="stroke-[2.5]" />
                                                           </button>
-                                                          <button onClick={cancelEditBook} className="text-slate-500 p-1.5 hover:bg-slate-105 rounded-lg">
+                                                          <button onClick={cancelEditBook} className="text-slate-500 p-1.5 hover:bg-slate-100 rounded-lg">
                                                                 <X size={14} className="stroke-[2.5]" />
                                                           </button>
                                                         </td>
@@ -1452,10 +1452,10 @@ const AccountBalance = ({ user, token }) => {
                                                     <td className="p-3.5 text-center">
                                                         <div className="font-mono text-slate-500">{book.start_date} → {book.end_date}</div>
                                                         {isActive && daysLeft > 0 && (
-                                                            <div className="text-[10px] text-orange-650 font-semibold bg-orange-55 px-2 py-0.5 rounded-full inline-block mt-1">Còn {daysLeft} ngày</div>
+                                                            <div className="text-[10px] text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 rounded-full inline-block mt-1">Còn {daysLeft} ngày</div>
                                                         )}
                                                         {isActive && daysLeft <= 0 && (
-                                                            <div className="text-[10px] text-red-650 font-bold bg-red-55 px-2 py-0.5 rounded-full inline-block mt-1 animate-pulse">Đáo hạn</div>
+                                                            <div className="text-[10px] text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded-full inline-block mt-1 animate-pulse">Đáo hạn</div>
                                                         )}
                                                     </td>
                                                     <td className="p-3.5 text-right text-emerald-600 font-black whitespace-nowrap">
@@ -1481,7 +1481,7 @@ const AccountBalance = ({ user, token }) => {
                                             </td>
                                             <td className="p-4 text-center">—</td>
                                             <td className="p-4 text-center">—</td>
-                                            <td className="p-4 text-right text-emerald-705 font-black text-sm whitespace-nowrap">
+                                            <td className="p-4 text-right text-emerald-700 font-black text-sm whitespace-nowrap">
                                                 {showBalances ? `${totalInterest.toLocaleString()} ₫` : "••••••"}
                                             </td>
                                             <td className="p-4 text-right text-indigo-950 font-black text-sm whitespace-nowrap">
@@ -1547,7 +1547,7 @@ const AccountBalance = ({ user, token }) => {
                                                     </select>
                                                 </div>
                                                 <div className="flex gap-2 pt-1">
-                                                    <button onClick={saveEditBook} className="flex-1 py-2.5 bg-emerald-650 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm">Lưu</button>
+                                                    <button onClick={saveEditBook} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm">Lưu</button>
                                                     <button onClick={cancelEditBook} className="flex-1 py-2.5 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">Hủy</button>
                                                 </div>
                                             </div>
@@ -1631,9 +1631,9 @@ const AccountBalance = ({ user, token }) => {
                                                     {isActive && (
                                                         <div className="mt-0.5">
                                                             {daysLeft > 0 ? (
-                                                                <span className="text-[8px] font-extrabold text-orange-600 bg-orange-55 px-1 py-0.2 rounded">còn {daysLeft} ngày</span>
+                                                                <span className="text-[8px] font-extrabold text-orange-600 bg-orange-50 px-1 py-0.2 rounded">còn {daysLeft} ngày</span>
                                                             ) : (
-                                                                <span className="text-[8px] font-extrabold text-red-655 bg-red-55 px-1.5 py-0.2 rounded animate-pulse">đến hạn rút</span>
+                                                                <span className="text-[8px] font-extrabold text-red-600 bg-red-50 px-1.5 py-0.2 rounded animate-pulse">đến hạn rút</span>
                                                             )}
                                                         </div>
                                                     )}

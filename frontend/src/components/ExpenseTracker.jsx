@@ -123,6 +123,7 @@ const ExpenseTracker = ({ user, token }) => {
     const [filterCategory, setFilterCategory] = useState("");
     const [filterPaymentMethod, setFilterPaymentMethod] = useState("");
     const [filterDescription, setFilterDescription] = useState("");
+    const [filterType, setFilterType] = useState("");
     const [selectedDay, setSelectedDay] = useState("");
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -489,6 +490,7 @@ const ExpenseTracker = ({ user, token }) => {
     const filteredExpenses = expenses.filter((e) => {
         return (
             (filterCategory === "" || e.category === filterCategory) &&
+            (filterType === "" || e.expense_type === filterType) &&
             (filterPaymentMethod === "" || e.payment_method === filterPaymentMethod) &&
             isWithinDateRange(e.date) &&
             !["Tiết kiệm", "Đầu tư", "XL", "Rút tiền"].includes(e.category) &&
@@ -716,7 +718,7 @@ const ExpenseTracker = ({ user, token }) => {
             )}
 
             {/* Main Tabs */}
-            <div className="flex flex-wrap gap-1 justify-center bg-slate-100/80 p-1 rounded-xl max-w-3xl mx-auto border border-slate-200/40 backdrop-blur-sm">
+            <div className="flex p-0.5 bg-slate-200/60 rounded-xl select-none overflow-x-auto no-scrollbar gap-0.5 max-w-fit mx-auto">
                 {[
                     { id: "expenses", label: "Chi tiêu" },
                     { id: "anuong", label: "Ăn uống" },
@@ -728,10 +730,10 @@ const ExpenseTracker = ({ user, token }) => {
                     <button
                         key={t.id}
                         onClick={() => setActiveTab(t.id)}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold transition duration-200 ${
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 select-none cursor-pointer ${
                             activeTab === t.id
-                                ? "bg-white text-slate-800 shadow-sm border border-slate-200/30"
-                                : "text-slate-500 hover:text-slate-800"
+                                ? "bg-white text-indigo-600 shadow-sm"
+                                : "text-slate-500 hover:text-slate-900 hover:bg-white/40"
                         }`}
                     >
                         {t.label}
@@ -980,6 +982,11 @@ const ExpenseTracker = ({ user, token }) => {
                                         {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => <option key={y} value={y}>{y}</option>)}
                                     </select>
                                 </div>
+                                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="h-9 col-span-1 sm:flex-initial bg-gray-50 border border-gray-200/80 rounded-xl px-3 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-100/50 focus:border-indigo-400 transition duration-200 cursor-pointer">
+                                    <option value="">Thu & Chi</option>
+                                    <option value="Thu">Thu</option>
+                                    <option value="Chi">Chi</option>
+                                </select>
                                 <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="h-9 col-span-2 sm:flex-1 min-w-[120px] bg-gray-50 border border-gray-200/80 rounded-xl px-3 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-100/50 focus:border-indigo-400 transition duration-200 cursor-pointer">
                                     <option value="">Tất cả danh mục</option>
                                     {selectCategories.map((cat) => (
@@ -998,7 +1005,7 @@ const ExpenseTracker = ({ user, token }) => {
                                     placeholder="Tìm mô tả..."
                                     value={filterDescription}
                                     onChange={(e) => setFilterDescription(e.target.value)}
-                                    className="h-9 col-span-3 sm:flex-1 min-w-[130px] bg-gray-50 border border-gray-200/80 rounded-xl px-3 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-100/50 focus:border-indigo-400 transition duration-200"
+                                    className="h-9 col-span-2 sm:flex-1 min-w-[130px] bg-gray-50 border border-gray-200/80 rounded-xl px-3 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-100/50 focus:border-indigo-400 transition duration-200"
                                 />
                             </div>
                         </div>

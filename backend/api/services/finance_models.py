@@ -78,3 +78,15 @@ class SavingsBook(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     status = Column(String, default="active")
+
+class ExpenseCategory(Base):
+    """Danh mục chi tiêu — lưu tên, màu sắc, icon và thứ tự hiển thị"""
+    __tablename__ = "expense_categories"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    name = Column(Unicode(100), nullable=False)
+    color = Column(String(20), nullable=False, default="#6366f1")
+    icon = Column(String(10), nullable=True, default="📦")
+    sort_order = Column(Integer, default=0)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)

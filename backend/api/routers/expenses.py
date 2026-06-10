@@ -4,16 +4,18 @@ from sqlalchemy.orm import Session
 
 from api.routers.auth import _get_user_id
 from api.services.finance_db import get_finance_db, get_psql_user_id
-from api.services.finance_models import Expense, DienNuoc, AnUong
+from api.services.finance_models import Expense, DienNuoc, AnUong, ExpenseCategory
 from api.services.finance_schemas import (
     ExpenseCreate, ExpenseUpdate, ExpenseResponse,
     DienNuocCreate, DienNuocUpdate, DienNuocResponse,
-    AnUongCreate, AnUongUpdate, AnUongResponse
+    AnUongCreate, AnUongUpdate, AnUongResponse,
+    ExpenseCategoryCreate, ExpenseCategoryUpdate, ExpenseCategoryResponse
 )
 from api.services.finance_crud import (
     get_expenses, create_expense, delete_expense, update_expense,
     get_diennuoc_list, create_diennuoc, delete_diennuoc, update_diennuoc,
-    get_anuong_list, create_anuong, update_anuong, delete_anuong
+    get_anuong_list, create_anuong, update_anuong, delete_anuong,
+    get_categories, create_category, update_category, delete_category
 )
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
@@ -148,6 +150,51 @@ def read_expenses(
     psql_uid = get_psql_user_id(db, hagent_uid)
     return get_expenses(db, user_id=psql_uid, day=day, month=month, year=year)
 
+# ============= CATEGORY APIs =============
+@router.get("/categories", response_model=List[ExpenseCategoryResponse])
+def read_categories(
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    """Lấy danh sách danh mục chi tiêu"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    return get_categories(db, user_id=psql_uid)
+
+@router.post("/categories", response_model=ExpenseCategoryResponse)
+def add_category(
+    cat_data: ExpenseCategoryCreate,
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    """Thêm danh mục mới"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    cat_data.user_id = psql_uid
+    return create_category(db, cat_data)
+
+@router.put("/categories/{cat_id}", response_model=ExpenseCategoryResponse)
+def update_category_endpoint(
+    cat_id: int,
+    cat_data: ExpenseCategoryUpdate,
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    """Cập nhật danh mục"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    return update_category(db, cat_id=cat_id, user_id=psql_uid, data=cat_data)
+
+@router.delete("/categories/{cat_id}")
+def delete_category_endpoint(
+    cat_id: int,
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    """Xóa danh mục"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    delete_category(db, cat_id=cat_id, user_id=psql_uid)
+    return {"detail": "Category deleted successfully"}
+
+
+# ============= INDIVIDUAL EXPENSE APIs =============
 @router.get("/{expense_id}", response_model=ExpenseResponse)
 def get_expense(
     expense_id: int, 
@@ -177,3 +224,4 @@ def delete_expense_endpoint(
     hagent_uid: str = Depends(_get_user_id)
 ):
     return delete_expense(db, expense_id)
+

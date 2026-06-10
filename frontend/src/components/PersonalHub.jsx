@@ -9,20 +9,20 @@ const PersonalTasks = lazy(() => import("./PersonalTasks"));
 function TabLoading() {
     return (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <div className="relative w-10 h-10">
-                <div className="absolute inset-0 rounded-full border-2 border-indigo-200 animate-ping" />
-                <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <div className="relative w-9 h-9">
+                <div className="absolute inset-0 rounded-full bg-indigo-500/10 animate-ping" />
+                <div className="w-9 h-9 rounded-full border-[2.5px] border-indigo-500/20 border-t-indigo-500 animate-spin" />
             </div>
-            <p className="text-xs font-semibold text-gray-400 tracking-wide">Đang tải dữ liệu...</p>
+            <p className="text-[11px] font-semibold text-slate-400 tracking-wide">Đang tải dữ liệu...</p>
         </div>
     );
 }
 
 const TABS = [
-    { id: "expenses", label: "Thu Chi", labelFull: "Thu Chi", icon: DollarSign },
-    { id: "balance", label: "Tài khoản", labelFull: "Tài khoản", icon: Wallet },
-    { id: "notes", label: "Ghi chú", labelFull: "Ghi chú", icon: StickyNote },
-    { id: "tasks", label: "Công việc", labelFull: "Công việc", icon: CheckSquare },
+    { id: "expenses", label: "Thu Chi", icon: DollarSign },
+    { id: "balance", label: "Tài khoản", icon: Wallet },
+    { id: "notes", label: "Ghi chú", icon: StickyNote },
+    { id: "tasks", label: "Công việc", icon: CheckSquare },
 ];
 
 const PersonalHub = ({ user, token }) => {
@@ -36,10 +36,10 @@ const PersonalHub = ({ user, token }) => {
     };
 
     return (
-        <div className="relative flex h-full min-h-0 flex-col bg-[var(--color-bg)]">
-            {/* Tab Bar */}
-            <div className="shrink-0 border-b border-black/[0.08] bg-white/95 backdrop-blur-xl px-3 pt-2.5 pb-0 sm:px-4">
-                <div className="flex items-end gap-0 overflow-x-auto no-scrollbar">
+        <div className="relative flex h-full min-h-0 flex-col bg-gradient-to-b from-slate-50/40 via-white to-white">
+            {/* Tab Bar - glassmorphism */}
+            <div className="sticky top-0 z-20 shrink-0 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl px-4 py-3 sm:px-6">
+                <div className="inline-flex p-1 bg-slate-100/80 backdrop-blur rounded-2xl select-none overflow-x-auto no-scrollbar gap-1 ring-1 ring-slate-200/40">
                     {TABS.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = activeTab === tab.id;
@@ -48,20 +48,16 @@ const PersonalHub = ({ user, token }) => {
                                 key={tab.id}
                                 onClick={() => selectTab(tab.id)}
                                 className={`
-                                    relative flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-xs font-bold
-                                    transition-all duration-200 border-b-2
+                                    relative flex shrink-0 items-center justify-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-xl text-[12px] font-bold
+                                    transition-all duration-300 select-none cursor-pointer
                                     ${isActive
-                                        ? "border-indigo-600 text-indigo-600"
-                                        : "border-transparent text-gray-400 hover:text-gray-700 hover:border-gray-200"
+                                        ? "bg-white text-indigo-600 shadow-[0_2px_8px_-2px_rgba(99,102,241,0.25)] ring-1 ring-indigo-100"
+                                        : "text-slate-500 hover:text-slate-800 hover:bg-white/60"
                                     }
                                 `}
                             >
-                                <Icon size={14} className={isActive ? "text-indigo-600" : "text-gray-400"} />
-                                <span className="hidden sm:inline">{tab.labelFull}</span>
-                                <span className="sm:hidden">{tab.label}</span>
-                                {isActive && (
-                                    <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo-600" />
-                                )}
+                                <Icon size={13} className={isActive ? "text-indigo-500" : "text-slate-400"} strokeWidth={2.5} />
+                                <span>{tab.label}</span>
                             </button>
                         );
                     })}

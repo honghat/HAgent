@@ -622,6 +622,13 @@ def get_db() -> PgConnectionCompat:
 # ── DDL (init_db) ──────────────────────────────────────────────────────────
 
 def init_db() -> None:
+    try:
+        from api.services.finance_db import Base, engine
+        import api.services.finance_models
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.error("Error creating SQLAlchemy tables: %s", e, exc_info=True)
+
     from api.services.pg_schema import SCHEMA_STATEMENTS
     with get_connection() as conn:
         for stmt in SCHEMA_STATEMENTS:

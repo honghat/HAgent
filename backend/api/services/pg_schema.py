@@ -178,4 +178,10 @@ SCHEMA_STATEMENTS = [
     "CREATE INDEX idx_workflow_schedules_due\n                ON workflow_schedules(enabled, next_run_at)",
     "CREATE INDEX idx_workflow_steps_run_started\n                ON workflow_run_steps(run_id, started_at ASC)",
     "CREATE INDEX idx_workflows_user_updated\n                ON workflows(user_id, updated_at DESC)",
+    "CREATE TABLE personal_note_categories (\n    id SERIAL PRIMARY KEY,\n    user_id TEXT NOT NULL,\n    name TEXT NOT NULL,\n    created_at TEXT DEFAULT NOW(),\n    UNIQUE(user_id, name),\n    FOREIGN KEY (user_id) REFERENCES hagent_users(id) ON DELETE CASCADE\n  )",
+    "CREATE TABLE personal_notes (\n    id SERIAL PRIMARY KEY,\n    user_id TEXT NOT NULL,\n    title TEXT NOT NULL DEFAULT '',\n    content TEXT NOT NULL DEFAULT '',\n    category_id INTEGER,\n    created_at TEXT DEFAULT NOW(),\n    updated_at TEXT DEFAULT NOW(),\n    FOREIGN KEY (user_id) REFERENCES hagent_users(id) ON DELETE CASCADE,\n    FOREIGN KEY (category_id) REFERENCES personal_note_categories(id) ON DELETE SET NULL\n  )",
+    "CREATE TABLE personal_todo_tasks (\n    id TEXT PRIMARY KEY,\n    user_id TEXT NOT NULL,\n    text TEXT NOT NULL,\n    status TEXT DEFAULT 'pending',\n    category TEXT DEFAULT 'work',\n    priority TEXT DEFAULT 'medium',\n    due_date TEXT,\n    assignee TEXT DEFAULT '',\n    created_at TEXT DEFAULT NOW(),\n    updated_at TEXT DEFAULT NOW(),\n    FOREIGN KEY (user_id) REFERENCES hagent_users(id) ON DELETE CASCADE\n  )",
+    "CREATE TABLE personal_todo_subtasks (\n    id TEXT PRIMARY KEY,\n    task_id TEXT NOT NULL,\n    text TEXT NOT NULL,\n    completed INTEGER DEFAULT 0,\n    FOREIGN KEY (task_id) REFERENCES personal_todo_tasks(id) ON DELETE CASCADE\n  )",
+    "CREATE INDEX idx_personal_notes_user ON personal_notes(user_id, updated_at DESC)",
+    "CREATE INDEX idx_personal_todo_tasks_user ON personal_todo_tasks(user_id, created_at DESC)",
 ]

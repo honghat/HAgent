@@ -167,3 +167,27 @@ class SavingsBookResponse(SavingsBookBase):
     
     class Config:
         from_attributes = True
+
+# ================= EXPENSE CATEGORY SCHEMAS =================
+class ExpenseCategoryBase(BaseModel):
+    name: str
+    color: str = "#6366f1"
+    icon: Optional[str] = "📦"
+    sort_order: int = 0
+    is_default: bool = False
+
+class ExpenseCategoryCreate(ExpenseCategoryBase):
+    user_id: int = 0  # sẽ được gán từ token
+
+class ExpenseCategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    icon: Optional[str] = None
+    sort_order: Optional[int] = None
+
+class ExpenseCategoryResponse(ExpenseCategoryBase):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True

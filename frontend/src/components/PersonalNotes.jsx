@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Edit, Trash2, Plus, LayoutGrid, List, Search, X, StickyNote, Tag, Loader, ChevronDown, ChevronRight } from "lucide-react";
+import { Edit3, Trash2, Plus, LayoutGrid, List, Search, X, StickyNote, Tag, Loader, ChevronDown, ChevronRight } from "lucide-react";
 
 const API = "/api/personal/notes";
 
 const COLORS = [
-    { bg: "#dbeafe", text: "#1e40af", border: "#3b82f6" },
-    { bg: "#d1fae5", text: "#065f46", border: "#10b981" },
-    { bg: "#fef3c7", text: "#92400e", border: "#f59e0b" },
-    { bg: "#fee2e2", text: "#991b1b", border: "#ef4444" },
-    { bg: "#ede9fe", text: "#5b21b6", border: "#8b5cf6" },
-    { bg: "#fce7f3", text: "#9d174d", border: "#ec4899" },
+    { bg: "from-blue-50 to-blue-50/30", text: "#2563eb", border: "#3b82f6", soft: "bg-blue-500/10" },
+    { bg: "from-emerald-50 to-emerald-50/30", text: "#059669", border: "#10b981", soft: "bg-emerald-500/10" },
+    { bg: "from-amber-50 to-amber-50/30", text: "#d97706", border: "#f59e0b", soft: "bg-amber-500/10" },
+    { bg: "from-rose-50 to-rose-50/30", text: "#e11d48", border: "#ef4444", soft: "bg-rose-500/10" },
+    { bg: "from-violet-50 to-violet-50/30", text: "#7c3aed", border: "#8b5cf6", soft: "bg-violet-500/10" },
+    { bg: "from-pink-50 to-pink-50/30", text: "#db2777", border: "#ec4899", soft: "bg-pink-500/10" },
 ];
 const catColor = (id) => COLORS[(id || 0) % 6];
 
@@ -66,25 +66,21 @@ export default function PersonalNotes({ token }) {
         );
     }, [notes, search]);
 
-    // Nhóm theo category
     const groups = useMemo(() => {
         const map = new Map();
-        // Thứ tự: các nhóm có danh mục trước, không danh mục cuối
         for (const note of filtered) {
             const key = note.category_id ?? "__none__";
             if (!map.has(key)) map.set(key, []);
             map.get(key).push(note);
         }
         const result = [];
-        // Nhóm có danh mục (theo thứ tự categories)
         for (const cat of categories) {
             if (map.has(cat.id)) {
                 result.push({ key: cat.id, label: cat.name, color: catColor(cat.id), notes: map.get(cat.id) });
             }
         }
-        // Không danh mục
         if (map.has("__none__")) {
-            result.push({ key: "__none__", label: "Chưa phân loại", color: { bg: "#f3f4f6", text: "#6b7280", border: "#d1d5db" }, notes: map.get("__none__") });
+            result.push({ key: "__none__", label: "Chưa phân loại", color: { bg: "from-slate-50 to-slate-50/30", text: "#64748b", border: "#cbd5e1", soft: "bg-slate-500/10" }, notes: map.get("__none__") });
         }
         return result;
     }, [filtered, categories]);
@@ -136,84 +132,87 @@ export default function PersonalNotes({ token }) {
     };
 
     if (loading) return (
-        <div className="flex items-center justify-center py-24 gap-2 text-gray-400">
-            <Loader size={18} className="animate-spin" /> <span className="text-sm">Đang tải...</span>
+        <div className="flex items-center justify-center py-24 gap-2 text-slate-400">
+            <Loader size={16} className="animate-spin" />
+            <span className="text-xs font-semibold">Đang tải...</span>
         </div>
     );
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
             {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[180px]">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div className="flex flex-wrap items-center gap-2.5">
+                <div className="relative flex-1 min-w-[200px]">
+                    <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                         value={search} onChange={(e) => setSearch(e.target.value)}
                         placeholder="Tìm ghi chú..."
-                        className="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-white"
+                        className="w-full h-10 pl-10 pr-9 text-[12px] font-semibold border border-slate-200/80 rounded-xl bg-white/70 backdrop-blur focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-500/8 hover:border-slate-300 transition-all placeholder:text-slate-400"
                     />
                     {search && (
-                        <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors">
                             <X size={13} />
                         </button>
                     )}
                 </div>
                 <button onClick={() => setModal("cat")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <Tag size={13} /> Danh mục
+                    className="flex items-center gap-1.5 px-3.5 h-10 text-[12px] font-bold text-slate-600 bg-white/70 backdrop-blur border border-slate-200/80 rounded-xl hover:bg-white hover:border-slate-300 hover:text-slate-800 transition active:scale-[0.97]">
+                    <Tag size={13} strokeWidth={2.5} /> Danh mục
                 </button>
                 <button onClick={() => setView(v => v === "grid" ? "list" : "grid")}
-                    className="p-1.5 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+                    className="p-2.5 text-slate-500 bg-white/70 backdrop-blur border border-slate-200/80 rounded-xl hover:bg-white hover:border-slate-300 hover:text-slate-800 transition active:scale-[0.97]"
+                    title={view === "grid" ? "Xem danh sách" : "Xem lưới"}>
                     {view === "grid" ? <List size={15} /> : <LayoutGrid size={15} />}
                 </button>
                 <button onClick={() => openAdd()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
-                    <Plus size={14} /> Thêm
+                    className="flex items-center gap-1.5 px-4 h-10 text-[12px] font-bold text-white bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-[0_4px_12px_-2px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_16px_-2px_rgba(99,102,241,0.5)] hover:from-indigo-600 hover:to-indigo-700 transition-all active:scale-[0.97]">
+                    <Plus size={14} strokeWidth={3} /> Thêm ghi chú
                 </button>
             </div>
 
-            {/* Grouped notes */}
+            {/* Groups */}
             {groups.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
-                    <StickyNote size={32} className="opacity-30" />
-                    <p className="text-sm">{search ? "Không tìm thấy ghi chú nào" : "Chưa có ghi chú nào"}</p>
+                <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400 border border-dashed border-slate-200 rounded-3xl bg-white/40 backdrop-blur">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-100/60 flex items-center justify-center">
+                        <StickyNote size={24} className="text-slate-300" strokeWidth={1.5} />
+                    </div>
+                    <p className="text-xs font-semibold">{search ? "Không tìm thấy ghi chú nào" : "Chưa có ghi chú nào"}</p>
                 </div>
             ) : (
-                <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-7">
                     {groups.map((group) => {
                         const isCollapsed = collapsed[group.key];
                         const col = group.color;
                         return (
-                            <div key={group.key} className="flex flex-col gap-2">
+                            <div key={group.key} className="flex flex-col gap-3.5">
                                 {/* Group header */}
                                 <div className="flex items-center justify-between">
                                     <button
                                         onClick={() => toggleCollapse(group.key)}
-                                        className="flex items-center gap-2 group/h"
+                                        className="flex items-center gap-2.5 group/h"
                                     >
-                                        <span className="w-0.5 h-4 rounded-full" style={{ background: col.border }} />
-                                        <span className="text-xs font-bold px-2.5 py-1 rounded-full border"
-                                            style={{ background: col.bg, color: col.text, borderColor: col.border }}>
+                                        <span className="w-1 h-4 rounded-full" style={{ background: col.border }} />
+                                        <span className="text-[13px] font-bold tracking-tight text-slate-800">
                                             {group.label}
                                         </span>
-                                        <span className="text-xs text-gray-400">{group.notes.length}</span>
-                                        {isCollapsed
-                                            ? <ChevronRight size={13} className="text-gray-400" />
-                                            : <ChevronDown size={13} className="text-gray-400" />
-                                        }
+                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100/80 px-1.5 py-0.5 rounded-md tabular-nums">{group.notes.length}</span>
+                                        <span className="text-slate-300 group-hover/h:text-slate-500 transition-colors">
+                                            {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                                        </span>
                                     </button>
                                     {group.key !== "__none__" && (
                                         <button onClick={() => openAdd(group.key)}
-                                            className="p-1 text-gray-400 hover:text-indigo-600 transition-colors">
-                                            <Plus size={14} />
+                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/60 rounded-lg transition-all"
+                                            title="Thêm ghi chú vào danh mục này">
+                                            <Plus size={14} strokeWidth={2.5} />
                                         </button>
                                     )}
                                 </div>
 
-                                {/* Notes in group */}
+                                {/* Notes */}
                                 {!isCollapsed && (
                                     view === "grid" ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                                             {group.notes.map((n) => (
                                                 <NoteCard key={n.id} note={n} onEdit={openEdit} onDelete={deleteNote} />
                                             ))}
@@ -235,23 +234,28 @@ export default function PersonalNotes({ token }) {
             {/* Add/Edit modal */}
             {(modal === "add" || modal === "edit") && (
                 <Modal title={modal === "add" ? "Thêm ghi chú" : "Sửa ghi chú"} onClose={() => setModal(null)}>
-                    <div className="flex flex-col gap-3">
-                        <input value={form.title} onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))}
-                            placeholder="Tiêu đề..." autoFocus
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400" />
-                        <textarea value={form.content} onChange={(e) => setForm(p => ({ ...p, content: e.target.value }))}
-                            placeholder="Nội dung..." rows={6}
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 resize-y" />
-                        <select value={form.category_id ?? ""} onChange={(e) => setForm(p => ({ ...p, category_id: e.target.value ? +e.target.value : null }))}
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-white">
-                            <option value="">-- Không có danh mục --</option>
-                            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setModal(null)} className="px-4 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Hủy</button>
+                    <div className="flex flex-col gap-4">
+                        <Field label="Tiêu đề">
+                            <input value={form.title} onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))}
+                                placeholder="Tiêu đề ghi chú..." autoFocus className={inputCls} />
+                        </Field>
+                        <Field label="Nội dung">
+                            <textarea value={form.content} onChange={(e) => setForm(p => ({ ...p, content: e.target.value }))}
+                                placeholder="Viết gì đó..." rows={6}
+                                className={`${inputCls} h-auto py-3 resize-y leading-relaxed`} />
+                        </Field>
+                        <Field label="Danh mục">
+                            <select value={form.category_id ?? ""} onChange={(e) => setForm(p => ({ ...p, category_id: e.target.value ? +e.target.value : null }))}
+                                className={`${inputCls} bg-white`}>
+                                <option value="">— Không có danh mục —</option>
+                                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </Field>
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button onClick={() => setModal(null)} className="px-4 py-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition active:scale-[0.97]">Hủy</button>
                             <button onClick={saveNote} disabled={saving}
-                                className="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60">
-                                {saving ? "Đang lưu..." : "Lưu"}
+                                className="px-4 py-2 text-[12px] font-bold text-white bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-[0_4px_12px_-2px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_16px_-2px_rgba(99,102,241,0.5)] hover:from-indigo-600 hover:to-indigo-700 transition active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed">
+                                {saving ? "Đang lưu..." : "Lưu ghi chú"}
                             </button>
                         </div>
                     </div>
@@ -261,25 +265,29 @@ export default function PersonalNotes({ token }) {
             {/* Category modal */}
             {modal === "cat" && (
                 <Modal title="Quản lý danh mục" onClose={() => setModal(null)}>
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3.5">
                         <div className="flex gap-2">
                             <input value={newCat} onChange={(e) => setNewCat(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && addCategory()}
-                                placeholder="Tên danh mục mới..."
-                                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400" />
+                                placeholder="Tên danh mục mới..." className={inputCls} />
                             <button onClick={addCategory}
-                                className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+                                className="px-4 h-10 text-[12px] font-bold text-white bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-[0_4px_12px_-2px_rgba(99,102,241,0.4)] hover:from-indigo-600 hover:to-indigo-700 transition active:scale-[0.97]">
                                 Thêm
                             </button>
                         </div>
-                        <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto">
-                            {categories.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Chưa có danh mục</p>}
+                        <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-1 -mr-1">
+                            {categories.length === 0 && (
+                                <p className="text-xs font-semibold text-slate-400 text-center py-8">Chưa có danh mục nào</p>
+                            )}
                             {categories.map((c) => {
                                 const col = catColor(c.id);
                                 return (
-                                    <div key={c.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-                                        <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: col.bg, color: col.text }}>{c.name}</span>
-                                        <button onClick={() => deleteCategory(c.id)} className="text-gray-400 hover:text-red-500 transition-colors">
+                                    <div key={c.id} className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50/60 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
+                                        <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700">
+                                            <span className="w-2 h-2 rounded-full" style={{ background: col.border }} />
+                                            {c.name}
+                                        </span>
+                                        <button onClick={() => deleteCategory(c.id)} className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
                                             <Trash2 size={13} />
                                         </button>
                                     </div>
@@ -293,37 +301,59 @@ export default function PersonalNotes({ token }) {
     );
 }
 
+const inputCls = "w-full h-10 px-3.5 text-[12px] font-semibold border border-slate-200/80 rounded-xl bg-white/80 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-500/8 hover:border-slate-300 transition-all placeholder:text-slate-400";
+
+function Field({ label, children }) {
+    return (
+        <div className="space-y-1.5">
+            <label className="block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">{label}</label>
+            {children}
+        </div>
+    );
+}
+
 function NoteCard({ note, onEdit, onDelete }) {
     const col = catColor(note.category_id);
     return (
-        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-md transition-shadow flex flex-col gap-2 group">
-            <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-sm text-gray-800 line-clamp-2 flex-1">{note.title || "(Không có tiêu đề)"}</h3>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button onClick={() => onEdit(note)} className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"><Edit size={13} /></button>
-                    <button onClick={() => onDelete(note.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
+        <div className="relative bg-white/80 backdrop-blur border border-slate-200/60 hover:border-slate-300/80 rounded-2xl p-4 hover:shadow-[0_10px_30px_-12px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col gap-2.5 group overflow-hidden">
+            <div className={`absolute left-0 top-0 bottom-0 w-1 ${col.soft}`} style={{ background: col.border }} />
+
+            <div className="flex items-start justify-between gap-2 pl-1.5">
+                <h3 className="font-bold text-[13px] text-slate-800 line-clamp-2 flex-1 tracking-tight leading-snug">
+                    {note.title || <span className="italic text-slate-400">(Không có tiêu đề)</span>}
+                </h3>
+                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
+                    <button onClick={() => onEdit(note)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/60 rounded-lg transition-all"><Edit3 size={12} strokeWidth={2.5} /></button>
+                    <button onClick={() => onDelete(note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={12} strokeWidth={2.5} /></button>
                 </div>
             </div>
-            {note.content && <p className="text-xs text-gray-500 leading-relaxed whitespace-pre-wrap line-clamp-6">{note.content}</p>}
-            <div className="flex items-center justify-end mt-auto pt-1">
-                <span className="text-xs text-gray-400">{fmtDate(note.updated_at)}</span>
+            {note.content && (
+                <p className="text-[11.5px] text-slate-500 leading-relaxed whitespace-pre-wrap line-clamp-5 pl-1.5">
+                    {note.content}
+                </p>
+            )}
+            <div className="flex items-center mt-auto pt-2 pl-1.5">
+                <span className="text-[10px] font-semibold text-slate-400 tabular-nums">{fmtDate(note.updated_at)}</span>
             </div>
         </div>
     );
 }
 
 function NoteRow({ note, onEdit, onDelete }) {
+    const col = catColor(note.category_id);
     return (
-        <div className="flex items-start gap-3 px-4 py-3 bg-white border border-gray-100 rounded-xl hover:shadow-sm transition-shadow group">
-            <StickyNote size={14} className="text-gray-300 shrink-0 mt-0.5" />
+        <div className="flex items-center gap-3 px-4 py-3 bg-white/80 backdrop-blur border border-slate-200/60 hover:border-slate-300/80 rounded-xl hover:shadow-[0_4px_12px_-4px_rgba(15,23,42,0.08)] transition-all duration-200 group">
+            <span className="w-1 h-6 rounded-full shrink-0" style={{ background: col.border }} />
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800">{note.title || "(Không có tiêu đề)"}</p>
-                {note.content && <p className="text-xs text-gray-400 whitespace-pre-wrap line-clamp-3 mt-0.5 leading-relaxed">{note.content}</p>}
+                <p className="text-[12.5px] font-bold text-slate-800 truncate tracking-tight">
+                    {note.title || <span className="italic text-slate-400">(Không có tiêu đề)</span>}
+                </p>
+                {note.content && <p className="text-[11px] text-slate-400 truncate mt-0.5">{note.content}</p>}
             </div>
-            <span className="text-xs text-gray-400 shrink-0 hidden sm:block mt-0.5">{fmtDate(note.updated_at)}</span>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                <button onClick={() => onEdit(note)} className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"><Edit size={13} /></button>
-                <button onClick={() => onDelete(note.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
+            <span className="text-[10px] font-semibold text-slate-400 shrink-0 hidden sm:block tabular-nums">{fmtDate(note.updated_at)}</span>
+            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
+                <button onClick={() => onEdit(note)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/60 rounded-lg transition-all"><Edit3 size={12} strokeWidth={2.5} /></button>
+                <button onClick={() => onDelete(note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={12} strokeWidth={2.5} /></button>
             </div>
         </div>
     );
@@ -331,11 +361,11 @@ function NoteRow({ note, onEdit, onDelete }) {
 
 function Modal({ title, onClose, children }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="font-bold text-sm text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={16} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+            <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_24px_60px_-12px_rgba(15,23,42,0.25)] w-full max-w-md p-6 border border-slate-200/60 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-5">
+                    <h2 className="font-bold text-[14px] text-slate-800 tracking-tight">{title}</h2>
+                    <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all"><X size={15} /></button>
                 </div>
                 {children}
             </div>

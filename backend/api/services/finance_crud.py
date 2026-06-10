@@ -267,3 +267,120 @@ def delete_savings_book(db: Session, book_id: int) -> bool:
         db.commit()
         return True
     return False
+
+# ============ EXPENSE CATEGORY CRUD ============
+
+DEFAULT_CATEGORIES = [
+    {"name": "Ăn uống",           "color": "#22c55e", "icon": "🍜", "sort_order": 1},
+    {"name": "Đi lại",            "color": "#f59e0b", "icon": "🚗", "sort_order": 2},
+    {"name": "Tiền nhà",          "color": "#3b82f6", "icon": "🏠", "sort_order": 3},
+    {"name": "Mua sắm",           "color": "#ec4899", "icon": "🛍️", "sort_order": 4},
+    {"name": "Vệ sinh-Sức khỏe",  "color": "#06b6d4", "icon": "💊", "sort_order": 5},
+    {"name": "Tiền internet",     "color": "#8b5cf6", "icon": "🌐", "sort_order": 6},
+    {"name": "Sinh nhật",         "color": "#f97316", "icon": "🎂", "sort_order": 7},
+    {"name": "Đám cưới",          "color": "#db2777", "icon": "💍", "sort_order": 8},
+    {"name": "Biếu tặng",         "color": "#e11d48", "icon": "🎁", "sort_order": 9},
+    {"name": "Hớt tóc",           "color": "#0891b2", "icon": "✂️", "sort_order": 10},
+    {"name": "Lương",             "color": "#16a34a", "icon": "💰", "sort_order": 11},
+    {"name": "Lãi",               "color": "#15803d", "icon": "📈", "sort_order": 12},
+    {"name": "Tiết kiệm",         "color": "#7c3aed", "icon": "🏦", "sort_order": 13},
+    {"name": "Rút tiền",          "color": "#9333ea", "icon": "💸", "sort_order": 14},
+    {"name": "Khác",              "color": "#6b7280", "icon": "📦", "sort_order": 15},
+    {"name": "XL",                "color": "#374151", "icon": "⚙️", "sort_order": 16},
+]
+
+from api.services.finance_models import ExpenseCategory
+from api.services.finance_schemas import (
+    ExpenseCategoryCreate, ExpenseCategoryUpdate
+)
+
+def seed_default_categories(db: Session, user_id: int):
+    """Tạo danh mục mặc định cho user mới nếu chưa có, và đồng bộ các danh mục từ giao dịch cũ"""
+    existing_cats = db.query(ExpenseCategory).filter(ExpenseCategory.user_id == user_id).all()
+    existing_names = {c.name for c in existing_cats}
+    
+    cat_map = {cat["name"]: cat for cat in DEFAULT_CATEGORIES}
+    has_changes = False
+    
+    # 1. Thêm các danh mục mặc định nếu chưa có
+    for default_cat in DEFAULT_CATEGORIES:
+        if default_cat["name"] not in existing_names:
+            db.add(ExpenseCategory(
+                user_id=user_id,
+                name=default_cat["name"],
+                color=default_cat["color"],
+                icon=default_cat["icon"],
+                sort_order=default_cat["sort_order"],
+                is_default=True,
+            ))
+            existing_names.add(default_cat["name"])
+            has_changes = True
+            
+    # 2. Thêm các danh mục hiện có từ bảng Expense (giao dịch cũ của user)
+    from api.services.finance_models import Expense
+    expense_cats = [x[0] for x in db.query(Expense.category).filter(Expense.userid == user_id).distinct().all() if x[0]]
+    for ec in expense_cats:
+        if ec not in existing_names:
+            color = "#6b7280"
+            icon = "📦"
+            sort_order = 99
+            if ec in cat_map:
+                color = cat_map[ec]["color"]
+                icon = cat_map[ec]["icon"]
+                sort_order = cat_map[ec]["sort_order"]
+            
+            db.add(ExpenseCategory(
+                user_id=user_id,
+                name=ec,
+                color=color,
+                icon=icon,
+                sort_order=sort_order,
+                is_default=False,
+            ))
+            existing_names.add(ec)
+            has_changes = True
+            
+    if has_changes:
+        db.commit()
+
+def get_categories(db: Session, user_id: int):
+    seed_default_categories(db, user_id)
+    return (
+        db.query(ExpenseCategory)
+        .filter(ExpenseCategory.user_id == user_id)
+        .order_by(ExpenseCategory.sort_order, ExpenseCategory.name)
+        .all()
+    )
+
+def create_category(db: Session, data: ExpenseCategoryCreate) -> ExpenseCategory:
+    cat = ExpenseCategory(**data.model_dump())
+    db.add(cat)
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+def update_category(db: Session, cat_id: int, user_id: int, data: ExpenseCategoryUpdate) -> ExpenseCategory:
+    from fastapi import HTTPException
+    cat = db.query(ExpenseCategory).filter(
+        ExpenseCategory.id == cat_id,
+        ExpenseCategory.user_id == user_id
+    ).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(cat, k, v)
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+def delete_category(db: Session, cat_id: int, user_id: int) -> bool:
+    from fastapi import HTTPException
+    cat = db.query(ExpenseCategory).filter(
+        ExpenseCategory.id == cat_id,
+        ExpenseCategory.user_id == user_id
+    ).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+    db.delete(cat)
+    db.commit()
+    return True

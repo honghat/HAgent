@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
-import { Edit2, Trash2, Calendar, CreditCard, Tag, Check, X, Loader, Plus, Upload, BarChart2, DollarSign } from "lucide-react";
+import { Edit2, Trash2, Calendar, CreditCard, Tag, Check, X, Loader, Plus, Upload, BarChart2, DollarSign, Wallet, Landmark } from "lucide-react";
 
 import ExpenseDienNuoc from "./ExpenseDienNuoc";
 import ExpenseAnUong from "./ExpenseAnUong";
@@ -36,21 +36,21 @@ const ConfirmationModal = ({ isOpen, message, onConfirm, onCancel }) => {
 };
 
 // Mobile Expense Card
-const ExpenseCard = ({ expense, handleEdit, openDeleteModal }) => {
+const ExpenseCard = ({ expense, handleEdit, openDeleteModal, categoryColors }) => {
     const isIncome = expense.expense_type === "Thu";
-    const amountColor = isIncome ? "text-green-600" : "text-red-600";
-    const iconBg = isIncome ? "bg-green-50" : "bg-red-50";
-    const iconColor = isIncome ? "text-green-600" : "text-red-600";
+    const amountColor = isIncome ? "text-emerald-600" : "text-rose-600";
+    const iconBg = isIncome ? "bg-emerald-50" : "bg-rose-50";
+    const iconColor = isIncome ? "text-emerald-600" : "text-rose-600";
 
     return (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-black/[0.08] flex flex-col space-y-2.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col space-y-2.5 hover:shadow-md transition duration-200">
             <div className="flex items-start justify-between">
                 <div className="flex items-center">
                     <div className={`p-2 rounded-full mr-3 ${iconBg}`}>
-                        <DollarSign className={`w-5 h-5 ${iconColor}`} />
+                        <DollarSign className={`w-4 h-4 ${iconColor}`} />
                     </div>
-                    <p className={`text-lg font-bold ${amountColor}`}>
-                        {isIncome ? "+" : "-"}{expense.amount.toLocaleString()} ₫
+                    <p className={`text-base font-extrabold tracking-tight whitespace-nowrap ${amountColor}`}>
+                        {isIncome ? "+" : "-"}{expense.amount.toLocaleString()}&nbsp;₫
                     </p>
                 </div>
                 <div className="flex space-x-1">
@@ -59,31 +59,39 @@ const ExpenseCard = ({ expense, handleEdit, openDeleteModal }) => {
                         className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition"
                         title="Sửa"
                     >
-                        <Edit2 size={16} />
+                        <Edit2 size={14} />
                     </button>
                     <button
                         onClick={() => openDeleteModal(expense.id)}
                         className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
                         title="Xóa"
                     >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                     </button>
                 </div>
             </div>
 
-            <p className="text-gray-800 font-semibold">{expense.description}</p>
+            <p className="text-sm text-slate-800 font-semibold">{expense.description}</p>
 
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-black/[0.04] text-xs text-gray-500">
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
                 <div className="flex items-center gap-1.5">
                     <Calendar size={13} className="text-blue-500" />
                     <span>{new Date(expense.date).toLocaleDateString("vi-VN")}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                    <Tag size={13} className="text-purple-500" />
-                    <span className="truncate">{expense.category}</span>
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                    <Tag size={13} className="text-indigo-500 shrink-0" />
+                    <span 
+                        className="truncate px-1.5 py-0.5 rounded font-bold text-[10px]"
+                        style={{
+                            backgroundColor: `${categoryColors?.[expense.category] || "#6b7280"}15`,
+                            color: categoryColors?.[expense.category] || "#6b7280"
+                        }}
+                    >
+                        {expense.category}
+                    </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <CreditCard size={13} className="text-indigo-500" />
+                    <CreditCard size={13} className="text-violet-500" />
                     <span>{expense.payment_method === "TM" ? "Tiền mặt" : "Chuyển khoản"}</span>
                 </div>
             </div>
@@ -93,6 +101,7 @@ const ExpenseCard = ({ expense, handleEdit, openDeleteModal }) => {
 
 const ExpenseTracker = ({ user, token }) => {
     const [expenses, setExpenses] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [id, setId] = useState("");
     const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
     const [description, setDescription] = useState("");
@@ -100,6 +109,15 @@ const ExpenseTracker = ({ user, token }) => {
     const [category, setCategory] = useState("Ăn uống");
     const [paymentMethod, setPaymentMethod] = useState("CK");
     const [expense_type, setType] = useState("Chi");
+
+    // Category CRUD state
+    const [catName, setCatName] = useState("");
+    const [catColor, setCatColor] = useState("#6366f1");
+    const [catIcon, setCatIcon] = useState("");
+    const [catSortOrder, setCatSortOrder] = useState(0);
+    const [editingCategory, setEditingCategory] = useState(null);
+    const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+    const [catToDelete, setCatToDelete] = useState(null);
 
     // Filters
     const [filterCategory, setFilterCategory] = useState("");
@@ -111,6 +129,7 @@ const ExpenseTracker = ({ user, token }) => {
 
     // Navigation and Alerts
     const [activeTab, setActiveTab] = useState("expenses");
+    const [dashboardSubTab, setDashboardSubTab] = useState("compare");
     const [loading, setLoading] = useState(false);
     const [alertMessage, setAlertMessage] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -119,6 +138,23 @@ const ExpenseTracker = ({ user, token }) => {
     const showAlertWithTimeout = (msg) => {
         setAlertMessage(msg);
         setTimeout(() => setAlertMessage(""), 3000);
+    };
+
+    const fetchCategories = async () => {
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_URL}/categories`, {
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setCategories(Array.isArray(data) ? data : []);
+            }
+        } catch (err) {
+            console.error("Error fetching categories:", err);
+        }
     };
 
     const fetchExpenses = async () => {
@@ -146,7 +182,15 @@ const ExpenseTracker = ({ user, token }) => {
 
     useEffect(() => {
         fetchExpenses();
+        fetchCategories();
     }, [token]);
+
+    useEffect(() => {
+        if (categories.length > 0 && !id) {
+            // Set initial category to the first fetched category if none selected or if resetting
+            setCategory(categories[0].name);
+        }
+    }, [categories]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -234,9 +278,98 @@ const ExpenseTracker = ({ user, token }) => {
         setId("");
         setDescription("");
         setAmount("");
-        setCategory("Ăn uống");
+        setCategory(categories[0]?.name || "Ăn uống");
         setPaymentMethod("CK");
         setType("Chi");
+    };
+
+    const handleCategorySubmit = async (e) => {
+        e.preventDefault();
+        if (!catName.trim()) return;
+
+        const payload = {
+            name: catName.trim(),
+            color: catColor,
+            icon: "",
+            sort_order: catSortOrder,
+            is_default: false
+        };
+
+        try {
+            const method = editingCategory ? "PUT" : "POST";
+            const url = editingCategory 
+                ? `${API_URL}/categories/${editingCategory.id}` 
+                : `${API_URL}/categories`;
+
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                fetchCategories();
+                resetCategoryForm();
+                showAlertWithTimeout(editingCategory ? "Cập nhật danh mục thành công!" : "Thêm danh mục thành công!");
+            } else {
+                showAlertWithTimeout("Lỗi khi lưu danh mục.");
+            }
+        } catch (err) {
+            console.error(err);
+            showAlertWithTimeout("Lỗi kết nối khi gửi dữ liệu danh mục.");
+        }
+    };
+
+    const handleEditCategory = (cat) => {
+        setEditingCategory(cat);
+        setCatName(cat.name);
+        setCatColor(cat.color);
+        setCatIcon("");
+        setCatSortOrder(cat.sort_order || 0);
+    };
+
+    const handleDeleteCategory = async (catId) => {
+        try {
+            const res = await fetch(`${API_URL}/categories/${catId}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+            if (res.ok) {
+                fetchCategories();
+                showAlertWithTimeout("Xóa danh mục thành công.");
+            } else {
+                showAlertWithTimeout("Lỗi khi xóa danh mục.");
+            }
+        } catch (err) {
+            console.error(err);
+            showAlertWithTimeout("Lỗi kết nối khi xóa danh mục.");
+        }
+    };
+
+    const openDeleteCategoryModal = (cat) => {
+        setCatToDelete(cat);
+        setIsCatModalOpen(true);
+    };
+
+    const handleConfirmDeleteCategory = () => {
+        if (catToDelete) {
+            handleDeleteCategory(catToDelete.id);
+        }
+        setIsCatModalOpen(false);
+        setCatToDelete(null);
+    };
+
+    const resetCategoryForm = () => {
+        setEditingCategory(null);
+        setCatName("");
+        setCatColor("#6366f1");
+        setCatIcon("");
+        setCatSortOrder(0);
     };
 
     const openDeleteModal = (itemId) => {
@@ -429,43 +562,129 @@ const ExpenseTracker = ({ user, token }) => {
             return acc;
         }, {});
 
-    const chartData = Object.values(monthlyCategoryData).sort((a, b) => a.monthYear.localeCompare(b.monthYear));
+    const monthlyIncomeCategoryData = filteredExpensesForChart
+        .filter((e) => e.expense_type === "Thu")
+        .reduce((acc, e) => {
+            const dObj = new Date(e.date);
+            const mYear = `${dObj.getFullYear()}-${(dObj.getMonth() + 1).toString().padStart(2, "0")}`;
+            if (!acc[mYear]) acc[mYear] = { monthYear: mYear };
+            acc[mYear][e.category] = (acc[mYear][e.category] || 0) + e.amount;
+            return acc;
+        }, {});
 
-    const categoryColors = {
-        "Ăn uống": "#82ca9d",
-        "Tiền nhà": "#00ced1",
-        "Mua sắm": "#ff7f50",
-        "Biếu tặng": "#8884d8",
-        "Đi lại": "#ffc658",
-        "Vệ sinh-Sức khỏe": "#ffb6c1",
-        "Sinh nhật": "#d0ed57",
-        "Hớt tóc": "#a4de6c",
-        "Đám cưới": "#ff69b4",
-        "Tiền internet": "#4682b4",
-        "Khác": "#a9a9a9"
+    const monthlyCompareData = filteredExpensesForChart.reduce((acc, e) => {
+        const dObj = new Date(e.date);
+        const mYear = `${dObj.getFullYear()}-${(dObj.getMonth() + 1).toString().padStart(2, "0")}`;
+        if (!acc[mYear]) acc[mYear] = { monthYear: mYear, "Thu": 0, "Chi": 0 };
+        if (e.expense_type === "Thu") {
+            acc[mYear]["Thu"] += e.amount;
+        } else if (e.expense_type === "Chi") {
+            acc[mYear]["Chi"] += e.amount;
+        }
+        return acc;
+    }, {});
+
+    const selectCategories = categories.length > 0 
+        ? categories 
+        : [
+            { name: "Ăn uống", color: "#82ca9d", icon: "" },
+            { name: "Đi lại", color: "#ffc658", icon: "" },
+            { name: "Tiền nhà", color: "#00ced1", icon: "" },
+            { name: "Mua sắm", color: "#ff7f50", icon: "" },
+            { name: "Vệ sinh-Sức khỏe", color: "#ffb6c1", icon: "" },
+            { name: "Tiền internet", color: "#4682b4", icon: "" },
+            { name: "Sinh nhật", color: "#d0ed57", icon: "" },
+            { name: "Đám cưới", color: "#ff69b4", icon: "" },
+            { name: "Biếu tặng", color: "#8884d8", icon: "" },
+            { name: "Hớt tóc", color: "#a4de6c", icon: "" },
+            { name: "Lương", color: "#16a34a", icon: "" },
+            { name: "Lãi", color: "#15803d", icon: "" },
+            { name: "Tiết kiệm", color: "#7c3aed", icon: "" },
+            { name: "Rút tiền", color: "#9333ea", icon: "" },
+            { name: "Khác", color: "#a9a9a9", icon: "" }
+        ];
+
+    const categoryColors = {};
+    selectCategories.forEach((cat) => {
+        categoryColors[cat.name] = cat.color;
+    });
+
+    const chiCats = selectCategories
+        .filter((cat) => !["Lương", "Lãi", "Tiết kiệm", "Rút tiền", "XL", "Đầu tư"].includes(cat.name))
+        .map((cat) => cat.name);
+
+    const thuCats = selectCategories
+        .filter((cat) => ["Lương", "Lãi", "Khác"].includes(cat.name))
+        .map((cat) => cat.name);
+
+    const chartData = Object.values(monthlyCategoryData).sort((a, b) => b.monthYear.localeCompare(a.monthYear));
+    const chartIncomeData = Object.values(monthlyIncomeCategoryData).sort((a, b) => b.monthYear.localeCompare(a.monthYear));
+    const chartCompareData = Object.values(monthlyCompareData).sort((a, b) => b.monthYear.localeCompare(a.monthYear));
+
+    const renderLegend = (props) => {
+        const { payload } = props;
+        return (
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 pt-5 text-[11px] text-gray-500 font-bold">
+                {payload.map((entry, index) => (
+                    <div key={`item-${index}`} className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+                        <span>{entry.value}</span>
+                    </div>
+                ))}
+            </div>
+        );
     };
 
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
-            const monthData = chartData.find(d => d.monthYear === label);
+            if (dashboardSubTab === "compare") {
+                const thuItem = payload.find(p => p.dataKey === "Thu");
+                const chiItem = payload.find(p => p.dataKey === "Chi");
+                const thuVal = thuItem ? thuItem.value : 0;
+                const chiVal = chiItem ? chiItem.value : 0;
+                const diff = thuVal - chiVal;
+                
+                return (
+                    <div className="bg-white/90 backdrop-blur-md p-4 border border-gray-100 rounded-xl shadow-xl text-sm space-y-1.5">
+                        <p className="font-bold text-gray-800 text-center border-b pb-1 mb-2">{label}</p>
+                        <div className="flex justify-between gap-6 text-emerald-600 font-medium whitespace-nowrap">
+                            <span>Tổng thu:</span>
+                            <span className="font-bold">{thuVal.toLocaleString()}&nbsp;₫</span>
+                        </div>
+                        <div className="flex justify-between gap-6 text-red-500 font-medium whitespace-nowrap">
+                            <span>Tổng chi:</span>
+                            <span className="font-bold">{chiVal.toLocaleString()}&nbsp;₫</span>
+                        </div>
+                        <div className={`flex justify-between gap-6 border-t pt-1.5 mt-2 font-bold whitespace-nowrap ${diff >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
+                            <span>Chênh lệch:</span>
+                            <span>{diff >= 0 ? "+" : ""}{diff.toLocaleString()}&nbsp;₫</span>
+                        </div>
+                    </div>
+                );
+            }
+
+            const isIncome = dashboardSubTab === "income_cat";
+            const currentDataset = isIncome ? chartIncomeData : chartData;
+            const monthData = currentDataset.find(d => d.monthYear === label);
+            
             if (monthData) {
-                const totalChi = Object.keys(monthData)
+                const totalVal = Object.keys(monthData)
                     .filter(k => k !== "monthYear")
                     .reduce((sum, k) => sum + monthData[k], 0);
 
                 const sorted = [...payload].sort((a, b) => b.value - a.value);
 
                 return (
-                    <div className="bg-white p-4 border border-gray-200 rounded-xl shadow-lg text-sm space-y-1.5">
+                    <div className="bg-white/90 backdrop-blur-md p-4 border border-gray-100 rounded-xl shadow-xl text-sm space-y-1.5">
                         <p className="font-bold text-gray-800 text-center border-b pb-1 mb-2">{label}</p>
                         {sorted.map((entry, idx) => (
-                            <div key={idx} className="flex justify-between gap-6 text-gray-600">
+                            <div key={idx} className="flex justify-between gap-6 text-gray-600 whitespace-nowrap">
                                 <span>{entry.name}:</span>
-                                <span className="font-semibold text-gray-800">{(entry.value).toLocaleString()} ₫</span>
+                                <span className="font-semibold text-gray-800">{(entry.value).toLocaleString()}&nbsp;₫</span>
                             </div>
                         ))}
-                        <p className="font-bold text-red-600 border-t pt-1.5 mt-2 text-center text-sm">
-                            Tổng chi: {totalChi.toLocaleString()} ₫
+                        <p className={`font-bold border-t pt-1.5 mt-2 text-center text-sm whitespace-nowrap ${isIncome ? "text-emerald-600" : "text-red-500"}`}>
+                            {isIncome ? "Tổng thu" : "Tổng chi"}: {totalVal.toLocaleString()}&nbsp;₫
                         </p>
                     </div>
                 );
@@ -475,12 +694,19 @@ const ExpenseTracker = ({ user, token }) => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="max-w-6xl mx-auto space-y-6 px-1 sm:px-0">
             <ConfirmationModal
                 isOpen={isModalOpen}
                 message="Bạn có chắc chắn muốn xóa giao dịch này? Hành động này không thể hoàn tác."
                 onConfirm={handleConfirmDelete}
                 onCancel={() => setIsModalOpen(false)}
+            />
+
+            <ConfirmationModal
+                isOpen={isCatModalOpen}
+                message={`Bạn có chắc chắn muốn xóa danh mục "${catToDelete?.name || ""}"? Hành động này không thể hoàn tác.`}
+                onConfirm={handleConfirmDeleteCategory}
+                onCancel={() => setIsCatModalOpen(false)}
             />
 
             {alertMessage && (
@@ -490,21 +716,22 @@ const ExpenseTracker = ({ user, token }) => {
             )}
 
             {/* Main Tabs */}
-            <div className="flex flex-wrap gap-2 justify-center bg-gray-100/60 p-1.5 rounded-2xl border border-black/[0.04] max-w-2xl mx-auto">
+            <div className="flex flex-wrap gap-1 justify-center bg-slate-100/80 p-1 rounded-xl max-w-3xl mx-auto border border-slate-200/40 backdrop-blur-sm">
                 {[
                     { id: "expenses", label: "Chi tiêu" },
                     { id: "anuong", label: "Ăn uống" },
                     { id: "dashboard", label: "Biểu đồ" },
                     { id: "diennuoc", label: "Điện nước" },
-                    { id: "yearly", label: "Hàng năm" }
+                    { id: "yearly", label: "Hàng năm" },
+                    { id: "categories", label: "Danh mục" }
                 ].map((t) => (
                     <button
                         key={t.id}
                         onClick={() => setActiveTab(t.id)}
-                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition duration-200 ${
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition duration-200 ${
                             activeTab === t.id
-                                ? "bg-indigo-600 text-white shadow-sm"
-                                : "text-gray-600 hover:bg-gray-200/50 hover:text-gray-800"
+                                ? "bg-white text-slate-800 shadow-sm border border-slate-200/30"
+                                : "text-slate-500 hover:text-slate-800"
                         }`}
                     >
                         {t.label}
@@ -514,199 +741,288 @@ const ExpenseTracker = ({ user, token }) => {
 
             {/* Chi Tiêu Tab */}
             {activeTab === "expenses" && (
-                <>
-                    {/* Balance widgets */}
-                    <div className="bg-white p-6 rounded-2xl border border-black/[0.08] shadow-sm">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4">Số dư ví ước tính</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="bg-gradient-to-br from-blue-50/50 to-blue-100/30 p-4 rounded-xl border border-blue-100">
-                                <span className="text-xs font-semibold text-blue-600 block">Ví Tiền Mặt (TM)</span>
-                                <span className="text-xl font-bold text-blue-800">{balanceTMRounded.toLocaleString()} ₫</span>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* Left Side: Balance & Form */}
+                    <div className="lg:col-span-5 space-y-6">
+                        {/* ── Balance Cards ── */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-gradient-to-br from-white to-slate-50/50 p-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between hover:shadow-md transition-all duration-300">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tiền Mặt</p>
+                                    <p className="mt-1 text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight whitespace-nowrap">
+                                        {balanceTMRounded.toLocaleString()}&nbsp;
+                                        <span className="text-xs font-semibold text-slate-400">₫</span>
+                                    </p>
+                                    <p className="text-[9px] text-slate-400 mt-0.5">Ví tiền mặt (TM)</p>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
+                                    <Wallet size={20} />
+                                </div>
                             </div>
-                            <div className="bg-gradient-to-br from-green-50/50 to-green-100/30 p-4 rounded-xl border border-green-100">
-                                <span className="text-xs font-semibold text-green-600 block">Tài khoản Ngân hàng (CK)</span>
-                                <span className="text-xl font-bold text-green-800">{balanceCK.toLocaleString()} ₫</span>
+                            <div className="bg-gradient-to-br from-white to-slate-50/50 p-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between hover:shadow-md transition-all duration-300">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ngân Hàng</p>
+                                    <p className="mt-1 text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight whitespace-nowrap">
+                                        {balanceCK.toLocaleString()}&nbsp;
+                                        <span className="text-xs font-semibold text-slate-400">₫</span>
+                                    </p>
+                                    <p className="text-[9px] text-slate-400 mt-0.5">Tài khoản chuyển khoản (CK)</p>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 shrink-0">
+                                    <Landmark size={20} />
+                                </div>
                             </div>
+                        </div>
+
+                        {/* ── Add / Edit Form ── */}
+                        <form
+                            id="expense-form"
+                            onSubmit={handleSubmit}
+                            className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm hover:shadow-md transition-shadow duration-300"
+                        >
+                            {/* Form Header */}
+                            <div className="px-4 py-3.5 border-b border-slate-100 bg-slate-50/60">
+                                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                    {id ? "Cập nhật Giao Dịch" : "Thêm Giao Dịch Mới"}
+                                </h3>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                    {id ? "Sửa thông tin giao dịch đã chọn" : "Ghi nhận thu chi vào sổ cá nhân"}
+                                </p>
+                            </div>
+
+                            <div className="p-4 space-y-3.5">
+                                {/* Transaction type selector */}
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Loại giao dịch</p>
+                                    <div className="flex gap-2">
+                                        {[
+                                            { v: "Chi", label: "Chi tiêu", active: "bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-500/10" },
+                                            { v: "Thu", label: "Thu nhập", active: "bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/10" },
+                                            { v: "Rút", label: "Rút tiền", active: "bg-indigo-500 border-indigo-500 text-white shadow-md shadow-indigo-500/10" }
+                                        ].map(t => (
+                                            <button
+                                                key={t.v}
+                                                type="button"
+                                                onClick={() => setType(t.v)}
+                                                className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all duration-300 ${
+                                                    expense_type === t.v
+                                                        ? t.active
+                                                        : "bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100 hover:text-slate-700"
+                                                }`}
+                                            >
+                                                {t.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Row 1: Date + Amount */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Ngày</label>
+                                        <input
+                                            type="date"
+                                            value={date}
+                                            onChange={(e) => setDate(e.target.value)}
+                                            className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium text-slate-700 hover:border-slate-300 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 focus:outline-none transition-all"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Số tiền (₫)</label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={amount}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (/^\d*$/.test(val)) setAmount(val);
+                                                }}
+                                                placeholder="0"
+                                                className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50/50 px-3 pr-8 text-sm font-bold text-right text-slate-800 hover:border-slate-300 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 focus:outline-none transition-all"
+                                                required
+                                            />
+                                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-300">₫</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Description */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Mô tả</label>
+                                    <input
+                                        type="text"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Nhập mô tả giao dịch..."
+                                        className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm text-slate-700 hover:border-slate-300 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 focus:outline-none transition-all"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Row 2: Category + Payment method */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Danh mục</label>
+                                        <select
+                                            value={category}
+                                            onChange={(e) => setCategory(e.target.value)}
+                                            className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm text-slate-700 hover:border-slate-300 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 focus:outline-none transition-all"
+                                        >
+                                            {selectCategories.map((cat) => (
+                                                <option key={cat.id || cat.name} value={cat.name}>
+                                                    {cat.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Thanh toán</label>
+                                        <div className="flex h-10 gap-1.5">
+                                            {[{ v: "TM", label: "Tiền mặt" }, { v: "CK", label: "CK" }].map(m => (
+                                                <button
+                                                    key={m.v}
+                                                    type="button"
+                                                    onClick={() => setPaymentMethod(m.v)}
+                                                    className={`flex-1 rounded-xl text-xs font-bold border transition-all duration-300 ${
+                                                        paymentMethod === m.v
+                                                            ? "bg-slate-900 border-slate-900 text-white shadow-md shadow-slate-900/10"
+                                                            : "bg-slate-50 border-slate-200/80 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                                    }`}
+                                                >
+                                                    {m.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex gap-2.5 pt-1">
+                                    {id && (
+                                        <button
+                                            type="button"
+                                            onClick={resetForm}
+                                            className="flex-1 h-10 flex items-center justify-center rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition active:scale-[0.98]"
+                                        >
+                                            Hủy bỏ
+                                        </button>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        className={`flex-1 h-10 flex items-center justify-center rounded-xl text-xs font-bold text-white shadow-md transition-all active:scale-[0.98] ${
+                                            expense_type === "Thu" ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/10" :
+                                            expense_type === "Rút" ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/10" :
+                                            "bg-rose-600 hover:bg-rose-700 shadow-rose-500/10"
+                                        }`}
+                                    >
+                                        {id ? "Lưu thay đổi" : (
+                                            expense_type === "Thu" ? "Ghi thu nhập" :
+                                            expense_type === "Rút" ? "Ghi rút tiền" :
+                                            "Ghi chi tiêu"
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        {/* Import from Excel Widget (grouped in left panel) */}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition duration-300">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-500">
+                                    <Upload size={15} />
+                                </div>
+                                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Nhập từ file Excel</h3>
+                            </div>
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={handleImport}
+                                className="block w-full text-xs text-slate-500
+                                    file:mr-4 file:py-1.5 file:px-3
+                                    file:rounded-xl file:border-0
+                                    file:text-xs file:font-semibold
+                                    file:bg-slate-100 file:text-slate-700
+                                    hover:file:bg-slate-200 file:cursor-pointer transition"
+                            />
                         </div>
                     </div>
 
-                    {/* Add/Edit transaction form */}
-                    <form id="expense-form" onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-black/[0.08] shadow-sm space-y-4">
-                        <h3 className="text-lg font-bold text-gray-800">{id ? "Cập nhật Giao Dịch" : "Thêm Giao Dịch Mới"}</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Ngày giao dịch</label>
-                                <input
-                                    type="date"
-                                    value={date}
-                                    onChange={(e) => setDate(e.target.value)}
-                                    className="w-full h-11 px-3 border border-gray-300 rounded-lg text-sm bg-white"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Loại giao dịch</label>
-                                <select
-                                    value={expense_type}
-                                    onChange={(e) => setType(e.target.value)}
-                                    className="w-full h-11 px-3 border border-gray-300 rounded-lg text-sm bg-white"
-                                    required
-                                >
-                                    <option value="Chi">Chi tiêu</option>
-                                    <option value="Thu">Thu nhập</option>
-                                    <option value="Rút">Rút tiền mặt</option>
+                    {/* Right Side: Filters & List */}
+                    <div className="lg:col-span-7 space-y-6">
+                        {/* ── Filters & Stats ── */}
+                        <div className="rounded-2xl border border-slate-200/60 bg-white shadow-sm overflow-hidden hover:shadow-md transition duration-300">
+                        {/* Filter bar */}
+                        <div className="px-4 pt-3.5 pb-3 border-b border-black/[0.05]">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2.5">Bộ lọc</p>
+                            <div className="flex flex-wrap gap-2">
+                                <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
+                                    <span className="text-[10px] font-bold text-gray-400">NG</span>
+                                    <select value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none">
+                                        <option value="">—</option>
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
+                                    <span className="text-[10px] font-bold text-gray-400">TH</span>
+                                    <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none">
+                                        <option value="">—</option>
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
+                                    <span className="text-[10px] font-bold text-gray-400">NĂM</span>
+                                    <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none">
+                                        <option value="">—</option>
+                                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                </div>
+                                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="flex-1 min-w-[120px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300">
+                                    <option value="">Tất cả danh mục</option>
+                                    {selectCategories.map((cat) => (
+                                        <option key={cat.id || cat.name} value={cat.name}>
+                                            {cat.name}
+                                        </option>
+                                    ))}
                                 </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Mô tả chi tiết</label>
-                                <input
-                                    type="text"
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="Nhập mô tả..."
-                                    className="w-full h-11 px-3 border border-gray-300 rounded-lg text-sm bg-white"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Số tiền (VNĐ)</label>
-                                <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    value={amount}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (/^\d*$/.test(val)) setAmount(val);
-                                    }}
-                                    placeholder="Nhập số tiền..."
-                                    className="w-full h-11 px-3 border border-gray-300 rounded-lg text-sm text-right bg-white"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Danh mục phân loại</label>
-                                <select
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    className="w-full h-11 px-3 border border-gray-300 rounded-lg text-sm bg-white"
-                                >
-                                    <option value="Ăn uống">Ăn uống</option>
-                                    <option value="Đi lại">Đi lại</option>
-                                    <option value="Tiền nhà">Tiền nhà</option>
-                                    <option value="Mua sắm">Mua sắm</option>
-                                    <option value="Sinh nhật">Sinh nhật</option>
-                                    <option value="Tiền internet">Tiền internet</option>
-                                    <option value="Đám cưới">Đám cưới</option>
-                                    <option value="Biếu tặng">Biếu tặng</option>
-                                    <option value="Vệ sinh-Sức khỏe">Vệ sinh-Sức khỏe</option>
-                                    <option value="Hớt tóc">Hớt tóc</option>
-                                    <option value="Khác">Khác</option>
-                                    <option value="Lương">Lương</option>
-                                    <option value="Lãi">Lãi</option>
-                                    <option value="Tiết kiệm">Tiết kiệm</option>
-                                    <option value="Rút tiền">Rút tiền</option>
-                                    <option value="XL">Xử lý số dư</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Hình thức thanh toán</label>
-                                <select
-                                    value={paymentMethod}
-                                    onChange={(e) => setPaymentMethod(e.target.value)}
-                                    className="w-full h-11 px-3 border border-gray-300 rounded-lg text-sm bg-white"
-                                >
+                                <select value={filterPaymentMethod} onChange={(e) => setFilterPaymentMethod(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-100">
+                                    <option value="">Tất cả</option>
                                     <option value="TM">Tiền mặt</option>
-                                    <option value="CK">Chuyển khoản</option>
+                                    <option value="CK">CK</option>
                                 </select>
+                                <input
+                                    type="text"
+                                    placeholder="Tìm mô tả..."
+                                    value={filterDescription}
+                                    onChange={(e) => setFilterDescription(e.target.value)}
+                                    className="flex-1 min-w-[130px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300"
+                                />
                             </div>
-                        </div>
-                        <div className="flex justify-end gap-2.5 pt-2">
-                            {id && (
-                                <button
-                                    type="button"
-                                    onClick={resetForm}
-                                    className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-semibold hover:bg-gray-50 transition"
-                                >
-                                    Hủy bỏ
-                                </button>
-                            )}
-                            <button
-                                type="submit"
-                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition"
-                            >
-                                {id ? "Lưu thay đổi" : "Ghi nhận"}
-                            </button>
-                        </div>
-                    </form>
-
-                    {/* Filters & statistics */}
-                    <div className="bg-white p-6 rounded-2xl border border-black/[0.08] shadow-sm space-y-5">
-                        <h3 className="text-lg font-bold text-gray-800">Bộ lọc & Thống kê</h3>
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="grid grid-cols-3 gap-1 col-span-2 lg:col-span-1">
-                                <select value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} className="p-2 border rounded-lg text-sm bg-white">
-                                    <option value="">Ngày</option>
-                                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (<option key={d} value={d}>{d}</option>))}
-                                </select>
-                                <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="p-2 border rounded-lg text-sm bg-white">
-                                    <option value="">Tháng</option>
-                                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (<option key={m} value={m}>{m}</option>))}
-                                </select>
-                                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="p-2 border rounded-lg text-sm bg-white">
-                                    <option value="">Năm</option>
-                                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + 1 - i).map((y) => (<option key={y} value={y}>{y}</option>))}
-                                </select>
-                            </div>
-                            <input
-                                type="text"
-                                placeholder="Lọc theo mô tả..."
-                                value={filterDescription}
-                                onChange={(e) => setFilterDescription(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm col-span-2 lg:col-span-1 bg-white"
-                            />
-                            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white col-span-1">
-                                <option value="">Tất cả danh mục</option>
-                                <option value="Ăn uống">Ăn uống</option>
-                                <option value="Đi lại">Đi lại</option>
-                                <option value="Tiền nhà">Tiền nhà</option>
-                                <option value="Mua sắm">Mua sắm</option>
-                                <option value="Sinh nhật">Sinh nhật</option>
-                                <option value="Tiền internet">Tiền internet</option>
-                                <option value="Đám cưới">Đám cưới</option>
-                                <option value="Biếu tặng">Biếu tặng</option>
-                                <option value="Vệ sinh-Sức khỏe">Vệ sinh-Sức khỏe</option>
-                                <option value="Hớt tóc">Hớt tóc</option>
-                                <option value="Khác">Khác</option>
-                                <option value="Lương">Lương</option>
-                                <option value="Lãi">Lãi</option>
-                            </select>
-                            <select value={filterPaymentMethod} onChange={(e) => setFilterPaymentMethod(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white col-span-1">
-                                <option value="">Tất cả phương thức</option>
-                                <option value="TM">Tiền mặt</option>
-                                <option value="CK">Chuyển khoản</option>
-                            </select>
                         </div>
 
-                        {/* Filtered stats grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-black/[0.06] pt-5">
-                            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                                <span className="text-xs font-bold text-gray-500 block">Số dư lọc</span>
-                                <span className="text-lg font-bold text-blue-700">{(totalFilteredAmount).toLocaleString()} ₫</span>
+                        {/* Stats row */}
+                        <div className="grid grid-cols-3 divide-x divide-slate-100 bg-slate-50/50">
+                            <div className="px-4 py-4 text-center">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Số dư</p>
+                                <p className={`mt-1.5 text-lg font-extrabold tracking-tight tabular-nums whitespace-nowrap ${
+                                    totalFilteredAmount >= 0 ? "text-indigo-600" : "text-rose-600"
+                                }`}>{totalFilteredAmount >= 0 ? "+" : ""}{totalFilteredAmount.toLocaleString()}&nbsp;<span className="text-xs font-semibold">₫</span></p>
                             </div>
-                            <div className="bg-green-50/50 p-4 rounded-xl border border-green-100">
-                                <span className="text-xs font-bold text-gray-500 block">Tổng Thu nhập lọc</span>
-                                <span className="text-lg font-bold text-green-700">+{(totalIncome).toLocaleString()} ₫</span>
+                            <div className="px-4 py-4 text-center">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Thu nhập</p>
+                                <p className="mt-1.5 text-lg font-extrabold tracking-tight tabular-nums text-emerald-600 whitespace-nowrap">+{totalIncome.toLocaleString()}&nbsp;<span className="text-xs font-semibold">₫</span></p>
                             </div>
-                            <div className="bg-red-50/50 p-4 rounded-xl border border-red-100">
-                                <span className="text-xs font-bold text-gray-500 block">Tổng Chi tiêu lọc</span>
-                                <span className="text-lg font-bold text-red-700">-{(totalExpense).toLocaleString()} ₫</span>
+                            <div className="px-4 py-4 text-center">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Chi tiêu</p>
+                                <p className="mt-1.5 text-lg font-extrabold tracking-tight tabular-nums text-rose-500 whitespace-nowrap">-{totalExpense.toLocaleString()}&nbsp;<span className="text-xs font-semibold">₫</span></p>
                             </div>
                         </div>
                     </div>
 
                     {/* Transaction List */}
                     <div className="space-y-4">
-                        <h3 className="text-xl font-bold text-gray-800">Chi Tiêu Chi Tiết</h3>
+                        <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">Chi Tiêu Chi Tiết</h3>
 
                         {/* Mobile List */}
                         <div className="md:hidden space-y-3">
@@ -717,20 +1033,21 @@ const ExpenseTracker = ({ user, token }) => {
                                         expense={e}
                                         handleEdit={handleEdit}
                                         openDeleteModal={openDeleteModal}
+                                        categoryColors={categoryColors}
                                     />
                                 ))
                             ) : (
-                                <div className="text-center p-8 bg-white border border-dashed rounded-xl text-gray-500">
+                                <div className="text-center p-8 bg-white border border-dashed border-slate-200 rounded-xl text-slate-400 text-sm">
                                     Không tìm thấy chi tiêu nào phù hợp.
                                 </div>
                             )}
                         </div>
 
                         {/* Desktop Table */}
-                        <div className="hidden md:block overflow-x-auto max-h-[500px] border border-black/[0.08] rounded-xl shadow-sm bg-white">
+                        <div className="hidden md:block overflow-x-auto max-h-[500px] border border-slate-200/60 rounded-xl shadow-sm bg-white">
                             <table className="w-full text-sm text-left border-collapse">
                                 <thead>
-                                    <tr className="bg-gray-50 sticky top-0 border-b border-black/[0.08] text-gray-600 font-semibold z-10">
+                                    <tr className="bg-slate-50/80 backdrop-blur-sm sticky top-0 border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px] tracking-wider z-10">
                                         <th className="p-3.5 text-center">Ngày</th>
                                         <th className="p-3.5 text-center">Loại</th>
                                         <th className="p-3.5">Mô tả</th>
@@ -740,30 +1057,36 @@ const ExpenseTracker = ({ user, token }) => {
                                         <th className="p-3.5 text-center">Hành động</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-black/[0.08]">
+                                <tbody className="divide-y divide-slate-100">
                                     {filteredExpenses.length > 0 ? (
                                         filteredExpenses.map((e) => (
-                                            <tr key={e.id} className="hover:bg-gray-50/50 transition">
-                                                <td className="p-3 text-center">
+                                            <tr key={e.id} className="hover:bg-slate-50/40 transition-colors">
+                                                <td className="p-3 text-center text-slate-500 font-medium">
                                                     {new Date(e.date).toLocaleDateString("vi-VN")}
                                                 </td>
-                                                <td className={`p-3 text-center font-semibold ${
-                                                    e.expense_type === "Thu" ? "text-green-600" : "text-red-600"
+                                                <td className={`p-3 text-center font-bold text-xs ${
+                                                    e.expense_type === "Thu" ? "text-emerald-600" : "text-rose-600"
                                                 }`}>
                                                     {e.expense_type}
                                                 </td>
-                                                <td className="p-3 font-medium text-gray-800">{e.description}</td>
-                                                <td className={`p-3 text-right font-bold ${
-                                                    e.expense_type === "Thu" ? "text-green-600" : "text-red-600"
+                                                <td className="p-3 font-semibold text-slate-800">{e.description}</td>
+                                                <td className={`p-3 text-right font-extrabold tracking-tight whitespace-nowrap ${
+                                                    e.expense_type === "Thu" ? "text-emerald-600" : "text-rose-600"
                                                 }`}>
-                                                    {e.expense_type === "Thu" ? "+" : "-"}{e.amount.toLocaleString()} ₫
+                                                    {e.expense_type === "Thu" ? "+" : "-"}{e.amount.toLocaleString()}&nbsp;₫
                                                 </td>
                                                 <td className="p-3 text-center">
-                                                    <span className="bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full text-xs font-semibold">
+                                                    <span 
+                                                        className="px-2.5 py-1 rounded-full text-xs font-bold"
+                                                        style={{
+                                                            backgroundColor: `${categoryColors[e.category] || "#6b7280"}15`,
+                                                            color: categoryColors[e.category] || "#6b7280"
+                                                        }}
+                                                    >
                                                         {e.category}
                                                     </span>
                                                 </td>
-                                                <td className="p-3 text-center text-gray-500 font-medium">
+                                                <td className="p-3 text-center text-slate-500 font-semibold text-xs">
                                                     {e.payment_method === "TM" ? "Tiền mặt" : "CK"}
                                                 </td>
                                                 <td className="p-3 text-center">
@@ -797,27 +1120,9 @@ const ExpenseTracker = ({ user, token }) => {
                             </table>
                         </div>
                     </div>
-
-                    {/* Import from Excel Widget */}
-                    <div className="bg-white p-6 rounded-2xl border border-black/[0.08] shadow-sm">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Upload size={18} className="text-indigo-600" />
-                            <h3 className="text-lg font-bold text-gray-800">Nhập từ file Excel</h3>
-                        </div>
-                        <input
-                            type="file"
-                            accept=".xlsx, .xls"
-                            onChange={handleImport}
-                            className="block w-full text-sm text-gray-500
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-xl file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-indigo-50 file:text-indigo-700
-                                hover:file:bg-indigo-100 file:cursor-pointer"
-                        />
-                    </div>
-                </>
-            )}
+                </div>
+            </div>
+        )}
 
             {/* Ăn uống Tab */}
             {activeTab === "anuong" && (
@@ -830,8 +1135,31 @@ const ExpenseTracker = ({ user, token }) => {
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                             <BarChart2 className="text-indigo-600" />
-                            Biểu Đồ Chi Tiêu
+                            Biểu Đồ Tài Chính
                         </h2>
+                        
+                        {/* Dashboard Sub Tabs */}
+                        <div className="flex gap-1.5 bg-gray-100 p-1.5 rounded-xl border border-black/[0.04] w-fit">
+                            {[
+                                { id: "compare", label: "So sánh Thu/Chi" },
+                                { id: "expense_cat", label: "Chi tiêu phân loại" },
+                                { id: "income_cat", label: "Thu nhập phân loại" }
+                            ].map((sub) => (
+                                <button
+                                    key={sub.id}
+                                    type="button"
+                                    onClick={() => setDashboardSubTab(sub.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition duration-150 ${
+                                        dashboardSubTab === sub.id
+                                            ? "bg-white text-indigo-600 shadow-sm border border-black/[0.02]"
+                                            : "text-gray-500 hover:text-gray-700 hover:bg-white/40"
+                                    }`}
+                                >
+                                    {sub.label}
+                                </button>
+                            ))}
+                        </div>
+
                         <div className="flex items-center gap-2">
                             <label className="text-sm font-semibold text-gray-500">Chọn Năm:</label>
                             <select
@@ -848,61 +1176,112 @@ const ExpenseTracker = ({ user, token }) => {
 
                     {/* Monthly stats cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 whitespace-nowrap">
                             <span className="text-xs font-bold text-gray-500 block">Số dư (tháng {currentMonth})</span>
-                            <span className="text-lg font-bold text-blue-700">{(totalExpensesThisMonth).toLocaleString()} ₫</span>
+                            <span className="text-lg font-bold text-blue-700">{(totalExpensesThisMonth).toLocaleString()}&nbsp;₫</span>
                         </div>
-                        <div className="bg-green-50/50 p-4 rounded-xl border border-green-100">
+                        <div className="bg-green-50/50 p-4 rounded-xl border border-green-100 whitespace-nowrap">
                             <span className="text-xs font-bold text-gray-500 block">Tổng thu (tháng {currentMonth})</span>
-                            <span className="text-lg font-bold text-green-700">+{(totalIncomeThisMonth).toLocaleString()} ₫</span>
+                            <span className="text-lg font-bold text-green-700">+{(totalIncomeThisMonth).toLocaleString()}&nbsp;₫</span>
                         </div>
-                        <div className="bg-red-50/50 p-4 rounded-xl border border-red-100">
+                        <div className="bg-red-50/50 p-4 rounded-xl border border-red-100 whitespace-nowrap">
                             <span className="text-xs font-bold text-gray-500 block">Tổng chi (tháng {currentMonth})</span>
-                            <span className="text-lg font-bold text-red-700">-{(totalExpenseThisMonth).toLocaleString()} ₫</span>
+                            <span className="text-lg font-bold text-red-700">-{(totalExpenseThisMonth).toLocaleString()}&nbsp;₫</span>
                         </div>
                     </div>
 
-                    {/* Recharts Stacked Bar Chart */}
+                    {/* Recharts Bar Chart Container */}
                     <div className="bg-gray-50/50 p-4 rounded-xl border border-black/[0.04]">
-                        <h4 className="text-sm font-bold text-gray-700 mb-6">Chi tiêu phân loại theo tháng (Năm {selectedYear})</h4>
+                        <h4 className="text-sm font-bold text-gray-700 mb-6">
+                            {dashboardSubTab === "compare" ? "So sánh Thu/Chi theo tháng" :
+                             dashboardSubTab === "income_cat" ? "Thu nhập phân loại theo tháng" :
+                             "Chi tiêu phân loại theo tháng"} (Năm {selectedYear})
+                        </h4>
                         <div className="w-full h-[320px]">
-                            {chartData.length === 0 ? (
-                                <div className="h-full flex items-center justify-center text-gray-400 font-medium">
-                                    Không có dữ liệu chi tiêu trong năm {selectedYear}.
-                                </div>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={chartData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                        <XAxis
-                                            dataKey="monthYear"
-                                            tickFormatter={(val) => {
-                                                const [y, m] = val.split("-");
-                                                return `${m}/${y}`;
-                                            }}
-                                            stroke="#6B7280"
-                                            fontSize={12}
-                                        />
-                                        <YAxis
-                                            tickFormatter={(val) => `${(val / 1e6).toFixed(1)}M`}
-                                            stroke="#6B7280"
-                                            fontSize={12}
-                                        />
-                                        <Tooltip content={<CustomTooltip />} />
-                                        <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                                        {Object.keys(categoryColors).map((cat) => (
-                                            <Bar
-                                                key={cat}
-                                                dataKey={cat}
-                                                stackId="a"
-                                                fill={categoryColors[cat]}
-                                                name={cat}
-                                                radius={[2, 2, 0, 0]}
+                            {(() => {
+                                let activeData = chartCompareData;
+                                let emptyMessage = `Không có dữ liệu thu chi trong năm ${selectedYear}.`;
+
+                                if (dashboardSubTab === "expense_cat") {
+                                    activeData = chartData;
+                                    emptyMessage = `Không có dữ liệu chi tiêu trong năm ${selectedYear}.`;
+                                } else if (dashboardSubTab === "income_cat") {
+                                    activeData = chartIncomeData;
+                                    emptyMessage = `Không có dữ liệu thu nhập trong năm ${selectedYear}.`;
+                                }
+
+                                if (activeData.length === 0) {
+                                    return (
+                                        <div className="h-full flex items-center justify-center text-gray-400 font-medium">
+                                            {emptyMessage}
+                                        </div>
+                                    );
+                                }
+
+                                if (dashboardSubTab === "compare") {
+                                    return (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={chartCompareData}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                                <XAxis
+                                                    dataKey="monthYear"
+                                                    tickFormatter={(val) => {
+                                                        const [y, m] = val.split("-");
+                                                        return `${m}/${y}`;
+                                                    }}
+                                                    stroke="#6B7280"
+                                                    fontSize={12}
+                                                />
+                                                <YAxis
+                                                    tickFormatter={(val) => `${(val / 1e6).toFixed(1)}M`}
+                                                    stroke="#6B7280"
+                                                    fontSize={12}
+                                                />
+                                                <Tooltip content={<CustomTooltip />} wrapperStyle={{ zIndex: 10 }} />
+                                                <Legend content={renderLegend} />
+                                                <Bar dataKey="Thu" fill="#10b981" name="Tổng thu" radius={[4, 4, 0, 0]} />
+                                                <Bar dataKey="Chi" fill="#ef4444" name="Tổng chi" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    );
+                                }
+
+                                const barsList = dashboardSubTab === "income_cat" ? thuCats : chiCats;
+
+                                return (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={activeData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                            <XAxis
+                                                dataKey="monthYear"
+                                                tickFormatter={(val) => {
+                                                    const [y, m] = val.split("-");
+                                                    return `${m}/${y}`;
+                                                }}
+                                                stroke="#6B7280"
+                                                fontSize={12}
                                             />
-                                        ))}
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            )}
+                                            <YAxis
+                                                tickFormatter={(val) => `${(val / 1e6).toFixed(1)}M`}
+                                                stroke="#6B7280"
+                                                fontSize={12}
+                                            />
+                                            <Tooltip content={<CustomTooltip />} wrapperStyle={{ zIndex: 10 }} />
+                                            <Legend content={renderLegend} />
+                                            {barsList.map((cat) => (
+                                                <Bar
+                                                    key={cat}
+                                                    dataKey={cat}
+                                                    stackId="a"
+                                                    fill={categoryColors[cat] || "#6b7280"}
+                                                    name={cat}
+                                                    radius={[2, 2, 0, 0]}
+                                                />
+                                            ))}
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -935,7 +1314,7 @@ const ExpenseTracker = ({ user, token }) => {
                             </thead>
                             <tbody className="divide-y divide-black/[0.08] text-gray-700">
                                 {/* Chi tiêu rows */}
-                                {["Ăn uống", "Tiền nhà", "Đi lại", "Biếu tặng", "Mua sắm", "Vệ sinh-Sức khỏe", "Hớt tóc", "Tiền internet", "Đám cưới", "Sinh nhật", "Khác"].map((cat, idx) => (
+                                {chiCats.map((cat, idx) => (
                                     <tr key={cat} className={`${idx % 2 === 0 ? "bg-gray-50/20" : "bg-white"} hover:bg-rose-50/20 transition`}>
                                         <td className="p-3 font-semibold text-gray-800 sticky left-0 bg-inherit border-r border-black/[0.08]">{cat}</td>
                                         {Array.from(new Set(expenses.map(e => new Date(e.date).getFullYear())))
@@ -971,7 +1350,7 @@ const ExpenseTracker = ({ user, token }) => {
                                 </tr>
 
                                 {/* Thu nhập rows */}
-                                {["Lương", "Lãi", "Khác"].map((cat, idx) => (
+                                {thuCats.map((cat, idx) => (
                                     <tr key={cat} className={`${idx % 2 === 0 ? "bg-gray-50/20" : "bg-white"} hover:bg-green-50/20 transition`}>
                                         <td className="p-3 font-semibold text-gray-800 sticky left-0 bg-inherit border-r border-black/[0.08]">{cat}</td>
                                         {Array.from(new Set(expenses.map(e => new Date(e.date).getFullYear())))
@@ -1024,6 +1403,145 @@ const ExpenseTracker = ({ user, token }) => {
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Category Management Tab */}
+            {activeTab === "categories" && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Add/Edit Category Form */}
+                    <div className="bg-white p-6 rounded-2xl border border-black/[0.08] shadow-sm space-y-4 h-fit">
+                        <div className="pb-3 border-b border-slate-100">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                                {editingCategory ? "Chỉnh Sửa Danh Mục" : "Thêm Danh Mục Mới"}
+                            </h3>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                                {editingCategory ? "Cập nhật thông tin danh mục chi tiêu" : "Tạo danh mục phân loại thu chi mới"}
+                            </p>
+                        </div>
+                        
+                        <form onSubmit={handleCategorySubmit} className="space-y-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tên danh mục</label>
+                                <input
+                                    type="text"
+                                    value={catName}
+                                    onChange={(e) => setCatName(e.target.value)}
+                                    placeholder="Ví dụ: Cà phê, Mỹ phẩm..."
+                                    className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block">Màu sắc</label>
+                                <div className="flex items-center gap-3 w-full">
+                                    <div className="relative w-10 h-10 rounded-xl border border-slate-200 shadow-sm shrink-0 overflow-hidden" style={{ backgroundColor: catColor }}>
+                                        <input
+                                            type="color"
+                                            value={catColor}
+                                            onChange={(e) => setCatColor(e.target.value)}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        />
+                                    </div>
+                                    <div className="flex-1 grid grid-cols-8 gap-1.5 p-1.5 bg-gray-50 rounded-xl border border-gray-200">
+                                        {[
+                                            "#22c55e", "#10b981", "#14b8a6", "#06b6d4", 
+                                            "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", 
+                                            "#d946ef", "#ec4899", "#f43f5e", "#e11d48",
+                                            "#ef4444", "#f97316", "#f59e0b", "#eab308",
+                                            "#84cc16", "#65748b", "#475569", "#78716c",
+                                            "#4d7c0f", "#0369a1", "#b91c1c", "#6b7280"
+                                        ].map(c => (
+                                            <button
+                                                key={c}
+                                                type="button"
+                                                onClick={() => setCatColor(c)}
+                                                className={`w-5 h-5 rounded-full hover:scale-110 transition ${catColor === c ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
+                                                style={{ backgroundColor: c }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Thứ tự hiển thị</label>
+                                <input
+                                    type="number"
+                                    value={catSortOrder}
+                                    onChange={(e) => setCatSortOrder(parseInt(e.target.value) || 0)}
+                                    placeholder="0"
+                                    className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                                />
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                {editingCategory && (
+                                    <button
+                                        type="button"
+                                        onClick={resetCategoryForm}
+                                        className="flex-1 h-10 flex items-center justify-center rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 transition"
+                                    >
+                                        Hủy
+                                    </button>
+                                )}
+                                <button
+                                    type="submit"
+                                    className="flex-1 h-10 flex items-center justify-center rounded-xl bg-indigo-600 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-indigo-600/10 hover:bg-indigo-700 transition"
+                                >
+                                    {editingCategory ? "Cập nhật" : "Thêm danh mục"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    {/* Category List */}
+                    <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-4">
+                        <div className="pb-3 border-b border-slate-100">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Danh Sách Danh Mục</h3>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Tất cả danh mục hiện có phục vụ cho việc nhập và phân tích chi tiêu</p>
+                        </div>
+
+                        <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto pr-1">
+                            {categories.map((cat) => (
+                                <div 
+                                    key={cat.id} 
+                                    className="py-3 flex items-center justify-between hover:bg-slate-50/50 px-2 rounded-xl transition"
+                                >
+                                    <div className="flex items-center gap-3.5">
+                                        <div 
+                                            className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm"
+                                            style={{
+                                                backgroundColor: cat.color || "#6b7280",
+                                                boxShadow: `0 0 0 4px ${(cat.color || "#6b7280")}18`
+                                            }}
+                                        />
+                                        <div>
+                                            <p className="font-semibold text-sm text-slate-800">{cat.name}</p>
+                                            <p className="text-[10px] font-mono text-slate-400 mt-0.5">{cat.color}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => handleEditCategory(cat)}
+                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                            title="Sửa"
+                                        >
+                                            <Edit2 size={14} />
+                                        </button>
+                                        <button
+                                            onClick={() => openDeleteCategoryModal(cat)}
+                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                            title="Xóa"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}

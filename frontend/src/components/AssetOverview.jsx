@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, Equal, CheckCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Equal, CheckCircle, Wallet, Building2, PiggyBank } from 'lucide-react';
 
-const AssetOverview = ({ user, token, fmData, viewMode = 'overview' }) => {
+const AssetOverview = ({ user, token, fmData, viewMode = 'overview', showBalances = true }) => {
     const userId = user?.id;
     const [assets, setAssets] = useState({
         cash: 0,
@@ -80,34 +80,53 @@ const AssetOverview = ({ user, token, fmData, viewMode = 'overview' }) => {
         fetchAssets();
     }, [userId, token]);
 
-    const formatVND = (num) => (num || 0).toLocaleString('vi-VN');
+    const formatVNDCompact = (amount, isCompact = true) => {
+        if (amount === undefined || amount === null || isNaN(amount)) return "0 ₫";
+        if (!isCompact) {
+            return `${amount.toLocaleString("vi-VN")} ₫`;
+        }
+        const absVal = Math.abs(amount);
+        const sign = amount < 0 ? "-" : "";
+        if (absVal >= 1000000000) {
+            const val = absVal / 1000000000;
+            return `${sign}${parseFloat(val.toFixed(2))} Tỷ ₫`;
+        }
+        if (absVal >= 1000000) {
+            const val = absVal / 1000000;
+            return `${sign}${parseFloat(val.toFixed(1))} Tr ₫`;
+        }
+        if (absVal >= 1000) {
+            const val = absVal / 1000;
+            return `${sign}${parseFloat(val.toFixed(0))}K ₫`;
+        }
+        return `${sign}${absVal.toLocaleString("vi-VN")} ₫`;
+    };
+
+    const formatVND = (num) => {
+        if (!showBalances) return "••••••";
+        return `${(num || 0).toLocaleString('vi-VN')} ₫`;
+    };
     
     const renderAmount = (amount, isTotal = false) => {
-        const str = formatVND(amount);
-        const mobileValueClass = `text-sm font-bold text-gray-800 text-right min-w-0 break-words`;
-        
-        if (isTotal) {
+        if (!showBalances) {
             return (
-                <>
-                    <div className="sm:hidden text-center text-sm font-extrabold text-indigo-600 break-words min-w-0">
-                        {str} ₫
-                    </div>
-                    <div className="hidden sm:block text-4xl md:text-5xl font-extrabold text-indigo-600">
-                        {str} ₫
-                    </div>
-                </>
+                <div className={`${isTotal ? "text-xl" : "text-sm"} font-extrabold text-slate-400 text-center mt-1 sm:mt-2`}>
+                    ••••••
+                </div>
             );
         }
 
         return (
-            <>
-                <div className={`sm:hidden block ${mobileValueClass}`}>
-                    <span className="inline-block whitespace-nowrap">{str}</span>
+            <div className="flex flex-col items-center">
+                <div className={`${isTotal ? "text-xl sm:text-3xl text-indigo-600" : "text-sm sm:text-lg text-slate-900"} font-extrabold text-center tracking-tight whitespace-nowrap`}>
+                    {formatVNDCompact(amount, true)}
                 </div>
-                <div className="hidden sm:block text-2xl md:text-3xl font-bold text-gray-800 mt-3">
-                    {str} ₫
-                </div>
-            </>
+                {amount >= 1000000 && (
+                    <div className="text-[9px] text-slate-400 font-semibold mt-0.5 sm:mt-1 select-all">
+                        {formatVND(amount)}
+                    </div>
+                )}
+            </div>
         );
     };
 
@@ -245,51 +264,51 @@ const AssetOverview = ({ user, token, fmData, viewMode = 'overview' }) => {
                              }
                          }
 
-                         const cardClass = item.isTotal 
-                             ? 'bg-fuchsia-100 border-2 border-fuchsia-400 shadow-lg' 
-                             : (isDifference ? 'bg-yellow-50 border border-yellow-200' : 'bg-white border border-black/[0.08]');
-
-                         return (
-                             <div key={item.name} className={`rounded-xl p-4 transition duration-300 ${cardClass}`}>
-                                 <div className="flex justify-between items-center pb-2 border-b border-dashed border-black/[0.08] mb-3">
-                                     <h4 className={`text-lg font-extrabold text-${item.color}-700`}>{item.name}</h4>
-                                     <div className={`flex items-center space-x-1 font-semibold text-sm ${diffClass}`}>
-                                         {statusIcon}
-                                         {isDifference ? 'Lệch' : 'Khớp'}
-                                     </div>
-                                 </div>
-
-                                 <div className="grid grid-cols-2 gap-2 text-sm">
-                                     <div className="border-r border-black/[0.08] pr-1 min-w-0">
-                                         <p className="text-gray-500 text-xs">Tài khoản/Sổ (N1)</p>
-                                         <div className="text-green-600">
-                                             {renderAmount(item.fmValue, item.isTotal)}
-                                         </div>
-                                     </div>
-                                     <div className="pl-1 min-w-0">
-                                         <p className="text-gray-500 text-xs">Giao Dịch (N2)</p>
-                                         <div className="text-blue-600">
-                                             {renderAmount(item.txValue, item.isTotal)}
-                                         </div>
-                                     </div>
-                                 </div>
-
-                                 {isDifference && (
-                                     <div className="mt-3 pt-2 border-t border-black/[0.08]">
-                                         <p className={`text-center font-bold text-sm ${diff > 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                             Chênh lệch: {message}
-                                         </p>
-                                     </div>
-                                 )}
-                                 {!isDifference && item.isTotal && (
-                                      <div className="mt-3 pt-2 border-t border-fuchsia-300">
-                                         <p className="text-center font-bold text-sm text-green-700">
-                                             Chênh lệch: Hai nguồn dữ liệu KHỚP nhau!
-                                         </p>
-                                     </div>
-                                 )}
-                             </div>
-                         );
+                          const cardClass = item.isTotal 
+                              ? 'bg-slate-900 text-white shadow-md border border-slate-800' 
+                              : (isDifference ? 'bg-amber-50/30 border border-amber-200 shadow-sm' : 'bg-white border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)]');
+ 
+                          return (
+                              <div key={item.name} className={`rounded-2xl p-4 transition-all duration-200 ${cardClass}`}>
+                                  <div className={`flex justify-between items-center pb-2 border-b border-dashed ${item.isTotal ? 'border-white/10' : 'border-slate-100'} mb-3`}>
+                                      <h4 className={`text-sm font-black ${item.isTotal ? 'text-indigo-400' : 'text-slate-800'}`}>{item.name}</h4>
+                                      <div className={`flex items-center space-x-1 font-bold text-xs ${diffClass}`}>
+                                          {statusIcon}
+                                          <span>{isDifference ? 'Lệch' : 'Khớp'}</span>
+                                      </div>
+                                  </div>
+ 
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div className={`border-r ${item.isTotal ? 'border-white/10' : 'border-slate-100'} pr-1 min-w-0`}>
+                                          <p className={`${item.isTotal ? 'text-slate-400' : 'text-slate-500'} text-[10px] uppercase font-bold tracking-wider`}>Sổ sách (N1)</p>
+                                          <div className="text-emerald-600 mt-1">
+                                              {renderAmount(item.fmValue, item.isTotal)}
+                                          </div>
+                                      </div>
+                                      <div className="pl-1 min-w-0">
+                                          <p className={`${item.isTotal ? 'text-slate-400' : 'text-slate-500'} text-[10px] uppercase font-bold tracking-wider`}>Giao dịch (N2)</p>
+                                          <div className="text-blue-600 mt-1">
+                                              {renderAmount(item.txValue, item.isTotal)}
+                                          </div>
+                                      </div>
+                                  </div>
+ 
+                                  {isDifference && (
+                                      <div className={`mt-3 pt-2 border-t ${item.isTotal ? 'border-white/10' : 'border-slate-100'}`}>
+                                          <p className={`text-center font-bold text-xs ${diff > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                              Chênh lệch: {message}
+                                          </p>
+                                      </div>
+                                  )}
+                                  {!isDifference && item.isTotal && (
+                                       <div className="mt-3 pt-2 border-t border-indigo-500/20">
+                                          <p className="text-center font-bold text-xs text-emerald-400">
+                                              Chênh lệch: Hai nguồn KHỚP nhau!
+                                          </p>
+                                      </div>
+                                  )}
+                              </div>
+                          );
                     })}
                 </div>
             </div>
@@ -299,34 +318,46 @@ const AssetOverview = ({ user, token, fmData, viewMode = 'overview' }) => {
     const renderOverview = () => {
         return (
             <>
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-8 text-center">
-                    Tổng Quan Tài Sản
-                </h2>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 text-center">
+                    Cơ cấu tài sản hiện tại
+                </h3>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 text-center hover:scale-105 transition">
-                        <div className="text-blue-600 font-semibold">Tiền mặt</div>
-                        {renderAmount(assets.cash)}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-center transition-all hover:scale-[1.02] hover:shadow-sm">
+                        <div className="mx-auto w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 mb-2.5">
+                            <Wallet size={15} />
+                        </div>
+                        <div className="text-xs font-bold text-slate-500">Tiền mặt</div>
+                        <div className="mt-2">{renderAmount(assets.cash)}</div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200 text-center hover:scale-105 transition">
-                        <div className="text-green-600 font-semibold">Ngân hàng</div>
-                        {renderAmount(assets.bank)}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-center transition-all hover:scale-[1.02] hover:shadow-sm">
+                        <div className="mx-auto w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 mb-2.5">
+                            <Building2 size={15} />
+                        </div>
+                        <div className="text-xs font-bold text-slate-500">Ngân hàng</div>
+                        <div className="mt-2">{renderAmount(assets.bank)}</div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 text-center hover:scale-105 transition">
-                        <div className="text-purple-600 font-semibold">Tiết kiệm</div>
-                        {renderAmount(assets.savings)}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-center transition-all hover:scale-[1.02] hover:shadow-sm">
+                        <div className="mx-auto w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 mb-2.5">
+                            <PiggyBank size={15} />
+                        </div>
+                        <div className="text-xs font-bold text-slate-500">Tiết kiệm</div>
+                        <div className="mt-2">{renderAmount(assets.savings)}</div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 text-center hover:scale-105 transition">
-                        <div className="text-orange-600 font-semibold">Đầu tư</div>
-                        {renderAmount(assets.investments)}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-center transition-all hover:scale-[1.02] hover:shadow-sm">
+                        <div className="mx-auto w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 mb-2.5">
+                            <TrendingUp size={15} />
+                        </div>
+                        <div className="text-xs font-bold text-slate-500">Đầu tư</div>
+                        <div className="mt-2">{renderAmount(assets.investments)}</div>
                     </div>
                 </div>
 
-                <div className="mt-10 pt-8 border-t-4 border-indigo-300 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl px-8 py-6 text-center">
-                    <div className="text-xl font-bold text-indigo-700 mb-2">Tổng tài sản</div>
+                <div className="mt-8 pt-6 border-t border-slate-100 bg-slate-50/50 rounded-2xl px-4 py-5 text-center shadow-inner">
+                    <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">TỔNG TÀI SẢN TÍNH TOÁN</div>
                     {renderAmount(total, true)}
                 </div>
             </>

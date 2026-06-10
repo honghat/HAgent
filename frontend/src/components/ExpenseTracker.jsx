@@ -1120,6 +1120,317 @@ const ExpenseTracker = ({ user, token }) => {
                             </table>
                         </div>
                     </div>
+
+                    {/* ── Monthly & Yearly Summaries ── */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        {/* Monthly Summary */}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition duration-300 space-y-4">
+                            <div className="border-b border-slate-100 pb-2.5">
+                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Tóm tắt Tháng {selectedMonth}/{selectedYear}</h4>
+                                <p className="text-[9px] text-slate-400 mt-0.5">Phân loại chi tiêu & thu nhập trong tháng</p>
+                            </div>
+                            
+                            {/* Chi tiêu */}
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">Chi tiêu</p>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                                    {Object.entries(
+                                        expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getMonth() + 1 === parseInt(selectedMonth) &&
+                                                       dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       e.expense_type === "Chi" &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((acc, e) => {
+                                                acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                                return acc;
+                                            }, {})
+                                    ).length > 0 ? (
+                                        Object.entries(
+                                            expenses
+                                                .filter(e => {
+                                                    const dObj = new Date(e.date);
+                                                    return dObj.getMonth() + 1 === parseInt(selectedMonth) &&
+                                                           dObj.getFullYear() === parseInt(selectedYear) &&
+                                                           e.expense_type === "Chi" &&
+                                                           !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                                })
+                                                .reduce((acc, e) => {
+                                                    acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                                    return acc;
+                                                }, {})
+                                        ).map(([cat, amt]) => (
+                                            <div key={cat} className="flex justify-between items-center text-xs">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: categoryColors[cat] || "#6b7280" }} />
+                                                    <span className="text-slate-600 font-medium">{cat}</span>
+                                                </div>
+                                                <span className="font-bold text-rose-600">-{amt.toLocaleString()}&nbsp;₫</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-xs text-slate-400 italic">Không có chi tiêu</p>
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs font-bold text-rose-600">
+                                    <span>Tổng Chi</span>
+                                    <span>
+                                        -{expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getMonth() + 1 === parseInt(selectedMonth) &&
+                                                       dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       e.expense_type === "Chi" &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((sum, e) => sum + e.amount, 0)
+                                            .toLocaleString()}&nbsp;₫
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Thu nhập */}
+                            <div className="space-y-2 pt-2 border-t border-slate-100/60">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Thu nhập</p>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                                    {Object.entries(
+                                        expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getMonth() + 1 === parseInt(selectedMonth) &&
+                                                       dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       e.expense_type === "Thu" &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((acc, e) => {
+                                                acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                                return acc;
+                                            }, {})
+                                    ).length > 0 ? (
+                                        Object.entries(
+                                            expenses
+                                                .filter(e => {
+                                                    const dObj = new Date(e.date);
+                                                    return dObj.getMonth() + 1 === parseInt(selectedMonth) &&
+                                                           dObj.getFullYear() === parseInt(selectedYear) &&
+                                                           e.expense_type === "Thu" &&
+                                                           !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                                })
+                                                .reduce((acc, e) => {
+                                                    acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                                    return acc;
+                                                }, {})
+                                        ).map(([cat, amt]) => (
+                                            <div key={cat} className="flex justify-between items-center text-xs">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: categoryColors[cat] || "#6b7280" }} />
+                                                    <span className="text-slate-600 font-medium">{cat}</span>
+                                                </div>
+                                                <span className="font-bold text-emerald-600">+{amt.toLocaleString()}&nbsp;₫</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-xs text-slate-400 italic">Không có thu nhập</p>
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs font-bold text-emerald-600">
+                                    <span>Tổng Thu</span>
+                                    <span>
+                                        +{expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getMonth() + 1 === parseInt(selectedMonth) &&
+                                                       dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       e.expense_type === "Thu" &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((sum, e) => sum + e.amount, 0)
+                                            .toLocaleString()}&nbsp;₫
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Còn lại */}
+                            <div className="flex justify-between items-center p-3 border border-slate-100 bg-slate-50/50 rounded-xl text-xs font-bold mt-2">
+                                <span className="text-slate-700">Còn lại</span>
+                                <span className={(
+                                    expenses
+                                        .filter(e => {
+                                            const dObj = new Date(e.date);
+                                            return dObj.getMonth() + 1 === parseInt(selectedMonth) &&
+                                                   dObj.getFullYear() === parseInt(selectedYear) &&
+                                                   (e.expense_type === "Thu" || e.expense_type === "Chi") &&
+                                                   !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                        })
+                                        .reduce((sum, e) => e.expense_type === "Thu" ? sum + e.amount : sum - e.amount, 0)
+                                ) >= 0 ? "text-indigo-600" : "text-rose-600"}>
+                                    {(
+                                        expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getMonth() + 1 === parseInt(selectedMonth) &&
+                                                       dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       (e.expense_type === "Thu" || e.expense_type === "Chi") &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((sum, e) => e.expense_type === "Thu" ? sum + e.amount : sum - e.amount, 0)
+                                    ).toLocaleString()}&nbsp;₫
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Yearly Summary */}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition duration-300 space-y-4">
+                            <div className="border-b border-slate-100 pb-2.5">
+                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Tóm tắt Năm {selectedYear}</h4>
+                                <p className="text-[9px] text-slate-400 mt-0.5">Phân loại chi tiêu & thu nhập trong năm</p>
+                            </div>
+
+                            {/* Chi tiêu */}
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500">Chi tiêu</p>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                                    {Object.entries(
+                                        expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       e.expense_type === "Chi" &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((acc, e) => {
+                                                acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                                return acc;
+                                            }, {})
+                                    ).length > 0 ? (
+                                        Object.entries(
+                                            expenses
+                                                .filter(e => {
+                                                    const dObj = new Date(e.date);
+                                                    return dObj.getFullYear() === parseInt(selectedYear) &&
+                                                           e.expense_type === "Chi" &&
+                                                           !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                                })
+                                                .reduce((acc, e) => {
+                                                    acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                                    return acc;
+                                                }, {})
+                                        ).map(([cat, amt]) => (
+                                            <div key={cat} className="flex justify-between items-center text-xs">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: categoryColors[cat] || "#6b7280" }} />
+                                                    <span className="text-slate-600 font-medium">{cat}</span>
+                                                </div>
+                                                <span className="font-bold text-rose-600">-{amt.toLocaleString()}&nbsp;₫</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-xs text-slate-400 italic">Không có chi tiêu</p>
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs font-bold text-rose-600">
+                                    <span>Tổng Chi</span>
+                                    <span>
+                                        -{expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       e.expense_type === "Chi" &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((sum, e) => sum + e.amount, 0)
+                                            .toLocaleString()}&nbsp;₫
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Thu nhập */}
+                            <div className="space-y-2 pt-2 border-t border-slate-100/60">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Thu nhập</p>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                                    {Object.entries(
+                                        expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       e.expense_type === "Thu" &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((acc, e) => {
+                                                acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                                return acc;
+                                            }, {})
+                                    ).length > 0 ? (
+                                        Object.entries(
+                                            expenses
+                                                .filter(e => {
+                                                    const dObj = new Date(e.date);
+                                                    return dObj.getFullYear() === parseInt(selectedYear) &&
+                                                           e.expense_type === "Thu" &&
+                                                           !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                                })
+                                                .reduce((acc, e) => {
+                                                    acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                                    return acc;
+                                                }, {})
+                                        ).map(([cat, amt]) => (
+                                            <div key={cat} className="flex justify-between items-center text-xs">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: categoryColors[cat] || "#6b7280" }} />
+                                                    <span className="text-slate-600 font-medium">{cat}</span>
+                                                </div>
+                                                <span className="font-bold text-emerald-600">+{amt.toLocaleString()}&nbsp;₫</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-xs text-slate-400 italic">Không có thu nhập</p>
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs font-bold text-emerald-600">
+                                    <span>Tổng Thu</span>
+                                    <span>
+                                        +{expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       e.expense_type === "Thu" &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((sum, e) => sum + e.amount, 0)
+                                            .toLocaleString()}&nbsp;₫
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Còn lại */}
+                            <div className="flex justify-between items-center p-3 border border-slate-100 bg-slate-50/50 rounded-xl text-xs font-bold mt-2">
+                                <span className="text-slate-700">Còn lại</span>
+                                <span className={(
+                                    expenses
+                                        .filter(e => {
+                                            const dObj = new Date(e.date);
+                                            return dObj.getFullYear() === parseInt(selectedYear) &&
+                                                   (e.expense_type === "Thu" || e.expense_type === "Chi") &&
+                                                   !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                        })
+                                        .reduce((sum, e) => e.expense_type === "Thu" ? sum + e.amount : sum - e.amount, 0)
+                                ) >= 0 ? "text-indigo-600" : "text-rose-600"}>
+                                    {(
+                                        expenses
+                                            .filter(e => {
+                                                const dObj = new Date(e.date);
+                                                return dObj.getFullYear() === parseInt(selectedYear) &&
+                                                       (e.expense_type === "Thu" || e.expense_type === "Chi") &&
+                                                       !["Tiết kiệm", "XL", "Đầu tư", "Rút tiền"].includes(e.category);
+                                            })
+                                            .reduce((sum, e) => e.expense_type === "Thu" ? sum + e.amount : sum - e.amount, 0)
+                                    ).toLocaleString()}&nbsp;₫
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         )}

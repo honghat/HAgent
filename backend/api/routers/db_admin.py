@@ -55,9 +55,8 @@ except Exception:
 
 # Loại bỏ các bảng legacy không còn sử dụng bởi dự án HAgent
 _LEGACY_TABLES = {
-    "User", "AIReport", "CodeSession", "DayLog", "EnglishLesson",
-    "Lesson", "MindmapNote", "MissionConfig", "PomodoroSession",
-    "RoadmapItem", "Settings"
+    "AIReport", "CodeSession", "DayLog", "MindmapNote", "MissionConfig",
+    "PomodoroSession", "RoadmapItem", "Settings"
 }
 for tb in _LEGACY_TABLES:
     _SYSTEM_TABLES.discard(tb)

@@ -10,7 +10,7 @@ const MEALS = [
 ];
 
 const authHeaders = (token) => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
-const fmtVND = (n) => (n ? Number(n).toLocaleString("vi-VN") + "đ" : "0đ");
+const fmtVND = (n) => (n ? Number(n).toLocaleString("vi-VN") + "kđ" : "0kđ");
 
 const WD = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const fmtDate = (d) => {
@@ -258,7 +258,7 @@ export default function FoodTracker({ token }) {
                                                 placeholder="Món..."
                                                 className="flex-1 min-w-0 h-9 px-3 text-xs font-semibold border border-slate-200 rounded-lg bg-slate-50/50 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                                             <input type="number" value={form[m.money]} onChange={(e) => setForm((p) => ({ ...p, [m.money]: e.target.value }))}
-                                                placeholder="đ"
+                                                placeholder="kđ"
                                                 className="w-24 h-9 px-3 text-xs font-semibold text-right border border-slate-200 rounded-lg bg-slate-50/50 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                                             <button type="button" onClick={() => setForm((p) => ({ ...p, [m.paid]: !p[m.paid] }))}
                                                 className={`shrink-0 w-9 h-9 rounded-lg border flex items-center justify-center transition-all ${form[m.paid]

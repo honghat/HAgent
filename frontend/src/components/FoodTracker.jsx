@@ -234,7 +234,7 @@ export default function FoodTracker({ token }) {
                                             })}
                                             <td className="px-4 py-3 text-xs font-black text-right text-indigo-600 tabular-nums whitespace-nowrap">{fmtVND(dayTotal)}</td>
                                             <td className="px-4 py-3 text-center">
-                                                <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center justify-center gap-1">
                                                     <button onClick={() => openEdit(r)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"><Edit2 size={13} /></button>
                                                     <button onClick={() => remove(r.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 size={13} /></button>
                                                 </div>
@@ -256,7 +256,7 @@ export default function FoodTracker({ token }) {
                                         <span className="text-xs font-extrabold text-slate-700">{fmtDate(r.date)}</span>
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs font-black text-indigo-600 tabular-nums">{fmtVND(dayTotal)}</span>
-                                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex gap-0.5">
                                                 <button onClick={() => openEdit(r)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-all"><Edit2 size={12} /></button>
                                                 <button onClick={() => remove(r.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={12} /></button>
                                             </div>

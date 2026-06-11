@@ -90,6 +90,14 @@ def get_anuong_list(db: Session, user_id: int):
     )
 
 def create_anuong(db: Session, anuong_data: AnUongCreate):
+    # Enforce 0đ default is paid
+    if anuong_data.tien_sang is None or anuong_data.tien_sang == 0:
+        anuong_data.sang_paid = True
+    if anuong_data.tien_trua is None or anuong_data.tien_trua == 0:
+        anuong_data.trua_paid = True
+    if anuong_data.tien_toi is None or anuong_data.tien_toi == 0:
+        anuong_data.toi_paid = True
+
     db_item = AnUong(**anuong_data.model_dump())
     db.add(db_item)
     db.commit()
@@ -100,11 +108,25 @@ def update_anuong(db: Session, anuong_id: int, data: AnUongUpdate):
     rec = db.query(AnUong).filter(AnUong.id == anuong_id).first()
     if not rec:
         raise HTTPException(404, "Record not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    
+    # Enforce 0đ default is paid
+    update_data = data.model_dump(exclude_unset=True)
+    if "tien_sang" in update_data:
+        if update_data["tien_sang"] is None or update_data["tien_sang"] == 0:
+            update_data["sang_paid"] = True
+    if "tien_trua" in update_data:
+        if update_data["tien_trua"] is None or update_data["tien_trua"] == 0:
+            update_data["trua_paid"] = True
+    if "tien_toi" in update_data:
+        if update_data["tien_toi"] is None or update_data["tien_toi"] == 0:
+            update_data["toi_paid"] = True
+
+    for key, value in update_data.items():
         setattr(rec, key, value)
     db.commit()
     db.refresh(rec)
     return rec
+
 
 def delete_anuong(db: Session, anuong_id: int):
     item = db.query(AnUong).filter(AnUong.id == anuong_id).first()

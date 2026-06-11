@@ -75,13 +75,13 @@ const ExpenseAnUong = ({ user, token }) => {
             date: today,
             sang: "",
             tien_sang: 0,
-            sang_paid: false,
+            sang_paid: true,
             trua: "",
             tien_trua: 0,
-            trua_paid: false,
+            trua_paid: true,
             toi: "",
             tien_toi: 0,
-            toi_paid: false
+            toi_paid: true
         };
 
         try {
@@ -110,21 +110,46 @@ const ExpenseAnUong = ({ user, token }) => {
     };
 
     const updateField = async (id, field, value) => {
-        // Optimistically update the UI to avoid lag
-        setRecords(prev =>
-            prev.map(r => (r.id === id ? { ...r, [field]: value } : r))
-        );
-
         let finalValue = value;
+        let finalPaidField = null;
+        let finalPaidValue = null;
+
         if (typeof value === "boolean") {
             finalValue = value;
         } else if (field === "date") {
             finalValue = value;
         } else if (["tien_sang", "tien_trua", "tien_toi"].includes(field)) {
             finalValue = parseFloat(value) || 0;
+            const mealPrefix = field.substring(5); // "sang", "trua", "toi"
+            const paidKey = `${mealPrefix}_paid`;
+            const currentRec = records.find(r => r.id === id);
+            if (currentRec) {
+                const prevVal = parseFloat(currentRec[field]) || 0;
+                if (finalValue === 0) {
+                    finalPaidField = paidKey;
+                    finalPaidValue = true;
+                } else if (prevVal === 0 && finalValue > 0) {
+                    finalPaidField = paidKey;
+                    finalPaidValue = false;
+                }
+            }
         } else {
             finalValue = value?.toString() || "";
         }
+
+        // Optimistically update the UI to avoid lag
+        setRecords(prev =>
+            prev.map(r => {
+                if (r.id === id) {
+                    const updated = { ...r, [field]: finalValue };
+                    if (finalPaidField !== null) {
+                        updated[finalPaidField] = finalPaidValue;
+                    }
+                    return updated;
+                }
+                return r;
+            })
+        );
 
         try {
             const currentRecord = records.find(r => r.id === id);
@@ -134,15 +159,18 @@ const ExpenseAnUong = ({ user, token }) => {
                 date: currentRecord.date,
                 sang: currentRecord.sang || "",
                 tien_sang: currentRecord.tien_sang || 0,
-                sang_paid: currentRecord.sang_paid || false,
+                sang_paid: (currentRecord.tien_sang || 0) === 0 ? true : (currentRecord.sang_paid || false),
                 trua: currentRecord.trua || "",
                 tien_trua: currentRecord.tien_trua || 0,
-                trua_paid: currentRecord.trua_paid || false,
+                trua_paid: (currentRecord.tien_trua || 0) === 0 ? true : (currentRecord.trua_paid || false),
                 toi: currentRecord.toi || "",
                 tien_toi: currentRecord.tien_toi || 0,
-                toi_paid: currentRecord.toi_paid || false,
+                toi_paid: (currentRecord.tien_toi || 0) === 0 ? true : (currentRecord.toi_paid || false),
                 [field]: finalValue
             };
+            if (finalPaidField !== null) {
+                payload[finalPaidField] = finalPaidValue;
+            }
 
             const res = await fetch(`${API_URL}/${id}`, {
                 method: "PUT",

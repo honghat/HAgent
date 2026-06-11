@@ -22,9 +22,9 @@ const today = () => new Date().toISOString().split("T")[0];
 
 const emptyForm = () => ({
     date: today(),
-    sang: "", tien_sang: "", sang_paid: false,
-    trua: "", tien_trua: "", trua_paid: false,
-    toi: "", tien_toi: "", toi_paid: false,
+    sang: "", tien_sang: "", sang_paid: true,
+    trua: "", tien_trua: "", trua_paid: true,
+    toi: "", tien_toi: "", toi_paid: true,
 });
 
 export default function FoodTracker({ token }) {
@@ -100,18 +100,18 @@ export default function FoodTracker({ token }) {
     const openEdit = (r) => {
         setForm({
             date: r.date,
-            sang: r.sang || "", tien_sang: r.tien_sang || "", sang_paid: !!r.sang_paid,
-            trua: r.trua || "", tien_trua: r.tien_trua || "", trua_paid: !!r.trua_paid,
-            toi: r.toi || "", tien_toi: r.tien_toi || "", toi_paid: !!r.toi_paid,
+            sang: r.sang || "", tien_sang: r.tien_sang || "", sang_paid: r.tien_sang > 0 ? !!r.sang_paid : true,
+            trua: r.trua || "", tien_trua: r.tien_trua || "", trua_paid: r.tien_trua > 0 ? !!r.trua_paid : true,
+            toi: r.toi || "", tien_toi: r.tien_toi || "", toi_paid: r.tien_toi > 0 ? !!r.toi_paid : true,
         });
         setEditId(r.id); setModal("edit");
     };
 
     const payload = (f) => ({
         date: f.date,
-        sang: f.sang || null, tien_sang: f.tien_sang ? +f.tien_sang : null, sang_paid: f.sang_paid,
-        trua: f.trua || null, tien_trua: f.tien_trua ? +f.tien_trua : null, trua_paid: f.trua_paid,
-        toi: f.toi || null, tien_toi: f.tien_toi ? +f.tien_toi : null, toi_paid: f.toi_paid,
+        sang: f.sang || null, tien_sang: f.tien_sang ? +f.tien_sang : null, sang_paid: (f.tien_sang ? +f.tien_sang : 0) === 0 ? true : f.sang_paid,
+        trua: f.trua || null, tien_trua: f.tien_trua ? +f.tien_trua : null, trua_paid: (f.tien_trua ? +f.tien_trua : 0) === 0 ? true : f.trua_paid,
+        toi: f.toi || null, tien_toi: f.tien_toi ? +f.tien_toi : null, toi_paid: (f.tien_toi ? +f.tien_toi : 0) === 0 ? true : f.toi_paid,
     });
 
     const save = async () => {
@@ -402,7 +402,24 @@ export default function FoodTracker({ token }) {
                                                     </div>
                                                 )}
                                             </div>
-                                            <input type="number" value={form[m.money]} onChange={(e) => setForm((p) => ({ ...p, [m.money]: e.target.value }))}
+                                            <input type="number" value={form[m.money]}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setForm((p) => {
+                                                        const numericVal = val ? +val : 0;
+                                                        let nextPaid = p[m.paid];
+                                                        if (numericVal > 0 && (p[m.money] === "" || +p[m.money] === 0)) {
+                                                            nextPaid = false;
+                                                        } else if (numericVal === 0) {
+                                                            nextPaid = true;
+                                                        }
+                                                        return {
+                                                            ...p,
+                                                            [m.money]: val,
+                                                            [m.paid]: nextPaid
+                                                        };
+                                                    });
+                                                }}
                                                 placeholder="kđ"
                                                 className="w-24 h-9 px-3 text-xs font-semibold text-right border border-slate-200 rounded-lg bg-slate-50/50 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                                             <button type="button" onClick={() => setForm((p) => ({ ...p, [m.paid]: !p[m.paid] }))}

@@ -639,62 +639,8 @@ const AccountBalance = ({ user, token }) => {
                 {/* Số dư */}
                 {activeTab === "balance" && (
                     <div className="flex flex-col">
-                        {/* Account list */}
-                        <div className="divide-y divide-gray-50">
-                            <div className="flex items-center px-4 py-3 bg-gray-50/50">
-                                <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Danh sách tài khoản</span>
-                            </div>
-                            {sortedAccounts.map(acc => {
-                                const cs = getCardStyle(acc.name);
-                                const isEditing = editingAccount && editingAccount.id === acc.id;
-                                if (isEditing) return (
-                                    <div key={acc.id} className="flex items-center gap-2 px-4 py-3 bg-indigo-50/40">
-                                        <input className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-400 bg-white" value={editingAccount.name} onChange={e => setEditingAccount({...editingAccount, name: e.target.value})} />
-                                        <input type="number" className="w-32 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-right focus:outline-none focus:border-indigo-400 bg-white" value={editingAccount.balance} onChange={e => setEditingAccount({...editingAccount, balance: e.target.value})} />
-                                        <button onClick={saveEditAccount} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"><Check size={14} /></button>
-                                        <button onClick={cancelEditAccount} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"><X size={14} /></button>
-                                    </div>
-                                );
-                                return (
-                                    <div key={acc.id} className="flex items-center px-4 py-3.5 hover:bg-gray-50 transition-colors group">
-                                        <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
-                                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-[9px] font-black shrink-0 border ${cs.bg}`}>{cs.logo.slice(0,3)}</span>
-                                            <span className="text-sm font-semibold text-gray-800 truncate">{acc.name}</span>
-                                            <span className="text-sm font-black text-gray-900 ml-auto shrink-0">{mask(formatVNDCompact(acc.balance, true))}</span>
-                                        </div>
-                                        <div className="w-14 flex justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                            <button onClick={() => startEditAccount(acc)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg transition-colors"><Edit2 size={12} /></button>
-                                            <button onClick={() => deleteAccount(acc.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={12} /></button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            <div className="flex items-center px-4 py-3.5 bg-indigo-50/50 border-t border-indigo-100/60">
-                                <div className="flex items-center justify-between flex-1 min-w-0 pr-4">
-                                    <span className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider">Tổng số dư</span>
-                                    <span className="text-sm font-black text-indigo-900 shrink-0">{mask(formatVNDCompact(totalAccountBalance, true))}</span>
-                                </div>
-                                <div className="w-14 shrink-0" />
-                            </div>
-                        </div>
-
-                        {/* Add account form */}
-                        <div className="border-t border-gray-100 px-4 py-3">
-                            <button onClick={() => setShowAddAccountForm(!showAddAccountForm)} className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
-                                <Plus size={13} /> Thêm tài khoản
-                                {showAddAccountForm ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                            </button>
-                            {showAddAccountForm && (
-                                <div className="flex gap-2 mt-2.5">
-                                    <input className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-400 bg-gray-50" placeholder="Tên tài khoản" value={newAccount.name} onChange={e => setNewAccount({...newAccount, name: e.target.value})} />
-                                    <input type="number" className="w-28 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-right focus:outline-none focus:border-indigo-400 bg-gray-50" placeholder="Số dư" value={newAccount.balance} onChange={e => setNewAccount({...newAccount, balance: e.target.value})} />
-                                    <button onClick={() => { addAccount(); setShowAddAccountForm(false); }} disabled={!newAccount.name || !newAccount.balance} className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors">Lưu</button>
-                                </div>
-                            )}
-                        </div>
-
                         {/* Balance records */}
-                        <div className="border-t border-gray-100">
+                        <div className="divide-y divide-gray-50">
                             <div className="flex items-center justify-between px-4 py-3.5 bg-gray-50/50 border-b border-gray-100">
                                 <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Nhật ký số dư</span>
                                 <button onClick={() => setShowAddRecordForm(!showAddRecordForm)} className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
@@ -703,7 +649,7 @@ const AccountBalance = ({ user, token }) => {
                             </div>
 
                             {showAddRecordForm && (
-                                <div className="px-4 pb-3 grid grid-cols-2 gap-2">
+                                <div className="px-4 pb-3 pt-2 grid grid-cols-2 gap-2">
                                     <select className="col-span-2 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" value={newRecord.account_id} onChange={e => setNewRecord({...newRecord, account_id: e.target.value})}>
                                         <option value="">Chọn tài khoản</option>
                                         {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -781,6 +727,60 @@ const AccountBalance = ({ user, token }) => {
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+
+                        {/* Account list */}
+                        <div className="divide-y divide-gray-50 border-t border-gray-100">
+                            <div className="flex items-center px-4 py-3 bg-gray-50/50">
+                                <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Danh sách tài khoản</span>
+                            </div>
+                            {sortedAccounts.map(acc => {
+                                const cs = getCardStyle(acc.name);
+                                const isEditing = editingAccount && editingAccount.id === acc.id;
+                                if (isEditing) return (
+                                    <div key={acc.id} className="flex items-center gap-2 px-4 py-3 bg-indigo-50/40">
+                                        <input className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-400 bg-white" value={editingAccount.name} onChange={e => setEditingAccount({...editingAccount, name: e.target.value})} />
+                                        <input type="number" className="w-32 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-right focus:outline-none focus:border-indigo-400 bg-white" value={editingAccount.balance} onChange={e => setEditingAccount({...editingAccount, balance: e.target.value})} />
+                                        <button onClick={saveEditAccount} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"><Check size={14} /></button>
+                                        <button onClick={cancelEditAccount} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"><X size={14} /></button>
+                                    </div>
+                                );
+                                return (
+                                    <div key={acc.id} className="flex items-center px-4 py-3.5 hover:bg-gray-50 transition-colors group">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
+                                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-[9px] font-black shrink-0 border ${cs.bg}`}>{cs.logo.slice(0,3)}</span>
+                                            <span className="text-sm font-semibold text-gray-800 truncate">{acc.name}</span>
+                                            <span className="text-sm font-black text-gray-900 ml-auto shrink-0">{mask(formatVNDCompact(acc.balance, true))}</span>
+                                        </div>
+                                        <div className="w-14 flex justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                            <button onClick={() => startEditAccount(acc)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg transition-colors"><Edit2 size={12} /></button>
+                                            <button onClick={() => deleteAccount(acc.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={12} /></button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            <div className="flex items-center px-4 py-3.5 bg-indigo-50/50 border-t border-indigo-100/60">
+                                <div className="flex items-center justify-between flex-1 min-w-0 pr-4">
+                                    <span className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider">Tổng số dư</span>
+                                    <span className="text-sm font-black text-indigo-900 shrink-0">{mask(formatVNDCompact(totalAccountBalance, true))}</span>
+                                </div>
+                                <div className="w-14 shrink-0" />
+                            </div>
+                        </div>
+
+                        {/* Add account form */}
+                        <div className="border-t border-gray-100 px-4 py-3">
+                            <button onClick={() => setShowAddAccountForm(!showAddAccountForm)} className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                <Plus size={13} /> Thêm tài khoản
+                                {showAddAccountForm ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            </button>
+                            {showAddAccountForm && (
+                                <div className="flex gap-2 mt-2.5">
+                                    <input className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-400 bg-gray-50" placeholder="Tên tài khoản" value={newAccount.name} onChange={e => setNewAccount({...newAccount, name: e.target.value})} />
+                                    <input type="number" className="w-28 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-right focus:outline-none focus:border-indigo-400 bg-gray-50" placeholder="Số dư" value={newAccount.balance} onChange={e => setNewAccount({...newAccount, balance: e.target.value})} />
+                                    <button onClick={() => { addAccount(); setShowAddAccountForm(false); }} disabled={!newAccount.name || !newAccount.balance} className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors">Lưu</button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

@@ -1,174 +1,18 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { 
     BookOpen, Search, ArrowLeft, Calendar, Clock, 
     Share2, Sparkles, Heart, 
     ChevronRight, Brain 
 } from "lucide-react";
 
-// Mock AI Blog articles with rich content in Vietnamese
-const ARTICLES = [
-    {
-        id: 5,
-        title: "HAgent: Nền tảng trợ lý AI cá nhân & Tự động hóa quy trình công việc thế hệ mới",
-        description: "Giới thiệu HAgent - trợ lý AI đa năng chạy trực tiếp trên máy của bạn, kết hợp khả năng lập trình, quản lý hệ thống, tự động hóa cron job và theo dõi tài chính thông minh.",
-        category: "Ứng dụng AI",
-        readTime: "4 phút đọc",
-        date: "2026-06-12",
-        image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=800",
-        likes: 312,
-        comments: 45,
-        pinned: true,
-        author: {
-            name: "Nguyễn Hồng Hạt",
-            avatar: "https://ui-avatars.com/api/?name=Hong+Hat&background=3b82f6&color=fff&size=96",
-            title: "Makers & Tech Architect"
-        },
-        content: `
-            <h2>HAgent là gì?</h2>
-            <p><strong>HAgent</strong> là một hệ sinh thái AI Agent cá nhân (Personal AI Agent Ecosystem) được thiết kế đặc biệt để giúp lập trình viên và người dùng nâng cao năng suất làm việc hàng ngày. Không chỉ dừng lại ở một chatbot thông thường, HAgent sở hữu hệ thống tools mạnh mẽ cho phép tương tác trực tiếp với hệ điều hành dưới sự kiểm soát an toàn của bạn.</p>
-
-            <h2>Các tính năng cốt lõi làm nên sức mạnh của HAgent</h2>
-            <ul>
-                <li><strong>Omni Chat đa nhân vật:</strong> Hỗ trợ tích hợp và chuyển đổi mượt mà giữa các mô hình ngôn ngữ lớn hàng đầu thế giới (Google Gemini, DeepSeek-R1, GPT-4o) để phục vụ các mục đích khác nhau từ code, dịch thuật đến viết lách.</li>
-                <li><strong>Trợ lý lập trình thực chiến:</strong> Tích hợp sâu với terminal và trình soạn thảo file. HAgent có khả năng hiểu codebase hiện tại của bạn, tự động sửa lỗi code, chạy unit test và thực thi các câu lệnh terminal sau khi nhận được sự đồng ý của bạn.</li>
-                <li><strong>Tự động hóa thông minh (Automation Hub):</strong> Thiết lập các tác vụ định kỳ (Cron Jobs), quản lý Docker, tự động hóa quy trình sao lưu dữ liệu (Backup) và đồng bộ tệp tin đám mây.</li>
-                <li><strong>Quản lý tài chính cá nhân:</strong> Phân hệ theo dõi chi tiêu chi tiết (Expense Tracker), thống kê số dư ngân hàng (Account Balance) giúp bạn nắm bắt dòng tiền một cách nhanh chóng và bảo mật nhất.</li>
-            </ul>
-
-            <div class="highlight-box bg-indigo-50 border-l-4 border-indigo-500 p-4 my-6 rounded-r-xl">
-                <p class="font-bold text-slate-800">Cam kết bảo mật & Quyền riêng tư:</p>
-                <p class="text-sm text-slate-600">Mọi dữ liệu cá nhân, nhật ký trò chuyện, thông tin tài chính đều được lưu trữ hoàn toàn trên máy cục bộ của bạn hoặc đồng bộ hóa mã hóa bảo mật đến tài khoản đám mây cá nhân (Google Drive), tuyệt đối không chia sẻ cho bên thứ ba.</p>
-            </div>
-
-            <h2>Tầm nhìn tương lai</h2>
-            <p>HAgent hướng tới việc trở thành một "AI OS" - một hệ điều hành mini chạy bằng AI, nơi các agent phối hợp nhịp nhàng để giải quyết các luồng công việc phức tạp thay thế con người. Hãy cùng tham gia trải nghiệm và xây dựng tương lai năng suất vượt trội cùng HAgent!</p>
-        `
-    },
-    {
-        id: 1,
-        title: "Gemini 1.5 Pro: Kỷ nguyên mới với Ngữ cảnh siêu rộng 2 Triệu Tokens",
-        description: "Google công bố mô hình Gemini 1.5 Pro với khả năng xử lý ngữ cảnh lên tới 2 triệu tokens, mở ra cuộc cách mạng trong phân tích mã nguồn và tài liệu lớn.",
-        category: "Mô hình ngôn ngữ",
-        readTime: "6 phút đọc",
-        date: "2026-06-10",
-        image: "https://images.unsplash.com/photo-1677442136019-21780efad99a?auto=format&fit=crop&q=80&w=800",
-        likes: 142,
-        comments: 28,
-        author: {
-            name: "Hạt AI Team",
-            avatar: "https://ui-avatars.com/api/?name=Hat+AI&background=6366f1&color=fff&size=96",
-            title: "AI Research Lead"
-        },
-        content: `
-            <h2>Cuộc cách mạng Context Window</h2>
-            <p>Trong các mô hình ngôn ngữ lớn (LLM), cửa sổ ngữ cảnh (Context Window) quyết định lượng thông tin mà mô hình có thể tiếp nhận và ghi nhớ trong một phiên làm việc. Với bước nhảy vọt lên 2 triệu tokens, Gemini 1.5 Pro có thể xử lý đồng thời:</p>
-            <ul>
-                <li>Hơn 1.5 triệu từ văn bản.</li>
-                <li>Toàn bộ cơ sở mã nguồn (codebase) gồm hàng chục nghìn dòng lệnh.</li>
-                <li>Nhiều giờ video chất lượng cao hoặc các file âm thanh dài.</li>
-            </ul>
-
-            <div class="highlight-box bg-slate-50 border-l-4 border-indigo-500 p-4 my-6 rounded-r-xl">
-                <p class="font-bold text-slate-800">Thử nghiệm "Kim trong đống cỏ khô" (Needle In A Haystack):</p>
-                <p class="text-sm text-slate-600">Google đã chứng minh Gemini 1.5 Pro có thể tìm thấy một dòng code hoặc thông tin cụ thể được ẩn sâu bên trong tài liệu dài hàng triệu từ với độ chính xác đạt tới 99.7%.</p>
-            </div>
-
-            <h2>Ứng dụng thực tế trong lập trình và phân tích</h2>
-            <p>Khả năng này thay đổi hoàn toàn cách chúng ta phát triển phần mềm. Thay vì phải chia nhỏ dự án để đưa vào context của AI, nhà phát triển có thể tải toàn bộ repo dự án lên và yêu cầu Gemini giải thích luồng hoạt động, tìm lỗi bảo mật hoặc viết unit test trên diện rộng.</p>
-            <p>Đối với phân tích dữ liệu, Gemini 1.5 Pro có thể đọc hàng trăm bản báo cáo tài chính dày đặc, so sánh các số liệu qua từng năm và đưa ra dự báo chỉ trong vài giây mà không bị mất mát thông tin.</p>
-        `
-    },
-    {
-        id: 2,
-        title: "DeepSeek-R1: Mô hình suy luận nguồn mở thách thức các gã khổng lồ",
-        description: "Sự trỗi dậy của DeepSeek-R1 từ Trung Quốc với phương pháp Học tăng cường (Reinforcement Learning) đã làm thay đổi bản đồ AI toàn cầu nhờ hiệu năng vượt trội và chi phí cực thấp.",
-        category: "Suy luận AI",
-        readTime: "8 phút đọc",
-        date: "2026-06-08",
-        image: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&q=80&w=800",
-        likes: 289,
-        comments: 54,
-        author: {
-            name: "Nguyễn Hồng Hạt",
-            avatar: "https://ui-avatars.com/api/?name=Hong+Hat&background=3b82f6&color=fff&size=96",
-            title: "Makers & Tech Architect"
-        },
-        content: `
-            <h2>Reinforcement Learning (Học tăng cường) làm nên sự khác biệt</h2>
-            <p>Khác với các mô hình truyền thống chủ yếu tối ưu hóa thông qua học có giám sát (Supervised Fine-Tuning), DeepSeek-R1 áp dụng cơ chế suy luận tự động qua học tăng cường (RL). Mô hình tự suy nghĩ, lập luận, kiểm tra chéo các bước giải quyết vấn đề trước khi đưa ra câu trả lời cuối cùng.</p>
-            
-            <blockquote>
-                "DeepSeek-R1 không chỉ trả lời nhanh, nó tạo ra một 'Chuỗi suy nghĩ' (Chain of Thought) nội bộ để phân tích vấn đề đa chiều như cách con người tư duy lập luận toán học và logic."
-            </blockquote>
-
-            <h2>Chi phí siêu rẻ - Hiệu quả cực cao</h2>
-            <p>Một trong những điểm gây sốc nhất cho cộng đồng công nghệ là chi phí huấn luyện của DeepSeek chỉ bằng một phần nhỏ so với các đối thủ từ Mỹ. Bằng cách tối ưu cấu trúc Mixture-of-Experts (MoE) và thuật toán phân bổ bộ nhớ hiệu quả, DeepSeek-R1 chứng minh rằng không cần phần cứng siêu máy tính nghìn tỷ đô vẫn có thể tạo ra trí tuệ nhân tạo hàng đầu thế giới.</p>
-
-            <h2>Tác động đến cộng đồng nguồn mở</h2>
-            <p>Việc DeepSeek công bố mở mã nguồn (open-source) trọng số mô hình đã thúc đẩy hàng ngàn dự án cá nhân và doanh nghiệp tự phát triển trợ lý suy luận riêng tư, giảm sự phụ thuộc vào các API đóng đắt đỏ.</p>
-        `
-    },
-    {
-        id: 3,
-        title: "Lập trình tương lai với Agentic Workflows (Quy trình Agent)",
-        description: "Tại sao các chatbot AI thông thường đang nhường chỗ cho hệ thống Multi-Agent có khả năng tự lập kế hoạch, sử dụng công cụ và hợp tác giải quyết tác vụ phức tạp.",
-        category: "Ứng dụng AI",
-        readTime: "5 phút đọc",
-        date: "2026-06-05",
-        image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=800",
-        likes: 95,
-        comments: 12,
-        author: {
-            name: "Hạt AI Team",
-            avatar: "https://ui-avatars.com/api/?name=Hat+AI&background=6366f1&color=fff&size=96",
-            title: "Workflow Automation Dev"
-        },
-        content: `
-            <h2>Chatbot thông thường vs Agentic Workflow</h2>
-            <p>Khi sử dụng ChatGPT hay Gemini dạng chat trực tiếp, mô hình sẽ trả lời ngay lập tức (Zero-shot). Tuy nhiên đối với các công việc phức tạp như viết một cuốn sách hay debug hệ thống lớn, cách tiếp cận này dễ gặp lỗi và ảo tưởng (hallucination).</p>
-            <p><strong>Agentic Workflows</strong> chia nhỏ tác vụ và chạy theo một vòng lặp khép kín:</p>
-            <ol>
-                <li><strong>Lập kế hoạch (Planning):</strong> Agent phân tích đề bài và chia nhỏ thành các bước.</li>
-                <li><strong>Sử dụng công cụ (Tool Use):</strong> Agent gọi các API, chạy code terminal, đọc ghi file hoặc tìm kiếm web để thu thập thông tin chính xác.</li>
-                <li><strong>Phản hồi và Sửa lỗi (Reflection/Self-Correction):</strong> Một Agent khác hoặc chính nó sẽ rà soát lại kết quả, chạy thử nghiệm và tự động sửa nếu có lỗi.</li>
-            </ol>
-
-            <h2>Hệ thống Multi-Agent: Hợp tác như một nhóm chuyên gia</h2>
-            <p>Trong một quy trình tự động hóa nâng cao, nhiều Agent với các vai trò khác nhau (ví dụ: Product Manager Agent, Coder Agent, Tester Agent) sẽ trò chuyện và phối hợp với nhau để xây dựng một sản phẩm hoàn chỉnh mà không cần sự can thiệp liên tục của con người.</p>
-        `
-    },
-    {
-        id: 4,
-        title: "Hướng dẫn thực chiến Prompt Engineering dành cho lập trình viên",
-        description: "Tổng hợp các kỹ thuật thiết kế prompt nâng cao như Few-shot, Chain-of-Thought và ReAct để tăng cường độ chính xác của LLM lên gấp nhiều lần.",
-        category: "Hướng dẫn",
-        readTime: "7 phút đọc",
-        date: "2026-05-28",
-        image: "https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&q=80&w=800",
-        likes: 178,
-        comments: 31,
-        author: {
-            name: "Nguyễn Hồng Hạt",
-            avatar: "https://ui-avatars.com/api/?name=Hong+Hat&background=3b82f6&color=fff&size=96",
-            title: "Makers & Tech Architect"
-        },
-        content: `
-            <h2>1. Few-shot Prompting: Dạy AI bằng ví dụ</h2>
-            <p>Đừng chỉ yêu cầu AI thực hiện một việc mơ hồ. Hãy cung cấp cho nó 2-3 ví dụ mẫu về định dạng đầu vào và kết quả mong muốn đầu ra. Kỹ thuật này giúp mô hình hiểu rõ cấu trúc dữ liệu cần phản hồi mà không cần huấn luyện lại.</p>
-
-            <h2>2. Chain-of-Thought (Chuỗi tư duy)</h2>
-            <p>Thêm câu lệnh đơn giản như <em>"Hãy suy nghĩ từng bước một"</em> (Let's think step by step) sẽ kích hoạt khả năng phân tích logic. AI sẽ đưa ra các bước lập luận trung gian trước khi đưa ra kết luận cuối cùng, hạn chế tối đa các lỗi tính toán toán học đơn giản.</p>
-
-            <h2>3. ReAct Pattern (Reasoning and Acting)</h2>
-            <p>Đây là cấu trúc nền tảng của các Agent hiện đại. Prompt được thiết kế để yêu cầu AI luân phiên thực hiện <strong>Suy nghĩ (Thought)</strong> -> <strong>Hành động (Action)</strong> -> <strong>Quan sát (Observation)</strong>. Bằng cách này, AI có thể quyết định khi nào cần tìm kiếm Google, khi nào cần đọc tài liệu và phản hồi dựa trên kết quả thực tế.</p>
-        `
-    }
-];
-
 const CATEGORIES = ["Tất cả", "Mô hình ngôn ngữ", "Suy luận AI", "Ứng dụng AI", "Hướng dẫn"];
 
 export default function BlogHub({ user, token, onViewChange }) {
     const isGuest = !user;
+    const [posts, setPosts] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [activeCategory, setActiveCategory] = useState("Tất cả");
     const [searchQuery, setSearchQuery] = useState("");
@@ -180,14 +24,69 @@ export default function BlogHub({ user, token, onViewChange }) {
         }
     });
 
-    const activePostId = isGuest ? 5 : selectedPostId;
+    // Fetch posts from database API
+    useEffect(() => {
+        setLoading(true);
+        fetch("/api/blog/posts")
+            .then(r => {
+                if (!r.ok) throw new Error("Failed to fetch blog posts");
+                return r.json();
+            })
+            .then(data => {
+                const formatted = data.map(post => ({
+                    ...post,
+                    readTime: post.read_time,
+                    author: {
+                        name: post.author_name || "Nguyễn Hồng Hạt",
+                        avatar: post.author_avatar || "https://ui-avatars.com/api/?name=Hong+Hat&background=3b82f6&color=fff&size=96",
+                        title: post.author_title || "Vibe Coder"
+                    }
+                }));
+                setPosts(formatted);
+            })
+            .catch(err => {
+                console.error("Error fetching blog posts:", err);
+            })
+            .finally(() => {
+                setLoading(false);
+            });
+    }, []);
+
+    const activePostId = isGuest 
+        ? (posts.find(p => p.pinned)?.id || posts[0]?.id) 
+        : selectedPostId;
 
     const currentPost = useMemo(() => {
-        return ARTICLES.find(post => post.id === activePostId);
-    }, [activePostId]);
+        return posts.find(post => post.id === activePostId);
+    }, [posts, activePostId]);
+
+    const [readmeContent, setReadmeContent] = useState("");
+    const [loadingReadme, setLoadingReadme] = useState(false);
+
+    const isReadmePost = currentPost?.id === 5 || currentPost?.pinned;
+
+    useEffect(() => {
+        if (isReadmePost && !readmeContent) {
+            setLoadingReadme(true);
+            fetch("/api/config/readme")
+                .then(r => {
+                    if (!r.ok) throw new Error("Fetch failed");
+                    return r.json();
+                })
+                .then(data => {
+                    setReadmeContent(data.content || "");
+                })
+                .catch(err => {
+                    console.error("Failed to load README.md:", err);
+                })
+                .finally(() => {
+                    setLoadingReadme(false);
+                });
+        }
+    }, [isReadmePost, readmeContent]);
 
     const filteredArticles = useMemo(() => {
-        const filtered = ARTICLES.filter(post => {
+        const filtered = posts.filter(post => {
             const matchesCategory = activeCategory === "Tất cả" || post.category === activeCategory;
             const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                   post.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -198,18 +97,26 @@ export default function BlogHub({ user, token, onViewChange }) {
             if (!a.pinned && b.pinned) return 1;
             return new Date(b.date) - new Date(a.date);
         });
-    }, [activeCategory, searchQuery]);
+    }, [posts, activeCategory, searchQuery]);
 
     const handleLike = (id, e) => {
         e.stopPropagation();
-        let nextLikes;
-        if (likedPosts.includes(id)) {
-            nextLikes = likedPosts.filter(x => x !== id);
-        } else {
-            nextLikes = [...likedPosts, id];
-        }
-        setLikedPosts(nextLikes);
-        localStorage.setItem("hagent_blog_likes", JSON.stringify(nextLikes));
+        if (likedPosts.includes(id)) return; // Already liked
+
+        fetch(`/api/blog/posts/${id}/like`, { method: "POST" })
+            .then(r => {
+                if (!r.ok) throw new Error("Failed to like post");
+                return r.json();
+            })
+            .then(data => {
+                setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: data.likes } : p));
+                const nextLiked = [...likedPosts, id];
+                setLikedPosts(nextLiked);
+                localStorage.setItem("hagent_blog_likes", JSON.stringify(nextLiked));
+            })
+            .catch(err => {
+                console.error("Error liking post:", err);
+            });
     };
 
     const handleShare = (post, e) => {
@@ -227,41 +134,83 @@ export default function BlogHub({ user, token, onViewChange }) {
         }
     };
 
+    if (loading || (isGuest && loadingReadme)) {
+        return (
+            <div className={`h-full flex items-center justify-center ${isGuest ? "bg-white" : "bg-slate-50/50"}`}>
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs font-semibold text-slate-500">
+                        {isGuest ? "Đang tải trang giới thiệu..." : "Đang tải bài viết..."}
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
+    if (isGuest) {
+        return (
+            <div className="h-full overflow-y-auto bg-white min-h-0 py-8 px-4 sm:px-6 lg:px-8 animate-fade-in relative">
+                <div className="max-w-4xl mx-auto">
+                    {/* Guest Sticky Header */}
+                    <div className="flex justify-between items-center mb-8 pb-6 border-b border-slate-100">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-base shadow-sm">H</div>
+                            <span className="font-extrabold text-slate-800 text-base tracking-tight">HAgent</span>
+                        </div>
+                        
+                        <button
+                            onClick={() => onViewChange('login')}
+                            className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all cursor-pointer"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h3a3 3 0 013 3v1" /></svg>
+                            <span>Đăng nhập</span>
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-3xl p-2 sm:p-6">
+                        {isReadmePost && readmeContent ? (
+                            <div className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
+                                markdown-content
+                                [&_h1]:text-2xl sm:[&_h1]:text-3xl [&_h1]:font-black [&_h1]:text-slate-900 [&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:border-b [&_h1]:pb-2 [&_h1]:border-slate-100
+                                [&_h2]:text-xl sm:[&_h2]:text-2xl [&_h2]:font-black [&_h2]:text-slate-800 [&_h2]:mt-8 [&_h2]:mb-4
+                                [&_h3]:text-lg sm:[&_h3]:text-xl [&_h3]:font-black [&_h3]:text-slate-800 [&_h3]:mt-6 [&_h3]:mb-3
+                                [&_p]:mb-4 [&_p]:text-justify [&_p]:leading-relaxed
+                                [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_ul_li]:mb-1.5
+                                [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_ol_li]:mb-1.5
+                                [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-600 [&_blockquote]:my-6 [&_blockquote]:bg-slate-50 [&_blockquote]:py-2 [&_blockquote]:pr-4 [&_blockquote]:rounded-r-lg
+                                [&_strong]:font-extrabold [&_strong]:text-slate-900
+                                [&_pre]:bg-slate-950 [&_pre]:text-slate-100 [&_pre]:p-5 [&_pre]:rounded-2xl [&_pre]:overflow-x-auto [&_pre]:my-6 [&_pre]:shadow-inner [&_pre]:border [&_pre]:border-slate-800
+                                [&_code]:bg-slate-100 [&_code]:text-indigo-600 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:text-slate-100 [&_pre_code]:p-0 [&_pre_code]:text-sm"
+                            >
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {readmeContent}
+                                </ReactMarkdown>
+                            </div>
+                        ) : (
+                            <div 
+                                className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed"
+                                dangerouslySetInnerHTML={{ __html: currentPost?.content }}
+                            />
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (currentPost) {
-        // Detailed View
+        // Detailed View for Logged-In User
         return (
             <div className="h-full overflow-y-auto bg-slate-50/50 min-h-0 py-8 px-4 sm:px-6 lg:px-8 animate-fade-in relative">
                 <div className="max-w-3xl mx-auto">
-                    {/* Guest Login Header */}
-                    {isGuest && (
-                        <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-200/60">
-                            {/* Logo / Title */}
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-sm">H</div>
-                                <span className="font-extrabold text-slate-800 text-base">HAgent</span>
-                            </div>
-                            
-                            {/* Sign In Button */}
-                            <button
-                                onClick={() => onViewChange('login')}
-                                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-sm hover:shadow transition cursor-pointer"
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h3a3 3 0 013 3v1" /></svg>
-                                <span>Đăng nhập</span>
-                            </button>
-                        </div>
-                    )}
-
                     {/* Back Button */}
-                    {!isGuest && (
-                        <button
-                            onClick={() => setSelectedPostId(null)}
-                            className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-bold mb-6 transition-all group cursor-pointer"
-                        >
-                            <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-                            <span>Quay lại danh sách</span>
-                        </button>
-                    )}
+                    <button
+                        onClick={() => setSelectedPostId(null)}
+                        className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-bold mb-6 transition-all group cursor-pointer"
+                    >
+                        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                        <span>Quay lại danh sách</span>
+                    </button>
 
                     <article className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
                         {/* Cover Image */}
@@ -310,28 +259,48 @@ export default function BlogHub({ user, token, onViewChange }) {
                             </header>
 
                             {/* Main Text Content */}
-                            <div 
-                                className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
+                            {isReadmePost && readmeContent ? (
+                                <div className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
+                                    markdown-content
+                                    [&_h1]:text-xl sm:[&_h1]:text-2xl [&_h1]:font-black [&_h1]:text-slate-800 [&_h1]:mt-6 [&_h1]:mb-3
                                     [&_h2]:text-lg sm:[&_h2]:text-xl [&_h2]:font-black [&_h2]:text-slate-800 [&_h2]:mt-6 [&_h2]:mb-3
-                                    [&_p]:mb-4 [&_p]:text-justify
+                                    [&_h3]:text-base sm:[&_h3]:text-lg [&_h3]:font-black [&_h3]:text-slate-800 [&_h3]:mt-4 [&_h3]:mb-2
+                                    [&_p]:mb-4 [&_p]:text-justify [&_p]:leading-relaxed
                                     [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ul_li]:mb-1
                                     [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_ol_li]:mb-1
                                     [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-600 [&_blockquote]:my-4
-                                    [&_strong]:font-extrabold [&_strong]:text-slate-800"
-                                dangerouslySetInnerHTML={{ __html: currentPost.content }}
-                            />
+                                    [&_strong]:font-extrabold [&_strong]:text-slate-800
+                                    [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-4 [&_pre]:rounded-xl [&_pre]:overflow-x-auto [&_pre]:my-4
+                                    [&_code]:bg-slate-100 [&_code]:text-indigo-600 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:text-slate-100 [&_pre_code]:p-0"
+                                >
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {readmeContent}
+                                    </ReactMarkdown>
+                                </div>
+                            ) : (
+                                <div 
+                                    className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
+                                        [&_h2]:text-lg sm:[&_h2]:text-xl [&_h2]:font-black [&_h2]:text-slate-800 [&_h2]:mt-6 [&_h2]:mb-3
+                                        [&_p]:mb-4 [&_p]:text-justify
+                                        [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ul_li]:mb-1
+                                        [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_ol_li]:mb-1
+                                        [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-600 [&_blockquote]:my-4
+                                        [&_strong]:font-extrabold [&_strong]:text-slate-800"
+                                    dangerouslySetInnerHTML={{ __html: currentPost.content }}
+                                />
+                            )}
 
                             {/* Author Box */}
                             <div className="mt-8 pt-8 border-t border-slate-100">
                                 <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
                                     <img
-                                        src={currentPost.author.avatar}
-                                        alt={currentPost.author.name}
+                                        src={currentPost.author?.avatar}
+                                        alt={currentPost.author?.name}
                                         className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
                                     />
                                     <div>
-                                        <p className="text-sm font-black text-slate-800">{currentPost.author.name}</p>
-                                        <p className="text-xs text-slate-400 font-bold mt-0.5">{currentPost.author.title}</p>
+                                        <p className="text-sm font-black text-slate-800">{currentPost.author?.name}</p>
+                                        <p className="text-xs text-slate-400 font-bold mt-0.5">{currentPost.author?.title}</p>
                                     </div>
                                 </div>
                             </div>
@@ -466,11 +435,11 @@ export default function BlogHub({ user, token, onViewChange }) {
                                             {/* Author */}
                                             <div className="flex items-center gap-2">
                                                 <img
-                                                    src={post.author.avatar}
-                                                    alt={post.author.name}
+                                                    src={post.author?.avatar}
+                                                    alt={post.author?.name}
                                                     className="w-7 h-7 rounded-full object-cover border border-white shadow-sm"
                                                 />
-                                                <span className="text-[10px] font-black text-slate-700">{post.author.name}</span>
+                                                <span className="text-[10px] font-black text-slate-700">{post.author?.name}</span>
                                             </div>
 
                                             {/* Actions */}

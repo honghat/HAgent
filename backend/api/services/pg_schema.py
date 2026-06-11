@@ -168,4 +168,5 @@ SCHEMA_STATEMENTS = [
     "CREATE TABLE personal_todo_subtasks (\n    id TEXT PRIMARY KEY,\n    task_id TEXT NOT NULL,\n    text TEXT NOT NULL,\n    completed INTEGER DEFAULT 0,\n    FOREIGN KEY (task_id) REFERENCES personal_todo_tasks(id) ON DELETE CASCADE\n  )",
     "CREATE INDEX idx_personal_notes_user ON personal_notes(user_id, updated_at DESC)",
     "CREATE INDEX idx_personal_todo_tasks_user ON personal_todo_tasks(user_id, created_at DESC)",
+    "CREATE TABLE IF NOT EXISTS blog_posts (\n    id SERIAL PRIMARY KEY,\n    user_id TEXT NOT NULL,\n    title TEXT NOT NULL,\n    description TEXT,\n    category TEXT,\n    read_time TEXT,\n    date TEXT,\n    image TEXT,\n    likes INTEGER DEFAULT 0,\n    comments INTEGER DEFAULT 0,\n    author_title TEXT DEFAULT 'Vibe Coder',\n    content TEXT,\n    pinned BOOLEAN DEFAULT FALSE,\n    FOREIGN KEY (user_id) REFERENCES hagent_users(id) ON DELETE CASCADE\n)",
 ]

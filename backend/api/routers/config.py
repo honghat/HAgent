@@ -185,3 +185,11 @@ def update_telegram_config(payload: TelegramConfigUpdate) -> dict[str, Any]:
         },
         "message": "Đã lưu cấu hình Telegram",
     }
+
+
+@router.get("/config/readme")
+def get_readme() -> dict[str, str]:
+    readme_path = PROJECT_ROOT / "README.md"
+    if not readme_path.exists():
+        raise HTTPException(status_code=404, detail="README.md không tồn tại")
+    return {"content": readme_path.read_text(encoding="utf-8")}

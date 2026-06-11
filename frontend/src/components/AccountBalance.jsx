@@ -94,7 +94,9 @@ const AccountBalance = ({ user, token }) => {
     const [accounts, setAccounts] = useState([]);
     const [balanceRecords, setBalanceRecords] = useState([]);
     const [savingsBooks, setSavingsBooks] = useState([]);
-    const [activeTab, setActiveTab] = useState("comparison"); 
+    const [activeTab, setActiveTab] = useState(
+        () => localStorage.getItem("hagent_balance_tab") || "comparison"
+    ); 
     const [comparisonRate, setComparisonRate] = useState("7.4"); 
     const [activeBankSuggest, setActiveBankSuggest] = useState(null);
 
@@ -585,7 +587,10 @@ const AccountBalance = ({ user, token }) => {
                     return (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            onClick={() => {
+                                setActiveTab(tab.id);
+                                localStorage.setItem("hagent_balance_tab", tab.id);
+                            }}
                             className={`flex items-center justify-center gap-1.5 py-1.5 px-4 rounded-lg text-xs font-bold transition-all duration-200 select-none cursor-pointer ${
                                 isActive ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-white/40"
                             }`}

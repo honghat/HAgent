@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Edit3, Trash2, Plus, LayoutGrid, List, Search, X, StickyNote, Tag, Loader, ChevronDown, ChevronRight, Table } from "lucide-react";
+import { Edit3, Trash2, Plus, LayoutGrid, List, Search, X, StickyNote, Tag, Loader, ChevronDown, ChevronRight, Table, Pin, PinOff } from "lucide-react";
 
 const API = "/api/personal/notes";
 
@@ -67,10 +67,12 @@ export default function PersonalNotes({ token }) {
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase();
-        if (!q) return notes;
-        return notes.filter((n) =>
+        let result = notes;
+        if (!Array.isArray(result)) return [];
+        if (q) result = notes.filter((n) =>
             n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)
         );
+        return [...result].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
     }, [notes, search]);
 
     const groups = useMemo(() => {
@@ -122,6 +124,11 @@ export default function PersonalNotes({ token }) {
     const deleteNote = async (id) => {
         await fetch(`${API}/${id}`, { method: "DELETE", headers });
         setNotes((p) => p.filter((n) => n.id !== id));
+    };
+
+    const togglePin = async (id) => {
+        await fetch(`${API}/${id}/toggle-pin`, { method: "POST", headers });
+        setNotes((p) => p.map((n) => n.id === id ? { ...n, is_pinned: !n.is_pinned } : n));
     };
 
     const addCategory = async () => {
@@ -188,19 +195,20 @@ export default function PersonalNotes({ token }) {
             ) : view === "table" ? (
                 <div className="overflow-x-auto border border-slate-100 rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.015)] max-h-[600px]">
                     <table className="w-full border-collapse text-left text-xs">
-                        <thead className="sticky top-0 z-20 bg-slate-50/90 backdrop-blur border-b border-slate-150">
-                            <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                <th className="px-4 py-2.5">Tiêu đề</th>
-                                <th className="px-4 py-2.5">Nội dung</th>
-                                <th className="px-4 py-2.5 w-28">Cập nhật</th>
-                                <th className="px-4 py-2.5 w-20 text-right">Thao tác</th>
-                            </tr>
-                        </thead>
+                            <thead className="sticky top-0 z-20 bg-slate-50/90 backdrop-blur border-b border-slate-150">
+                                <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    <th className="px-4 py-2.5 w-8"></th>
+                                    <th className="px-4 py-2.5">Tiêu đề</th>
+                                    <th className="px-4 py-2.5">Nội dung</th>
+                                    <th className="px-4 py-2.5 w-28">Cập nhật</th>
+                                    <th className="px-4 py-2.5 w-24 text-right">Thao tác</th>
+                                </tr>
+                            </thead>
                         <tbody className="divide-y divide-slate-50">
                             {groups.map((group) => (
                                 <React.Fragment key={group.key}>
                                     <tr className="bg-slate-50/60 font-bold sticky top-[33px] z-10 backdrop-blur-md border-y border-slate-100/80">
-                                        <td colSpan={4} className="px-4 py-2 text-slate-700 text-[11px] font-bold">
+                                        <td colSpan={5} className="px-4 py-2 text-slate-700 text-[11px] font-bold">
                                             <span className="inline-flex items-center gap-2">
                                                 <span className="w-1.5 h-3 rounded-full" style={{ backgroundColor: group.color.border }} />
                                                 {group.label}
@@ -210,7 +218,12 @@ export default function PersonalNotes({ token }) {
                                     </tr>
                                     {group.notes.map((n) => (
                                         <tr key={n.id} className="hover:bg-slate-50/50 transition-colors group">
-                                            <td className="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap max-w-[150px] truncate">{n.title || <span className="italic text-slate-400 font-normal">(Không có tiêu đề)</span>}</td>
+                                            <td className="px-2 py-2.5 text-center">
+                                                <button onClick={() => togglePin(n.id)} className="p-1 text-slate-300 hover:text-amber-500 hover:bg-amber-50/60 rounded-lg transition-all" title={n.is_pinned ? "Bỏ ghim" : "Ghim"}>
+                                                    {n.is_pinned ? <PinOff size={11} className="text-amber-500" /> : <Pin size={11} />}
+                                                </button>
+                                            </td>
+                                            <td className="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap max-w-[150px] truncate">{n.is_pinned && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 align-middle" />}{n.title || <span className="italic text-slate-400 font-normal">(Không có tiêu đề)</span>}</td>
                                             <td className="px-4 py-2.5 text-slate-500 max-w-[300px] truncate">{n.content || <span className="italic text-slate-300">-</span>}</td>
                                             <td className="px-4 py-2.5 text-slate-400 font-medium tabular-nums">{fmtDate(n.updated_at)}</td>
                                             <td className="px-4 py-2.5 text-right whitespace-nowrap">
@@ -262,13 +275,13 @@ export default function PersonalNotes({ token }) {
                                     view === "grid" ? (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                                             {group.notes.map((n) => (
-                                                <NoteCard key={n.id} note={n} onEdit={openEdit} onDelete={deleteNote} />
+                                                <NoteCard key={n.id} note={n} onEdit={openEdit} onDelete={deleteNote} onTogglePin={togglePin} />
                                             ))}
                                         </div>
                                     ) : (
                                         <div className="flex flex-col gap-1.5">
                                             {group.notes.map((n) => (
-                                                <NoteRow key={n.id} note={n} onEdit={openEdit} onDelete={deleteNote} />
+                                                <NoteRow key={n.id} note={n} onEdit={openEdit} onDelete={deleteNote} onTogglePin={togglePin} />
                                             ))}
                                         </div>
                                     )
@@ -360,17 +373,22 @@ function Field({ label, children }) {
     );
 }
 
-function NoteCard({ note, onEdit, onDelete }) {
+function NoteCard({ note, onEdit, onDelete, onTogglePin }) {
     const col = catColor(note.category_id);
     return (
         <div className="relative bg-white/80 backdrop-blur border border-slate-200/60 hover:border-slate-300/80 rounded-2xl p-4 hover:shadow-[0_10px_30px_-12px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col gap-2.5 group overflow-hidden">
             <div className={`absolute left-0 top-0 bottom-0 w-1 ${col.soft}`} style={{ background: col.border }} />
 
+            {note.is_pinned && <span className="absolute top-2 right-2 text-amber-500"><PinOff size={11} /></span>}
             <div className="flex items-start justify-between gap-2 pl-1.5">
                 <h3 className="font-bold text-[13px] text-slate-800 line-clamp-2 flex-1 tracking-tight leading-snug">
+                    {note.is_pinned && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 align-middle" />}
                     {note.title || <span className="italic text-slate-400">(Không có tiêu đề)</span>}
                 </h3>
                 <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); onTogglePin?.(note.id); }} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50/60 rounded-lg transition-all" title={note.is_pinned ? "Bỏ ghim" : "Ghim"}>
+                        {note.is_pinned ? <PinOff size={11} /> : <Pin size={11} />}
+                    </button>
                     <button onClick={() => onEdit(note)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/60 rounded-lg transition-all"><Edit3 size={12} strokeWidth={2.5} /></button>
                     <button onClick={() => onDelete(note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={12} strokeWidth={2.5} /></button>
                 </div>
@@ -387,11 +405,12 @@ function NoteCard({ note, onEdit, onDelete }) {
     );
 }
 
-function NoteRow({ note, onEdit, onDelete }) {
+function NoteRow({ note, onEdit, onDelete, onTogglePin }) {
     const col = catColor(note.category_id);
     return (
         <div className="flex items-center gap-3 px-4 py-3 bg-white/80 backdrop-blur border border-slate-200/60 hover:border-slate-300/80 rounded-xl hover:shadow-[0_4px_12px_-4px_rgba(15,23,42,0.08)] transition-all duration-200 group">
             <span className="w-1 h-6 rounded-full shrink-0" style={{ background: col.border }} />
+            {note.is_pinned && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
             <div className="flex-1 min-w-0">
                 <p className="text-[12.5px] font-bold text-slate-800 truncate tracking-tight">
                     {note.title || <span className="italic text-slate-400">(Không có tiêu đề)</span>}
@@ -400,6 +419,9 @@ function NoteRow({ note, onEdit, onDelete }) {
             </div>
             <span className="text-[10px] font-semibold text-slate-400 shrink-0 hidden sm:block tabular-nums">{fmtDate(note.updated_at)}</span>
             <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
+                <button onClick={(e) => { e.stopPropagation(); onTogglePin?.(note.id); }} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50/60 rounded-lg transition-all" title={note.is_pinned ? "Bỏ ghim" : "Ghim"}>
+                    {note.is_pinned ? <PinOff size={11} /> : <Pin size={11} />}
+                </button>
                 <button onClick={() => onEdit(note)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/60 rounded-lg transition-all"><Edit3 size={12} strokeWidth={2.5} /></button>
                 <button onClick={() => onDelete(note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={12} strokeWidth={2.5} /></button>
             </div>

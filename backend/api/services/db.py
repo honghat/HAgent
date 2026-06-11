@@ -646,6 +646,22 @@ def init_db() -> None:
                     raise
                 finally:
                     cur.close()
+        _migrate_personal_notes(conn)
+
+def _migrate_personal_notes(conn) -> None:
+    """Add pinned column to personal_notes if missing."""
+    try:
+        cursor = conn._conn.cursor()
+        cursor.execute(
+            """SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'personal_notes' AND column_name = 'pinned'"""
+        )
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE personal_notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+            conn.commit()
+        cursor.close()
+    except Exception as e:
+        logger.info("_migrate_personal_notes: %s", e)
 
 def _ensure_column(conn, table: str, column: str, ddl: str) -> None:
     """Add column if it doesn't exist (PostgreSQL version)."""

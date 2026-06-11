@@ -20,6 +20,7 @@ class NoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     category_id: Optional[int] = None
+    pinned: Optional[bool] = None
 
 
 class CategoryCreate(BaseModel):
@@ -83,11 +84,11 @@ def get_notes(request: Request):
     with get_db() as conn:
         rows = conn.execute(
             """SELECT n.id, n.title, n.content, n.category_id, n.created_at, n.updated_at,
-                      c.name as category_name
+                      n.pinned, c.name as category_name
                FROM personal_notes n
                LEFT JOIN personal_note_categories c ON c.id = n.category_id
                WHERE n.user_id = ?
-               ORDER BY n.updated_at DESC""",
+               ORDER BY n.pinned DESC, n.updated_at DESC""",
             (uid,),
         ).fetchall()
     return [
@@ -95,6 +96,7 @@ def get_notes(request: Request):
             "id": r["id"], "title": r["title"], "content": r["content"],
             "category_id": r["category_id"], "category_name": r["category_name"],
             "created_at": r["created_at"], "updated_at": r["updated_at"],
+            "is_pinned": bool(r["pinned"]),
         }
         for r in rows
     ]
@@ -124,6 +126,8 @@ def update_note(note_id: int, body: NoteUpdate, request: Request):
         fields.append("content = ?"); params.append(body.content)
     if body.category_id is not None:
         fields.append("category_id = ?"); params.append(body.category_id)
+    if body.pinned is not None:
+        fields.append("pinned = ?"); params.append(1 if body.pinned else 0)
     if not fields:
         raise HTTPException(status_code=400, detail="Không có gì để cập nhật")
     fields.append("updated_at = NOW()")
@@ -136,6 +140,23 @@ def update_note(note_id: int, body: NoteUpdate, request: Request):
         if res.rowcount == 0:
             raise HTTPException(status_code=404, detail="Không tìm thấy ghi chú")
     return {"ok": True}
+
+
+@router.post("/{note_id}/toggle-pin")
+def toggle_pin_note(note_id: int, request: Request):
+    uid = _get_user_id(request)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT pinned FROM personal_notes WHERE id = ? AND user_id = ?", (note_id, uid)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Không tìm thấy ghi chú")
+        new_state = 0 if row["pinned"] else 1
+        conn.execute(
+            "UPDATE personal_notes SET pinned = ?, updated_at = NOW() WHERE id = ? AND user_id = ?",
+            (new_state, note_id, uid),
+        )
+    return {"pinned": bool(new_state)}
 
 
 @router.delete("/{note_id}")

@@ -167,7 +167,8 @@ const ARTICLES = [
 
 const CATEGORIES = ["Tất cả", "Mô hình ngôn ngữ", "Suy luận AI", "Ứng dụng AI", "Hướng dẫn"];
 
-export default function BlogHub({ user, token }) {
+export default function BlogHub({ user, token, onViewChange }) {
+    const isGuest = !user;
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [activeCategory, setActiveCategory] = useState("Tất cả");
     const [searchQuery, setSearchQuery] = useState("");
@@ -179,9 +180,11 @@ export default function BlogHub({ user, token }) {
         }
     });
 
+    const activePostId = isGuest ? 5 : selectedPostId;
+
     const currentPost = useMemo(() => {
-        return ARTICLES.find(post => post.id === selectedPostId);
-    }, [selectedPostId]);
+        return ARTICLES.find(post => post.id === activePostId);
+    }, [activePostId]);
 
     const filteredArticles = useMemo(() => {
         const filtered = ARTICLES.filter(post => {
@@ -227,16 +230,38 @@ export default function BlogHub({ user, token }) {
     if (currentPost) {
         // Detailed View
         return (
-            <div className="h-full overflow-y-auto bg-slate-50/50 min-h-0 py-8 px-4 sm:px-6 lg:px-8 animate-fade-in">
+            <div className="h-full overflow-y-auto bg-slate-50/50 min-h-0 py-8 px-4 sm:px-6 lg:px-8 animate-fade-in relative">
                 <div className="max-w-3xl mx-auto">
+                    {/* Guest Login Header */}
+                    {isGuest && (
+                        <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-200/60">
+                            {/* Logo / Title */}
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-sm">H</div>
+                                <span className="font-extrabold text-slate-800 text-base">HAgent</span>
+                            </div>
+                            
+                            {/* Sign In Button */}
+                            <button
+                                onClick={() => onViewChange('login')}
+                                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-sm hover:shadow transition cursor-pointer"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h3a3 3 0 013 3v1" /></svg>
+                                <span>Đăng nhập</span>
+                            </button>
+                        </div>
+                    )}
+
                     {/* Back Button */}
-                    <button
-                        onClick={() => setSelectedPostId(null)}
-                        className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-bold mb-6 transition-all group cursor-pointer"
-                    >
-                        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-                        <span>Quay lại danh sách</span>
-                    </button>
+                    {!isGuest && (
+                        <button
+                            onClick={() => setSelectedPostId(null)}
+                            className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-bold mb-6 transition-all group cursor-pointer"
+                        >
+                            <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                            <span>Quay lại danh sách</span>
+                        </button>
+                    )}
 
                     <article className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
                         {/* Cover Image */}

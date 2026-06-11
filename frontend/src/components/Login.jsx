@@ -49,7 +49,7 @@ function PendingScreen({ token, onApproved }) {
   )
 }
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, showBackToBlog = false, onBackToBlog }) {
   const [username, setUsername] = useState('hat')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
@@ -84,7 +84,16 @@ export default function Login({ onLogin }) {
   if (pendingToken) return <PendingScreen token={pendingToken} onApproved={onLogin} />
 
   return (
-    <div className="h-full bg-slate-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div className="h-full bg-slate-50 flex flex-col items-center justify-center p-4 overflow-y-auto">
+      {showBackToBlog && (
+        <button
+          onClick={onBackToBlog}
+          className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition cursor-pointer select-none bg-white py-1.5 px-3 rounded-lg border border-slate-100 shadow-sm"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          <span>Quay lại trang giới thiệu</span>
+        </button>
+      )}
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center text-xl font-bold mx-auto mb-3">H</div>

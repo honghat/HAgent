@@ -268,29 +268,33 @@ export default function App() {
     <AgentStoreProvider>
     <div className="relative flex flex-col overflow-hidden bg-[var(--color-bg)] text-gray-950 sm:flex-row" style={{ height: '100dvh', paddingTop: 'env(safe-area-inset-top, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>
       <GlobalToastViewport />
-      <Header
-        user={user}
-        view={view}
-        collapsed={sidebarCollapsed}
-        onViewChange={setView}
-        onControlService={handleControlService}
-        onToggleCollapse={toggleSidebar}
-        onLogout={logout}
-      />
-      <button
-        type="button"
-        onClick={toggleSidebar}
-        className={`hidden sm:flex fixed top-1/2 z-[120] h-10 w-6 -translate-y-1/2 items-center justify-center rounded-r-xl border border-l-0 border-black/[0.16] bg-white/90 text-gray-400 shadow-[0_8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl transition-all hover:w-7 hover:bg-white hover:text-gray-950 ${sidebarCollapsed ? 'left-0' : 'left-44'}`}
-        title={sidebarCollapsed ? 'Hiện sidebar' : 'Ẩn sidebar'}
-        aria-label={sidebarCollapsed ? 'Hiện sidebar' : 'Ẩn sidebar'}
-      >
-        <svg className={`h-3.5 w-3.5 transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
+      {user && (
+        <>
+          <Header
+            user={user}
+            view={view}
+            collapsed={sidebarCollapsed}
+            onViewChange={setView}
+            onControlService={handleControlService}
+            onToggleCollapse={toggleSidebar}
+            onLogout={logout}
+          />
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className={`hidden sm:flex fixed top-1/2 z-[120] h-10 w-6 -translate-y-1/2 items-center justify-center rounded-r-xl border border-l-0 border-black/[0.16] bg-white/90 text-gray-400 shadow-[0_8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl transition-all hover:w-7 hover:bg-white hover:text-gray-950 ${sidebarCollapsed ? 'left-0' : 'left-44'}`}
+            title={sidebarCollapsed ? 'Hiện sidebar' : 'Ẩn sidebar'}
+            aria-label={sidebarCollapsed ? 'Hiện sidebar' : 'Ẩn sidebar'}
+          >
+            <svg className={`h-3.5 w-3.5 transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </>
+      )}
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          {view === 'login' && <Login onLogin={(t, u) => { resetMobileViewportZoom(); setSignedOut(false); setToken(t); applyUser(u); setView('blog'); }} />}
-          {view === 'blog' && <BlogHub user={user} token={token} />}
+          {view === 'login' && <Login onLogin={(t, u) => { resetMobileViewportZoom(); setSignedOut(false); setToken(t); applyUser(u); setView('blog'); }} showBackToBlog={true} onBackToBlog={() => setView('blog')} />}
+          {view === 'blog' && <BlogHub user={user} token={token} onViewChange={setView} />}
           {view === 'chat' && <ChatHub token={token} provider={provider} cxModel={cxModel} agents={agents} user={user} onProviderChange={saveProvider} onShowAgentManager={() => setView('settings')} onLogout={logout} />}
           {view === 'wiki' && <Wiki token={token} provider={provider} />}
           {view === 'automation' && <AutomationHub token={token} provider={provider} cxModel={cxModel} user={user} />}

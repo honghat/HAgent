@@ -36,8 +36,22 @@ export default function FoodTracker({ token }) {
     const [editId, setEditId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [filterUnpaid, setFilterUnpaid] = useState(false);
+    const [menu, setMenu] = useState([]);
+    const [showMenuModal, setShowMenuModal] = useState(false);
+    const [newMenuItem, setNewMenuItem] = useState("");
+    const [addingMenuItem, setAddingMenuItem] = useState(false);
+    const [activeSuggest, setActiveSuggest] = useState(null);
 
     const headers = authHeaders(token);
+
+    const loadMenu = useCallback(async () => {
+        try {
+            const data = await fetch("/api/expenses/food-menu", { headers }).then((r) => r.json());
+            setMenu(Array.isArray(data) ? data : []);
+        } catch (e) {
+            console.error("Lỗi tải thực đơn", e);
+        }
+    }, [token]);
 
     const load = useCallback(async () => {
         try {
@@ -46,7 +60,12 @@ export default function FoodTracker({ token }) {
         } finally { setLoading(false); }
     }, [token]);
 
-    useEffect(() => { if (token) load(); }, [token]);
+    useEffect(() => { 
+        if (token) {
+            load(); 
+            loadMenu();
+        }
+    }, [token, load, loadMenu]);
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
@@ -129,6 +148,44 @@ export default function FoodTracker({ token }) {
         });
     };
 
+    const addMenuItem = async () => {
+        if (!newMenuItem.trim()) return;
+        setAddingMenuItem(true);
+        try {
+            const res = await fetch("/api/expenses/food-menu", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ name: newMenuItem.trim() }),
+            });
+            if (res.ok) {
+                setNewMenuItem("");
+                await loadMenu();
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Không thể thêm món ăn");
+            }
+        } finally {
+            setAddingMenuItem(false);
+        }
+    };
+
+    const deleteMenuItem = async (id) => {
+        if (!confirm("Xóa món ăn khỏi thực đơn?")) return;
+        const res = await fetch(`/api/expenses/food-menu/${id}`, {
+            method: "DELETE",
+            headers,
+        });
+        if (res.ok) {
+            await loadMenu();
+        }
+    };
+
+    const getSuggestions = (val) => {
+        const q = (val || "").toLowerCase().trim();
+        return menu.filter(item => item.name.toLowerCase().includes(q));
+    };
+
+
     if (loading) return (
         <div className="flex items-center justify-center py-24 gap-2 text-gray-400">
             <Loader size={18} className="animate-spin" /> <span className="text-sm">Đang tải...</span>
@@ -152,6 +209,10 @@ export default function FoodTracker({ token }) {
                             : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                     }`}>
                     Chưa trả
+                </button>
+                <button onClick={() => setShowMenuModal(true)}
+                    className="flex items-center gap-1.5 px-3 h-10 text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-200 transition active:scale-[0.98] shrink-0">
+                    <Utensils size={14} /> Thực đơn
                 </button>
                 <button onClick={openAdd}
                     className="flex items-center gap-1.5 px-4 h-10 text-xs font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 hover:shadow-md transition active:scale-[0.98] shrink-0">
@@ -315,9 +376,32 @@ export default function FoodTracker({ token }) {
                                             <Icon size={12} /> {m.label}
                                         </label>
                                         <div className="flex gap-2">
-                                            <input value={form[m.key]} onChange={(e) => setForm((p) => ({ ...p, [m.key]: e.target.value }))}
-                                                placeholder="Món..."
-                                                className="flex-1 min-w-0 h-9 px-3 text-xs font-semibold border border-slate-200 rounded-lg bg-slate-50/50 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                            <div className="flex-1 min-w-0 relative">
+                                                <input value={form[m.key]} 
+                                                    onChange={(e) => setForm((p) => ({ ...p, [m.key]: e.target.value }))}
+                                                    onFocus={() => setActiveSuggest(m.key)}
+                                                    onBlur={() => setTimeout(() => setActiveSuggest(null), 250)}
+                                                    placeholder="Món..."
+                                                    className="w-full h-9 px-3 text-xs font-semibold border border-slate-200 rounded-lg bg-slate-50/50 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                                {activeSuggest === m.key && (
+                                                    <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 divide-y divide-slate-100">
+                                                        {getSuggestions(form[m.key]).length === 0 ? (
+                                                            <div className="p-2 text-[10px] text-slate-400 text-center">Không tìm thấy món</div>
+                                                        ) : (
+                                                            getSuggestions(form[m.key]).map((item) => (
+                                                                <button
+                                                                    key={item.id}
+                                                                    type="button"
+                                                                    onClick={() => setForm((p) => ({ ...p, [m.key]: item.name }))}
+                                                                    className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 transition-colors font-semibold"
+                                                                >
+                                                                    {item.name}
+                                                                </button>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                             <input type="number" value={form[m.money]} onChange={(e) => setForm((p) => ({ ...p, [m.money]: e.target.value }))}
                                                 placeholder="kđ"
                                                 className="w-24 h-9 px-3 text-xs font-semibold text-right border border-slate-200 rounded-lg bg-slate-50/50 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all" />
@@ -339,6 +423,56 @@ export default function FoodTracker({ token }) {
                                     {saving ? "Đang lưu..." : "Lưu"}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Menu Management Modal */}
+            {showMenuModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowMenuModal(false)}>
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 border border-slate-100 flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4 shrink-0">
+                            <h2 className="font-extrabold text-sm text-slate-800 uppercase tracking-wider">Quản lý thực đơn ({menu.length})</h2>
+                            <button onClick={() => setShowMenuModal(false)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"><X size={16} /></button>
+                        </div>
+                        
+                        {/* Add Food Item Form */}
+                        <div className="flex gap-2 mb-4 shrink-0">
+                            <input 
+                                value={newMenuItem} 
+                                onChange={(e) => setNewMenuItem(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && addMenuItem()}
+                                placeholder="Tên món ăn mới..."
+                                className="flex-1 h-9 px-3 text-xs font-semibold border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 bg-slate-50/50" 
+                            />
+                            <button 
+                                onClick={addMenuItem} 
+                                disabled={addingMenuItem}
+                                className="px-4 h-9 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition active:scale-95 shrink-0"
+                            >
+                                Thêm
+                            </button>
+                        </div>
+
+                        {/* Food List */}
+                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-xl bg-slate-50/20 px-2">
+                            {menu.length === 0 ? (
+                                <div className="py-12 text-center text-xs text-slate-400 font-semibold">Chưa có món ăn nào trong thực đơn</div>
+                            ) : (
+                                menu.map((item) => (
+                                    <div key={item.id} className="flex items-center justify-between py-2 px-1 hover:bg-slate-50/50 rounded-lg transition-colors">
+                                        <span className="text-xs font-bold text-slate-700">{item.name}</span>
+                                        <button 
+                                            onClick={() => deleteMenuItem(item.id)}
+                                            className="p-1 text-slate-400 hover:text-red-500 rounded transition"
+                                            title="Xóa món ăn"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>

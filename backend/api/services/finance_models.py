@@ -90,3 +90,12 @@ class ExpenseCategory(Base):
     sort_order = Column(Integer, default=0)
     is_default = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class FoodMenu(Base):
+    """Thực đơn món ăn của user"""
+    __tablename__ = "food_menu"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    name = Column(Unicode(100), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+

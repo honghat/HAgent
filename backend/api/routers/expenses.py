@@ -9,13 +9,15 @@ from api.services.finance_schemas import (
     ExpenseCreate, ExpenseUpdate, ExpenseResponse,
     DienNuocCreate, DienNuocUpdate, DienNuocResponse,
     AnUongCreate, AnUongUpdate, AnUongResponse,
-    ExpenseCategoryCreate, ExpenseCategoryUpdate, ExpenseCategoryResponse
+    ExpenseCategoryCreate, ExpenseCategoryUpdate, ExpenseCategoryResponse,
+    FoodMenuCreate, FoodMenuResponse
 )
 from api.services.finance_crud import (
     get_expenses, create_expense, delete_expense, update_expense,
     get_diennuoc_list, create_diennuoc, delete_diennuoc, update_diennuoc,
     get_anuong_list, create_anuong, update_anuong, delete_anuong,
-    get_categories, create_category, update_category, delete_category
+    get_categories, create_category, update_category, delete_category,
+    get_food_menu, create_food_item, delete_food_item
 )
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
@@ -224,4 +226,37 @@ def delete_expense_endpoint(
     hagent_uid: str = Depends(_get_user_id)
 ):
     return delete_expense(db, expense_id)
+
+# ============= THỰC ĐƠN APIs =============
+@router.get("/food-menu", response_model=List[FoodMenuResponse])
+def read_food_menu(
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    """Lấy danh sách thực đơn món ăn"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    return get_food_menu(db, user_id=psql_uid)
+
+@router.post("/food-menu", response_model=FoodMenuResponse)
+def add_food_item(
+    item_data: FoodMenuCreate,
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    """Thêm món ăn mới vào thực đơn"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    item_data.user_id = psql_uid
+    return create_food_item(db, item_data)
+
+@router.delete("/food-menu/{item_id}")
+def delete_food_item_endpoint(
+    item_id: int,
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    """Xóa món ăn khỏi thực đơn"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    delete_food_item(db, item_id=item_id, user_id=psql_uid)
+    return {"detail": "Món ăn đã được xóa khỏi thực đơn"}
+
 

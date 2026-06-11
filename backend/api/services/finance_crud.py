@@ -3,14 +3,15 @@ from sqlalchemy import extract, desc
 from fastapi import HTTPException
 from typing import List, Optional
 
-from api.services.finance_models import Expense, DienNuoc, AnUong, Account, BalanceRecord, SavingsBook
+from api.services.finance_models import Expense, DienNuoc, AnUong, Account, BalanceRecord, SavingsBook, FoodMenu
 from api.services.finance_schemas import (
     ExpenseCreate, ExpenseUpdate, 
     DienNuocCreate, DienNuocUpdate, 
     AnUongCreate, AnUongUpdate,
     AccountCreate, AccountUpdate,
     BalanceRecordCreate, BalanceRecordUpdate,
-    SavingsBookCreate, SavingsBookUpdate
+    SavingsBookCreate, SavingsBookUpdate,
+    FoodMenuCreate
 )
 
 # ============ EXPENSE CRUD ============
@@ -384,3 +385,57 @@ def delete_category(db: Session, cat_id: int, user_id: int) -> bool:
     db.delete(cat)
     db.commit()
     return True
+
+# ============ FOOD MENU CRUD ============
+DEFAULT_FOOD_ITEMS = [
+    "Trứng chiên", "Trứng luộc", "Ốp la", "Mì tôm", "Cháo", "Miến",
+    "Nui", "Hủ tiếu", "Cơm tấm", "Bún thịt nướng", "Thịt kho", "Bún bò",
+    "Bún đậu", "Bánh mì trứng", "Gà xối mỡ"
+]
+
+def seed_default_food_items(db: Session, user_id: int):
+    """Seed danh sách món ăn mặc định cho user nếu chưa có món nào"""
+    existing_count = db.query(FoodMenu).filter(FoodMenu.user_id == user_id).count()
+    if existing_count == 0:
+        for name in DEFAULT_FOOD_ITEMS:
+            db.add(FoodMenu(
+                user_id=user_id,
+                name=name
+            ))
+        db.commit()
+
+def get_food_menu(db: Session, user_id: int) -> List[FoodMenu]:
+    seed_default_food_items(db, user_id)
+    return (
+        db.query(FoodMenu)
+        .filter(FoodMenu.user_id == user_id)
+        .order_by(FoodMenu.name.asc())
+        .all()
+    )
+
+def create_food_item(db: Session, data: FoodMenuCreate) -> FoodMenu:
+    # Check duplicate
+    existing = db.query(FoodMenu).filter(
+        FoodMenu.user_id == data.user_id,
+        FoodMenu.name == data.name
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Món ăn này đã tồn tại trong thực đơn")
+        
+    db_item = FoodMenu(**data.model_dump())
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def delete_food_item(db: Session, item_id: int, user_id: int) -> bool:
+    item = db.query(FoodMenu).filter(
+        FoodMenu.id == item_id,
+        FoodMenu.user_id == user_id
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Món ăn không tìm thấy")
+    db.delete(item)
+    db.commit()
+    return True
+

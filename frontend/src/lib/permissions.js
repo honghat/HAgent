@@ -12,8 +12,9 @@ export function isAdmin(user) {
 
 // Khóa cấp 1: 'chat'. Khóa cấp 2: 'chat:omni'.
 export function canAccess(user, key) {
-  if (key === 'personal' || key === 'blog') return true
-  if (!key) return false
+  if (key === 'blog') return true
+  if (!user) return false
+  if (key === 'personal') return true
   const perms = userPerms(user)
   if (perms.includes('*') || perms.includes(key)) return true
   if (key.includes(':')) return perms.includes(key.split(':')[0]) // cấp 1 ⇒ mọi sub

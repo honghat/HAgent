@@ -26,7 +26,7 @@ function PendingScreen({ token, onApproved }) {
   }, [token, onApproved])
 
   return (
-    <div className="min-h-screen bg-[#f7f7f8] flex items-center justify-center p-4">
+    <div className="h-full bg-slate-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-sm text-center">
         <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center text-xl font-bold mx-auto mb-6">H</div>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-amber-200 space-y-4">
@@ -84,7 +84,7 @@ export default function Login({ onLogin }) {
   if (pendingToken) return <PendingScreen token={pendingToken} onApproved={onLogin} />
 
   return (
-    <div className="min-h-screen bg-[#f7f7f8] flex items-center justify-center p-4">
+    <div className="h-full bg-slate-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center text-xl font-bold mx-auto mb-3">H</div>

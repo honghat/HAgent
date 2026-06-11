@@ -206,7 +206,12 @@ export default function App() {
 
   // Ép view về tab cấp-1 được phép theo vai trò.
   useEffect(() => {
-    if (!user) return
+    if (!user) {
+      if (view !== 'blog' && view !== 'login') {
+        setView('blog')
+      }
+      return
+    }
     if (!canAccess(user, view)) {
       const next = TOP_TABS.find(t => canAccess(user, t))
       if (next && next !== view) setView(next)
@@ -259,8 +264,6 @@ export default function App() {
     return <div className="min-h-screen bg-[#f7f7f8] flex items-center justify-center text-sm font-medium text-gray-400">Đang kiểm tra phiên...</div>
   }
 
-  if (!user) return <Login onLogin={(t, u) => { resetMobileViewportZoom(); setSignedOut(false); setToken(t); applyUser(u) }} />
-
   return (
     <AgentStoreProvider>
     <div className="relative flex flex-col overflow-hidden bg-[var(--color-bg)] text-gray-950 sm:flex-row" style={{ height: '100dvh', paddingTop: 'env(safe-area-inset-top, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>
@@ -286,6 +289,7 @@ export default function App() {
         </svg>
       </button>
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          {view === 'login' && <Login onLogin={(t, u) => { resetMobileViewportZoom(); setSignedOut(false); setToken(t); applyUser(u); setView('blog'); }} />}
           {view === 'blog' && <BlogHub user={user} token={token} />}
           {view === 'chat' && <ChatHub token={token} provider={provider} cxModel={cxModel} agents={agents} user={user} onProviderChange={saveProvider} onShowAgentManager={() => setView('settings')} onLogout={logout} />}
           {view === 'wiki' && <Wiki token={token} provider={provider} />}

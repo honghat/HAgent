@@ -15,13 +15,23 @@ export default function Header({ user, view, collapsed = false, onViewChange, on
   ]
 
   const tabs = allTabs.filter(tab => {
-    if (tab.id === 'personal' || tab.id === 'blog') return true
+    if (tab.id === 'blog') return true
+    if (!user) return false
+    if (tab.id === 'personal') return true
     return tab.id === 'admin' ? isAdmin(user) : canAccess(user, tab.id)
   })
 
+  if (!user) {
+    tabs.push({
+      id: 'login',
+      label: 'Đăng nhập',
+      icon: <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h3a3 3 0 013 3v1" /></svg>
+    })
+  }
+
   return (
     <aside className={`h-14 w-full sm:h-screen sm:w-44 shrink-0 border-b sm:border-b-0 sm:border-r border-black/[0.14] bg-[#fbfbf9]/95 backdrop-blur-xl flex flex-row sm:flex-col z-[100] ${collapsed ? 'sm:hidden' : ''}`} style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <button onClick={() => onViewChange('chat')} className="hidden h-16 items-center justify-center border-b border-black/[0.1] active:scale-[0.99] transition-transform sm:flex sm:justify-start sm:px-4 gap-2 group">
+      <button onClick={() => onViewChange(user ? 'chat' : 'blog')} className="hidden h-16 items-center justify-center border-b border-black/[0.1] active:scale-[0.99] transition-transform sm:flex sm:justify-start sm:px-4 gap-2 group">
         <img src={logo} alt="Logo" className="w-10 h-10 rounded-full shadow-sm group-hover:scale-110 transition-transform duration-200" />
         <span className="hidden sm:block text-xl leading-6 font-semibold text-gray-950 tracking-tight">H-Agent</span>
       </button>
@@ -43,19 +53,31 @@ export default function Header({ user, view, collapsed = false, onViewChange, on
         ))}
       </nav>
 
-      <div className="mt-auto border-t border-black/[0.1] p-3 hidden sm:flex items-center gap-2.5 cursor-pointer hover:bg-black/[0.02] transition-colors" onClick={() => onViewChange('settings')}>
-        {user?.avatar ? (
-          <img src={user.avatar} alt="Avatar" className="w-8 h-8 rounded-full object-cover shadow-sm" />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-gray-950 text-white flex items-center justify-center font-bold text-[11px]">
-            {String(user?.displayName || user?.username || 'H').charAt(0).toUpperCase()}
+      {user ? (
+        <div className="mt-auto border-t border-black/[0.1] p-3 hidden sm:flex items-center gap-2.5 cursor-pointer hover:bg-black/[0.02] transition-colors" onClick={() => onViewChange('settings')}>
+          {user.avatar ? (
+            <img src={user.avatar} alt="Avatar" className="w-8 h-8 rounded-full object-cover shadow-sm" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gray-950 text-white flex items-center justify-center font-bold text-[11px]">
+              {String(user.displayName || user.username || 'H').charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-gray-950 truncate leading-none">{user.displayName}</p>
+            <p className="text-[9px] text-gray-400 truncate mt-1">{user.email || 'Chưa có email'}</p>
           </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-semibold text-gray-950 truncate leading-none">{user?.displayName}</p>
-          <p className="text-[9px] text-gray-400 truncate mt-1">{user?.email || 'Chưa có email'}</p>
         </div>
-      </div>
+      ) : (
+        <div 
+          className="mt-auto border-t border-black/[0.1] p-3 hidden sm:flex items-center gap-2.5 cursor-pointer hover:bg-black/[0.05] transition-colors text-gray-950 font-bold" 
+          onClick={() => onViewChange('login')}
+        >
+          <svg className="w-4.5 h-4.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h3a3 3 0 013 3v1" />
+          </svg>
+          <span className="text-[12px] leading-4 ml-0.5">Đăng nhập</span>
+        </div>
+      )}
     </aside>
   )
 }

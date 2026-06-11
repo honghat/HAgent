@@ -35,6 +35,7 @@ export default function FoodTracker({ token }) {
     const [form, setForm] = useState(emptyForm());
     const [editId, setEditId] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [filterUnpaid, setFilterUnpaid] = useState(false);
 
     const headers = authHeaders(token);
 
@@ -49,12 +50,20 @@ export default function FoodTracker({ token }) {
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
-        const sorted = records.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
-        if (!q) return sorted;
-        return sorted.filter((r) =>
+        let result = records.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+        if (filterUnpaid) {
+            result = result.filter((r) =>
+                MEALS.some((m) => {
+                    const amt = r[m.money] || 0;
+                    return amt > 0 && !r[m.paid];
+                })
+            );
+        }
+        if (!q) return result;
+        return result.filter((r) =>
             [r.sang, r.trua, r.toi].some((m) => (m || "").toLowerCase().includes(q)) || (r.date || "").includes(q)
         );
-    }, [records, search]);
+    }, [records, search, filterUnpaid]);
 
     const stats = useMemo(() => {
         let total = 0, unpaid = 0;
@@ -136,6 +145,14 @@ export default function FoodTracker({ token }) {
                         placeholder="Tìm món, ngày..."
                         className="w-full h-10 pl-9 pr-3 text-xs font-semibold border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:bg-white bg-slate-50/50 hover:border-slate-300 focus:ring-4 focus:ring-indigo-500/5 transition-all" />
                 </div>
+                <button onClick={() => setFilterUnpaid(!filterUnpaid)}
+                    className={`flex items-center gap-1.5 px-3 h-10 text-xs font-bold rounded-xl border transition active:scale-[0.98] shrink-0 ${
+                        filterUnpaid 
+                            ? "bg-amber-500 border-amber-500 text-white hover:bg-amber-600" 
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}>
+                    Chưa trả
+                </button>
                 <button onClick={openAdd}
                     className="flex items-center gap-1.5 px-4 h-10 text-xs font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 hover:shadow-md transition active:scale-[0.98] shrink-0">
                     <Plus size={14} /> Thêm ngày
@@ -148,9 +165,14 @@ export default function FoodTracker({ token }) {
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Tổng chi</p>
                     <p className="text-sm font-black text-slate-800 truncate">{fmtVND(stats.total)}</p>
                 </div>
-                <div className="bg-white border border-slate-100 rounded-2xl px-3 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.015)]">
-                    <p className="text-[9px] font-bold text-amber-500 uppercase tracking-wider mb-0.5">Chưa trả</p>
-                    <p className="text-sm font-black text-amber-600 truncate">{fmtVND(stats.unpaid)}</p>
+                <div onClick={() => setFilterUnpaid(!filterUnpaid)}
+                    className={`border rounded-2xl px-3 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] cursor-pointer transition active:scale-[0.98] ${
+                        filterUnpaid
+                            ? "bg-amber-500 border-amber-500 text-white"
+                            : "bg-white border-slate-100 hover:border-amber-200"
+                    }`}>
+                    <p className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${filterUnpaid ? "text-amber-100" : "text-amber-500"}`}>Chưa trả</p>
+                    <p className={`text-sm font-black truncate ${filterUnpaid ? "text-white" : "text-amber-600"}`}>{fmtVND(stats.unpaid)}</p>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl px-3 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.015)] text-center">
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Số ngày</p>

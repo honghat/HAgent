@@ -187,49 +187,110 @@ export default function FoodTracker({ token }) {
                     <p className="text-xs font-semibold text-slate-400">{search ? "Không tìm thấy" : "Chưa có ngày nào"}</p>
                 </div>
             ) : (
-                <div className="flex flex-col gap-3">
-                    {filtered.map((r) => {
-                        const dayTotal = MEALS.reduce((s, m) => s + (r[m.money] || 0), 0);
-                        return (
-                            <div key={r.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.015)] group">
-                                <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 bg-slate-50/40">
-                                    <span className="text-xs font-extrabold text-slate-700">{fmtDate(r.date)}</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-black text-indigo-600 tabular-nums">{fmtVND(dayTotal)}</span>
-                                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => openEdit(r)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-all"><Edit2 size={12} /></button>
-                                            <button onClick={() => remove(r.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={12} /></button>
+                <>
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-hidden border border-slate-100 rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.015)]">
+                        <table className="w-full border-collapse text-left">
+                            <thead>
+                                <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    <th className="px-4 py-3">Ngày</th>
+                                    <th className="px-4 py-3">Sáng</th>
+                                    <th className="px-4 py-3">Trưa</th>
+                                    <th className="px-4 py-3">Tối</th>
+                                    <th className="px-4 py-3 text-right">Tổng ngày</th>
+                                    <th className="px-4 py-3 text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {filtered.map((r) => {
+                                    const dayTotal = MEALS.reduce((s, m) => s + (r[m.money] || 0), 0);
+                                    return (
+                                        <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
+                                            <td className="px-4 py-3 text-xs font-extrabold text-slate-700 whitespace-nowrap">{fmtDate(r.date)}</td>
+                                            {MEALS.map((m) => {
+                                                const name = r[m.key], amt = r[m.money] || 0, paid = r[m.paid];
+                                                return (
+                                                    <td key={m.key} className="px-4 py-3 text-xs">
+                                                        {name || amt > 0 ? (
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="font-semibold text-slate-700 truncate max-w-[150px]" title={name}>{name || "—"}</span>
+                                                                {amt > 0 && (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-bold text-slate-500 tabular-nums">{fmtVND(amt)}</span>
+                                                                        <button onClick={() => togglePaid(r, m)}
+                                                                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border transition active:scale-95 ${paid
+                                                                                ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100"
+                                                                                : "bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100"}`}>
+                                                                            {paid ? "Đã trả" : "Chưa trả"}
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-300">—</span>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className="px-4 py-3 text-xs font-black text-right text-indigo-600 tabular-nums whitespace-nowrap">{fmtVND(dayTotal)}</td>
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => openEdit(r)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"><Edit2 size={13} /></button>
+                                                    <button onClick={() => remove(r.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 size={13} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile List Cards */}
+                    <div className="block md:hidden flex flex-col gap-3">
+                        {filtered.map((r) => {
+                            const dayTotal = MEALS.reduce((s, m) => s + (r[m.money] || 0), 0);
+                            return (
+                                <div key={r.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.015)] group">
+                                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 bg-slate-50/40">
+                                        <span className="text-xs font-extrabold text-slate-700">{fmtDate(r.date)}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-indigo-600 tabular-nums">{fmtVND(dayTotal)}</span>
+                                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => openEdit(r)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-all"><Edit2 size={12} /></button>
+                                                <button onClick={() => remove(r.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={12} /></button>
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className="divide-y divide-slate-50">
+                                        {MEALS.map((m) => {
+                                            const name = r[m.key], amt = r[m.money] || 0, paid = r[m.paid];
+                                            const Icon = m.icon;
+                                            const empty = !name && !amt;
+                                            return (
+                                                <div key={m.key} className={`flex items-center gap-3 px-4 py-2.5 ${empty ? "opacity-40" : ""}`}>
+                                                    <span className="flex items-center gap-1.5 w-14 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                        <Icon size={13} /> {m.label}
+                                                    </span>
+                                                    <span className="flex-1 min-w-0 text-xs font-semibold text-slate-700 truncate">{name || "—"}</span>
+                                                    {amt > 0 && <span className="text-xs font-bold text-slate-600 shrink-0 tabular-nums">{fmtVND(amt)}</span>}
+                                                    {amt > 0 && (
+                                                        <button onClick={() => togglePaid(r, m)}
+                                                            className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all active:scale-95 ${paid
+                                                                ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100"
+                                                                : "bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100"}`}>
+                                                            {paid ? "Đã trả" : "Chưa trả"}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                                <div className="divide-y divide-slate-50">
-                                    {MEALS.map((m) => {
-                                        const name = r[m.key], amt = r[m.money] || 0, paid = r[m.paid];
-                                        const Icon = m.icon;
-                                        const empty = !name && !amt;
-                                        return (
-                                            <div key={m.key} className={`flex items-center gap-3 px-4 py-2.5 ${empty ? "opacity-40" : ""}`}>
-                                                <span className="flex items-center gap-1.5 w-14 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                    <Icon size={13} /> {m.label}
-                                                </span>
-                                                <span className="flex-1 min-w-0 text-xs font-semibold text-slate-700 truncate">{name || "—"}</span>
-                                                {amt > 0 && <span className="text-xs font-bold text-slate-600 shrink-0 tabular-nums">{fmtVND(amt)}</span>}
-                                                {amt > 0 && (
-                                                    <button onClick={() => togglePaid(r, m)}
-                                                        className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all active:scale-95 ${paid
-                                                            ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100"
-                                                            : "bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100"}`}>
-                                                        {paid ? "Đã trả" : "Chưa trả"}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+                </>
             )}
 
             {/* Modal */}

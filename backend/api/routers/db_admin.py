@@ -46,6 +46,7 @@ except Exception:
 
 try:
     from api.services.finance_db import Base
+    import api.services.finance_models
     for tb in Base.metadata.tables:
         _SYSTEM_TABLES.add(tb)
         _SYSTEM_TABLES.add(tb.lower())

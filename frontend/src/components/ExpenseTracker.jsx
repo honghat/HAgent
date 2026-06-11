@@ -3,8 +3,7 @@ import * as XLSX from "xlsx";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Edit2, Trash2, Calendar, CreditCard, Tag, Check, X, Loader, Plus, Upload, BarChart2, DollarSign, Wallet, Landmark } from "lucide-react";
 
-import ExpenseDienNuoc from "./ExpenseDienNuoc";
-import ExpenseAnUong from "./ExpenseAnUong";
+
 
 const API_URL = "/api/expenses";
 
@@ -129,8 +128,12 @@ const ExpenseTracker = ({ user, token }) => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
     // Navigation and Alerts
-    const [activeTab, setActiveTab] = useState("expenses");
-    const [dashboardSubTab, setDashboardSubTab] = useState("compare");
+    const [activeTab, setActiveTab] = useState(
+        () => localStorage.getItem("hagent_expense_tab") || "expenses"
+    );
+    const [dashboardSubTab, setDashboardSubTab] = useState(
+        () => localStorage.getItem("hagent_expense_subtab") || "compare"
+    );
     const [loading, setLoading] = useState(false);
     const [alertMessage, setAlertMessage] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -586,7 +589,7 @@ const ExpenseTracker = ({ user, token }) => {
         return acc;
     }, {});
 
-    const selectCategories = categories.length > 0 
+    const rawCategories = categories.length > 0 
         ? categories 
         : [
             { name: "Ăn uống", color: "#82ca9d", icon: "" },
@@ -605,6 +608,22 @@ const ExpenseTracker = ({ user, token }) => {
             { name: "Rút tiền", color: "#9333ea", icon: "" },
             { name: "Khác", color: "#a9a9a9", icon: "" }
         ];
+
+    const sortCategoriesByPriority = (cats) => {
+        const priority = ["Ăn uống", "Tiền nhà", "Đi lại", "Mua sắm", "Vệ sinh-Sức khỏe", "Tiền internet", "Sinh nhật", "Đám cưới", "Biếu tặng", "Hớt tóc", "Lương", "Lãi", "Khác"];
+        return [...cats].sort((a, b) => {
+            let idxA = priority.indexOf(a.name);
+            let idxB = priority.indexOf(b.name);
+            if (idxA === -1) idxA = 999;
+            if (idxB === -1) idxB = 999;
+            if (idxA !== idxB) {
+                return idxA - idxB;
+            }
+            return a.name.localeCompare(b.name);
+        });
+    };
+
+    const selectCategories = sortCategoriesByPriority(rawCategories);
 
     const categoryColors = {};
     selectCategories.forEach((cat) => {
@@ -625,9 +644,20 @@ const ExpenseTracker = ({ user, token }) => {
 
     const renderLegend = (props) => {
         const { payload } = props;
+        const priority = ["Tổng thu", "Tổng chi", "Ăn uống", "Tiền nhà", "Đi lại", "Mua sắm", "Vệ sinh-Sức khỏe", "Tiền internet", "Sinh nhật", "Đám cưới", "Biếu tặng", "Hớt tóc", "Lương", "Lãi", "Khác"];
+        const sortedPayload = [...payload].sort((a, b) => {
+            let idxA = priority.indexOf(a.value);
+            let idxB = priority.indexOf(b.value);
+            if (idxA === -1) idxA = 999;
+            if (idxB === -1) idxB = 999;
+            if (idxA !== idxB) {
+                return idxA - idxB;
+            }
+            return a.value.localeCompare(b.value);
+        });
         return (
             <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 pt-5 text-[11px] text-gray-500 font-bold">
-                {payload.map((entry, index) => (
+                {sortedPayload.map((entry, index) => (
                     <div key={`item-${index}`} className="flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
                         <span>{entry.value}</span>
@@ -649,15 +679,21 @@ const ExpenseTracker = ({ user, token }) => {
                 return (
                     <div className="bg-white/90 backdrop-blur-md p-4 border border-gray-100 rounded-xl shadow-xl text-sm space-y-1.5">
                         <p className="font-bold text-gray-800 text-center border-b pb-1 mb-2">{label}</p>
-                        <div className="flex justify-between gap-6 text-emerald-600 font-medium whitespace-nowrap">
-                            <span>Tổng thu:</span>
-                            <span className="font-bold">{thuVal.toLocaleString()}&nbsp;₫</span>
+                        <div className="flex items-center justify-between gap-6 text-gray-600 whitespace-nowrap text-xs">
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#10b981" }} />
+                                <span>Tổng thu:</span>
+                            </div>
+                            <span className="font-bold text-emerald-600">{thuVal.toLocaleString()}&nbsp;₫</span>
                         </div>
-                        <div className="flex justify-between gap-6 text-red-500 font-medium whitespace-nowrap">
-                            <span>Tổng chi:</span>
-                            <span className="font-bold">{chiVal.toLocaleString()}&nbsp;₫</span>
+                        <div className="flex items-center justify-between gap-6 text-gray-600 whitespace-nowrap text-xs">
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#ef4444" }} />
+                                <span>Tổng chi:</span>
+                            </div>
+                            <span className="font-bold text-red-500">{chiVal.toLocaleString()}&nbsp;₫</span>
                         </div>
-                        <div className={`flex justify-between gap-6 border-t pt-1.5 mt-2 font-bold whitespace-nowrap ${diff >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
+                        <div className={`flex justify-between gap-6 border-t pt-1.5 mt-2 font-bold whitespace-nowrap text-xs ${diff >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
                             <span>Chênh lệch:</span>
                             <span>{diff >= 0 ? "+" : ""}{diff.toLocaleString()}&nbsp;₫</span>
                         </div>
@@ -674,17 +710,33 @@ const ExpenseTracker = ({ user, token }) => {
                     .filter(k => k !== "monthYear")
                     .reduce((sum, k) => sum + monthData[k], 0);
 
-                const sorted = [...payload].sort((a, b) => b.value - a.value);
+                const priorityOrder = ["Ăn uống", "Tiền nhà", "Đi lại", "Mua sắm", "Vệ sinh-Sức khỏe", "Tiền internet", "Sinh nhật", "Đám cưới", "Biếu tặng", "Hớt tóc", "Lương", "Lãi", "Khác"];
+                const sorted = [...payload].sort((a, b) => {
+                    let idxA = priorityOrder.indexOf(a.name);
+                    let idxB = priorityOrder.indexOf(b.name);
+                    if (idxA === -1) idxA = 999;
+                    if (idxB === -1) idxB = 999;
+                    if (idxA !== idxB) {
+                        return idxA - idxB;
+                    }
+                    return a.name.localeCompare(b.name);
+                });
 
                 return (
                     <div className="bg-white/90 backdrop-blur-md p-4 border border-gray-100 rounded-xl shadow-xl text-sm space-y-1.5">
                         <p className="font-bold text-gray-800 text-center border-b pb-1 mb-2">{label}</p>
-                        {sorted.map((entry, idx) => (
-                            <div key={idx} className="flex justify-between gap-6 text-gray-600 whitespace-nowrap">
-                                <span>{entry.name}:</span>
-                                <span className="font-semibold text-gray-800">{(entry.value).toLocaleString()}&nbsp;₫</span>
-                            </div>
-                        ))}
+                        {sorted.map((entry, idx) => {
+                            const catColor = entry.color || categoryColors[entry.name] || "#6b7280";
+                            return (
+                                <div key={idx} className="flex items-center justify-between gap-6 text-gray-600 whitespace-nowrap text-xs">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor }} />
+                                        <span>{entry.name}:</span>
+                                    </div>
+                                    <span className="font-semibold text-gray-800">{(entry.value).toLocaleString()}&nbsp;₫</span>
+                                </div>
+                            );
+                        })}
                         <p className={`font-bold border-t pt-1.5 mt-2 text-center text-sm whitespace-nowrap ${isIncome ? "text-emerald-600" : "text-red-500"}`}>
                             {isIncome ? "Tổng thu" : "Tổng chi"}: {totalVal.toLocaleString()}&nbsp;₫
                         </p>
@@ -721,15 +773,16 @@ const ExpenseTracker = ({ user, token }) => {
             <div className="flex p-0.5 bg-slate-200/60 rounded-xl select-none overflow-x-auto no-scrollbar gap-0.5 max-w-fit mx-auto">
                 {[
                     { id: "expenses", label: "Chi tiêu" },
-                    { id: "anuong", label: "Ăn uống" },
                     { id: "dashboard", label: "Biểu đồ" },
-                    { id: "diennuoc", label: "Điện nước" },
                     { id: "yearly", label: "Hàng năm" },
                     { id: "categories", label: "Danh mục" }
                 ].map((t) => (
                     <button
                         key={t.id}
-                        onClick={() => setActiveTab(t.id)}
+                        onClick={() => {
+                            setActiveTab(t.id);
+                            localStorage.setItem("hagent_expense_tab", t.id);
+                        }}
                         className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 select-none cursor-pointer ${
                             activeTab === t.id
                                 ? "bg-white text-indigo-600 shadow-sm"
@@ -1056,35 +1109,37 @@ const ExpenseTracker = ({ user, token }) => {
                         <div className="hidden md:block overflow-x-auto max-h-[500px] border border-slate-200/60 rounded-xl shadow-sm bg-white">
                             <table className="w-full text-sm text-left border-collapse">
                                 <thead>
-                                    <tr className="bg-slate-50/80 backdrop-blur-sm sticky top-0 border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px] tracking-wider z-10">
-                                        <th className="p-3.5 text-center">Ngày</th>
-                                        <th className="p-3.5 text-center">Loại</th>
-                                        <th className="p-3.5">Mô tả</th>
-                                        <th className="p-3.5 text-right">Số tiền</th>
-                                        <th className="p-3.5 text-center">Danh mục</th>
-                                        <th className="p-3.5 text-center">Phương thức</th>
-                                        <th className="p-3.5 text-center">Hành động</th>
+                                    <tr className="bg-slate-50/80 backdrop-blur-sm sticky top-0 border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px] tracking-wider z-10 select-none">
+                                        <th className="p-3.5 text-center whitespace-nowrap">Ngày</th>
+                                        <th className="p-3.5 text-center whitespace-nowrap">Loại</th>
+                                        <th className="p-3.5 whitespace-nowrap">Mô tả</th>
+                                        <th className="p-3.5 text-right whitespace-nowrap">Số tiền</th>
+                                        <th className="p-3.5 text-center whitespace-nowrap">Danh mục</th>
+                                        <th className="p-3.5 text-center whitespace-nowrap">Phương thức</th>
+                                        <th className="p-3.5 text-center whitespace-nowrap">Hành động</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {filteredExpenses.length > 0 ? (
                                         filteredExpenses.map((e) => (
                                             <tr key={e.id} className="hover:bg-slate-50/40 transition-colors">
-                                                <td className="p-3 text-center text-slate-500 font-medium">
+                                                <td className="p-3 text-center text-slate-500 font-medium whitespace-nowrap font-mono">
                                                     {new Date(e.date).toLocaleDateString("vi-VN")}
                                                 </td>
-                                                <td className={`p-3 text-center font-bold text-xs ${
+                                                <td className={`p-3 text-center font-bold text-xs whitespace-nowrap ${
                                                     e.expense_type === "Thu" ? "text-emerald-600" : "text-rose-600"
                                                 }`}>
-                                                    {e.expense_type}
+                                                    <span className={`px-2 py-0.5 rounded-md ${
+                                                        e.expense_type === "Thu" ? "bg-emerald-50" : "bg-rose-50"
+                                                    }`}>{e.expense_type}</span>
                                                 </td>
-                                                <td className="p-3 font-semibold text-slate-800">{e.description}</td>
-                                                <td className={`p-3 text-right font-extrabold tracking-tight whitespace-nowrap ${
+                                                <td className="p-3 font-semibold text-slate-700 whitespace-nowrap">{e.description}</td>
+                                                <td className={`p-3 text-right font-extrabold tracking-tight whitespace-nowrap font-mono ${
                                                     e.expense_type === "Thu" ? "text-emerald-600" : "text-rose-600"
                                                 }`}>
                                                     {e.expense_type === "Thu" ? "+" : "-"}{e.amount.toLocaleString()}&nbsp;₫
                                                 </td>
-                                                <td className="p-3 text-center">
+                                                <td className="p-3 text-center whitespace-nowrap">
                                                     <span 
                                                         className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap"
                                                         style={{
@@ -1095,24 +1150,24 @@ const ExpenseTracker = ({ user, token }) => {
                                                         {e.category}
                                                     </span>
                                                 </td>
-                                                <td className="p-3 text-center text-slate-500 font-semibold text-xs">
-                                                    {e.payment_method === "TM" ? "Tiền mặt" : "CK"}
+                                                <td className="p-3 text-center text-slate-500 font-bold text-xs whitespace-nowrap">
+                                                    <span className="px-2 py-0.5 bg-slate-100 rounded-md text-slate-600">{e.payment_method === "TM" ? "Tiền mặt" : "CK"}</span>
                                                 </td>
-                                                <td className="p-3 text-center">
-                                                    <div className="flex justify-center gap-1">
+                                                <td className="p-3 text-center whitespace-nowrap">
+                                                    <div className="flex justify-center items-center gap-1.5">
                                                         <button
                                                             onClick={() => handleEdit(e)}
-                                                            className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition"
+                                                            className="w-8 h-8 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition-all duration-200 cursor-pointer border-0"
                                                             title="Sửa"
                                                         >
-                                                            <Edit2 size={15} />
+                                                            <Edit2 size={14} />
                                                         </button>
                                                         <button
                                                             onClick={() => openDeleteModal(e.id)}
-                                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
+                                                            className="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-all duration-200 cursor-pointer border-0"
                                                             title="Xóa"
                                                         >
-                                                            <Trash2 size={15} />
+                                                            <Trash2 size={14} />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -1444,11 +1499,6 @@ const ExpenseTracker = ({ user, token }) => {
             </div>
         )}
 
-            {/* Ăn uống Tab */}
-            {activeTab === "anuong" && (
-                <ExpenseAnUong user={user} token={token} />
-            )}
-
             {/* Biểu đồ Tab */}
             {activeTab === "dashboard" && (
                 <div className="bg-white p-6 rounded-2xl border border-black/[0.08] shadow-sm space-y-6">
@@ -1462,13 +1512,16 @@ const ExpenseTracker = ({ user, token }) => {
                         <div className="flex gap-1.5 bg-gray-100 p-1.5 rounded-xl border border-black/[0.04] w-fit">
                             {[
                                 { id: "compare", label: "So sánh Thu/Chi" },
-                                { id: "expense_cat", label: "Chi tiêu phân loại" },
-                                { id: "income_cat", label: "Thu nhập phân loại" }
+                                { id: "expense_cat", label: "Chi tiêu" },
+                                { id: "income_cat", label: "Thu nhập" }
                             ].map((sub) => (
                                 <button
                                     key={sub.id}
                                     type="button"
-                                    onClick={() => setDashboardSubTab(sub.id)}
+                                    onClick={() => {
+                                        setDashboardSubTab(sub.id);
+                                        localStorage.setItem("hagent_expense_subtab", sub.id);
+                                    }}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition duration-150 ${
                                         dashboardSubTab === sub.id
                                             ? "bg-white text-indigo-600 shadow-sm border border-black/[0.02]"
@@ -1500,13 +1553,13 @@ const ExpenseTracker = ({ user, token }) => {
                             <span className="text-xs font-bold text-gray-500 block">Số dư (tháng {currentMonth})</span>
                             <span className="text-lg font-bold text-blue-700">{(totalExpensesThisMonth).toLocaleString()}&nbsp;₫</span>
                         </div>
-                        <div className="bg-green-50/50 p-4 rounded-xl border border-green-100 whitespace-nowrap">
-                            <span className="text-xs font-bold text-gray-500 block">Tổng thu (tháng {currentMonth})</span>
-                            <span className="text-lg font-bold text-green-700">+{(totalIncomeThisMonth).toLocaleString()}&nbsp;₫</span>
-                        </div>
                         <div className="bg-red-50/50 p-4 rounded-xl border border-red-100 whitespace-nowrap">
-                            <span className="text-xs font-bold text-gray-500 block">Tổng chi (tháng {currentMonth})</span>
+                            <span className="text-xs font-bold text-gray-500 block">Chi tiêu (tháng {currentMonth})</span>
                             <span className="text-lg font-bold text-red-700">-{(totalExpenseThisMonth).toLocaleString()}&nbsp;₫</span>
+                        </div>
+                        <div className="bg-green-50/50 p-4 rounded-xl border border-green-100 whitespace-nowrap">
+                            <span className="text-xs font-bold text-gray-500 block">Thu nhập (tháng {currentMonth})</span>
+                            <span className="text-lg font-bold text-green-700">+{(totalIncomeThisMonth).toLocaleString()}&nbsp;₫</span>
                         </div>
                     </div>
 
@@ -1514,8 +1567,8 @@ const ExpenseTracker = ({ user, token }) => {
                     <div className="bg-gray-50/50 p-4 rounded-xl border border-black/[0.04]">
                         <h4 className="text-sm font-bold text-gray-700 mb-6">
                             {dashboardSubTab === "compare" ? "So sánh Thu/Chi theo tháng" :
-                             dashboardSubTab === "income_cat" ? "Thu nhập phân loại theo tháng" :
-                             "Chi tiêu phân loại theo tháng"} (Năm {selectedYear})
+                             dashboardSubTab === "income_cat" ? "Thu nhập theo tháng" :
+                             "Chi tiêu theo tháng"} (Năm {selectedYear})
                         </h4>
                         <div className="w-full h-[320px]">
                             {(() => {
@@ -1605,12 +1658,7 @@ const ExpenseTracker = ({ user, token }) => {
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* Điện nước Tab */}
-            {activeTab === "diennuoc" && (
-                <ExpenseDienNuoc user={user} token={token} />
-            )}
+            ) }
 
             {/* Yearly breakdown Tab */}
             {activeTab === "yearly" && (

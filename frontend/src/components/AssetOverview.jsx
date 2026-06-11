@@ -80,26 +80,9 @@ const AssetOverview = ({ user, token, fmData, viewMode = 'overview', showBalance
         fetchAssets();
     }, [userId, token]);
 
-    const formatVNDCompact = (amount, isCompact = true) => {
+    const formatVNDCompact = (amount, isCompact = false) => {
         if (amount === undefined || amount === null || isNaN(amount)) return "0 ₫";
-        if (!isCompact) {
-            return `${amount.toLocaleString("vi-VN")} ₫`;
-        }
-        const absVal = Math.abs(amount);
-        const sign = amount < 0 ? "-" : "";
-        if (absVal >= 1000000000) {
-            const val = absVal / 1000000000;
-            return `${sign}${parseFloat(val.toFixed(2))} Tỷ ₫`;
-        }
-        if (absVal >= 1000000) {
-            const val = absVal / 1000000;
-            return `${sign}${parseFloat(val.toFixed(1))} Tr ₫`;
-        }
-        if (absVal >= 1000) {
-            const val = absVal / 1000;
-            return `${sign}${parseFloat(val.toFixed(0))}K ₫`;
-        }
-        return `${sign}${absVal.toLocaleString("vi-VN")} ₫`;
+        return `${amount.toLocaleString("vi-VN")} ₫`;
     };
 
     const formatVND = (num) => {
@@ -119,13 +102,8 @@ const AssetOverview = ({ user, token, fmData, viewMode = 'overview', showBalance
         return (
             <div className="flex flex-col items-center">
                 <div className={`${isTotal ? "text-xl sm:text-3xl text-indigo-600" : "text-sm sm:text-lg text-slate-900"} font-extrabold text-center tracking-tight whitespace-nowrap`}>
-                    {formatVNDCompact(amount, true)}
+                    {formatVNDCompact(amount, false)}
                 </div>
-                {amount >= 1000000 && (
-                    <div className="text-[9px] text-slate-400 font-semibold mt-0.5 sm:mt-1 select-all">
-                        {formatVND(amount)}
-                    </div>
-                )}
             </div>
         );
     };

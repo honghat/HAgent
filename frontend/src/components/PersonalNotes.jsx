@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Edit3, Trash2, Plus, LayoutGrid, List, Search, X, StickyNote, Tag, Loader, ChevronDown, ChevronRight } from "lucide-react";
+import { Edit3, Trash2, Plus, LayoutGrid, List, Search, X, StickyNote, Tag, Loader, ChevronDown, ChevronRight, Table } from "lucide-react";
 
 const API = "/api/personal/notes";
 
@@ -32,7 +32,14 @@ export default function PersonalNotes({ token }) {
     const [notes, setNotes] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [view, setView] = useState("grid");
+    const [view, setView] = useState(
+        () => localStorage.getItem("hagent_notes_view") || "table"
+    );
+
+    const changeView = (v) => {
+        setView(v);
+        localStorage.setItem("hagent_notes_view", v);
+    };
     const [search, setSearch] = useState("");
     const [collapsed, setCollapsed] = useState({});
     const [modal, setModal] = useState(null);
@@ -159,10 +166,10 @@ export default function PersonalNotes({ token }) {
                     className="flex items-center gap-1.5 px-3.5 h-10 text-[12px] font-bold text-slate-600 bg-white/70 backdrop-blur border border-slate-200/80 rounded-xl hover:bg-white hover:border-slate-300 hover:text-slate-800 transition active:scale-[0.97]">
                     <Tag size={13} strokeWidth={2.5} /> Danh mục
                 </button>
-                <button onClick={() => setView(v => v === "grid" ? "list" : "grid")}
+                <button onClick={() => changeView(view === "grid" ? "list" : view === "list" ? "table" : "grid")}
                     className="p-2.5 text-slate-500 bg-white/70 backdrop-blur border border-slate-200/80 rounded-xl hover:bg-white hover:border-slate-300 hover:text-slate-800 transition active:scale-[0.97]"
-                    title={view === "grid" ? "Xem danh sách" : "Xem lưới"}>
-                    {view === "grid" ? <List size={15} /> : <LayoutGrid size={15} />}
+                    title={view === "grid" ? "Xem danh sách" : view === "list" ? "Xem bảng" : "Xem lưới"}>
+                    {view === "grid" ? <List size={15} /> : view === "list" ? <Table size={15} /> : <LayoutGrid size={15} />}
                 </button>
                 <button onClick={() => openAdd()}
                     className="flex items-center gap-1.5 px-4 h-10 text-[12px] font-bold text-white bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-[0_4px_12px_-2px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_16px_-2px_rgba(99,102,241,0.5)] hover:from-indigo-600 hover:to-indigo-700 transition-all active:scale-[0.97]">
@@ -177,6 +184,47 @@ export default function PersonalNotes({ token }) {
                         <StickyNote size={24} className="text-slate-300" strokeWidth={1.5} />
                     </div>
                     <p className="text-xs font-semibold">{search ? "Không tìm thấy ghi chú nào" : "Chưa có ghi chú nào"}</p>
+                </div>
+            ) : view === "table" ? (
+                <div className="overflow-x-auto border border-slate-100 rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.015)] max-h-[600px]">
+                    <table className="w-full border-collapse text-left text-xs">
+                        <thead className="sticky top-0 z-20 bg-slate-50/90 backdrop-blur border-b border-slate-150">
+                            <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                <th className="px-4 py-2.5">Tiêu đề</th>
+                                <th className="px-4 py-2.5">Nội dung</th>
+                                <th className="px-4 py-2.5 w-28">Cập nhật</th>
+                                <th className="px-4 py-2.5 w-20 text-right">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {groups.map((group) => (
+                                <React.Fragment key={group.key}>
+                                    <tr className="bg-slate-50/60 font-bold sticky top-[33px] z-10 backdrop-blur-md border-y border-slate-100/80">
+                                        <td colSpan={4} className="px-4 py-2 text-slate-700 text-[11px] font-bold">
+                                            <span className="inline-flex items-center gap-2">
+                                                <span className="w-1.5 h-3 rounded-full" style={{ backgroundColor: group.color.border }} />
+                                                {group.label}
+                                                <span className="text-[9px] font-black text-slate-400 bg-slate-100/80 px-1.5 py-0.5 rounded-md tabular-nums">{group.notes.length}</span>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {group.notes.map((n) => (
+                                        <tr key={n.id} className="hover:bg-slate-50/50 transition-colors group">
+                                            <td className="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap max-w-[150px] truncate">{n.title || <span className="italic text-slate-400 font-normal">(Không có tiêu đề)</span>}</td>
+                                            <td className="px-4 py-2.5 text-slate-500 max-w-[300px] truncate">{n.content || <span className="italic text-slate-300">-</span>}</td>
+                                            <td className="px-4 py-2.5 text-slate-400 font-medium tabular-nums">{fmtDate(n.updated_at)}</td>
+                                            <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                                                <div className="flex justify-end gap-1">
+                                                    <button onClick={() => openEdit(n)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/60 rounded-lg transition-all"><Edit3 size={12} strokeWidth={2.5} /></button>
+                                                    <button onClick={() => deleteNote(n.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={12} strokeWidth={2.5} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </React.Fragment>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             ) : (
                 <div className="flex flex-col gap-7">

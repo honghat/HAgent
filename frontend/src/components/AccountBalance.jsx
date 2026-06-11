@@ -10,6 +10,8 @@ import AssetOverview from "./AssetOverview";
 
 const API_URL = "/api/balance";
 
+const POPULAR_BANKS = ["VCB", "TCB", "ACB", "MB", "BIDV", "VietinBank", "Agribank", "TPBank", "VPBank", "Sacombank", "HDBank", "VIB"];
+
 const getOneYearFromNow = () => {
     const today = new Date();
     const oneYearLater = new Date(today);
@@ -19,26 +21,9 @@ const getOneYearFromNow = () => {
 
 const getToday = () => new Date().toISOString().split('T')[0];
 
-const formatVNDCompact = (amount, isCompact = true) => {
+const formatVNDCompact = (amount, isCompact = false) => {
     if (amount === undefined || amount === null || isNaN(amount)) return "0 ₫";
-    if (!isCompact) {
-        return `${amount.toLocaleString("vi-VN")} ₫`;
-    }
-    const absVal = Math.abs(amount);
-    const sign = amount < 0 ? "-" : "";
-    if (absVal >= 1000000000) {
-        const val = absVal / 1000000000;
-        return `${sign}${parseFloat(val.toFixed(2))} Tỷ ₫`;
-    }
-    if (absVal >= 1000000) {
-        const val = absVal / 1000000;
-        return `${sign}${parseFloat(val.toFixed(1))} Tr ₫`;
-    }
-    if (absVal >= 1000) {
-        const val = absVal / 1000;
-        return `${sign}${parseFloat(val.toFixed(0))}K ₫`;
-    }
-    return `${sign}${absVal.toLocaleString("vi-VN")} ₫`;
+    return `${amount.toLocaleString("vi-VN")} ₫`;
 };
 
 const formatVND = (amount) => {
@@ -110,7 +95,16 @@ const AccountBalance = ({ user, token }) => {
     const [balanceRecords, setBalanceRecords] = useState([]);
     const [savingsBooks, setSavingsBooks] = useState([]);
     const [activeTab, setActiveTab] = useState("comparison"); 
-    const [comparisonRate, setComparisonRate] = useState("6.95"); 
+    const [comparisonRate, setComparisonRate] = useState("7.4"); 
+    const [activeBankSuggest, setActiveBankSuggest] = useState(null);
+
+    const getBankSuggestions = (val) => {
+        const q = (val || "").toLowerCase().trim();
+        if (!q || POPULAR_BANKS.some(b => b.toLowerCase() === q)) {
+            return POPULAR_BANKS;
+        }
+        return POPULAR_BANKS.filter(bank => bank.toLowerCase().includes(q));
+    };
 
     const [newAccount, setNewAccount] = useState({ name: "", balance: "" });
     const [newRecord, setNewRecord] = useState({
@@ -522,12 +516,17 @@ const AccountBalance = ({ user, token }) => {
         0
     );
     
-    const totalComparisonInterest = filteredSavingsBooks.reduce(
-        (s, b) => s + (b.status === 'active' ? calculateComparisonInterest(b) : 0),
-        0
-    );
+    const totalActiveInterest = filteredSavingsBooks
+        .filter(b => b.status === "active")
+        .reduce((s, b) => s + calculateInterest(b.amount, b.interest_rate, b.start_date, b.end_date), 0);
 
-    const sortedAccounts = accounts.slice().sort((a, b) => b.balance - a.balance);
+    const totalComparisonInterest = filteredSavingsBooks
+        .filter(b => b.status === "active")
+        .reduce((s, b) => s + calculateComparisonInterest(b), 0);
+
+    const totalDiff = totalActiveInterest - totalComparisonInterest;
+
+    const sortedAccounts = accounts.filter(acc => acc.balance > 0).sort((a, b) => b.balance - a.balance);
     const totalAccountBalance = accounts.reduce((s, a) => s + a.balance, 0);
 
     const balanceTM = accounts
@@ -642,6 +641,9 @@ const AccountBalance = ({ user, token }) => {
                     <div className="flex flex-col">
                         {/* Account list */}
                         <div className="divide-y divide-gray-50">
+                            <div className="flex items-center px-4 py-3 bg-gray-50/50">
+                                <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Danh sách tài khoản</span>
+                            </div>
                             {sortedAccounts.map(acc => {
                                 const cs = getCardStyle(acc.name);
                                 const isEditing = editingAccount && editingAccount.id === acc.id;
@@ -654,20 +656,25 @@ const AccountBalance = ({ user, token }) => {
                                     </div>
                                 );
                                 return (
-                                    <div key={acc.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors group">
-                                        <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-[9px] font-black shrink-0 border ${cs.bg}`}>{cs.logo.slice(0,3)}</span>
-                                        <span className="flex-1 text-sm font-semibold text-gray-800 truncate">{acc.name}</span>
-                                        <span className="text-sm font-black text-gray-900">{mask(fmtFull(acc.balance))}</span>
-                                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    <div key={acc.id} className="flex items-center px-4 py-3.5 hover:bg-gray-50 transition-colors group">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
+                                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-[9px] font-black shrink-0 border ${cs.bg}`}>{cs.logo.slice(0,3)}</span>
+                                            <span className="text-sm font-semibold text-gray-800 truncate">{acc.name}</span>
+                                            <span className="text-sm font-black text-gray-900 ml-auto shrink-0">{mask(formatVNDCompact(acc.balance, true))}</span>
+                                        </div>
+                                        <div className="w-14 flex justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                             <button onClick={() => startEditAccount(acc)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg transition-colors"><Edit2 size={12} /></button>
                                             <button onClick={() => deleteAccount(acc.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={12} /></button>
                                         </div>
                                     </div>
                                 );
                             })}
-                            <div className="flex items-center justify-between px-4 py-3 bg-gray-50/80">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tổng số dư</span>
-                                <span className="text-sm font-black text-gray-800">{mask(fmtFull(totalAccountBalance))}</span>
+                            <div className="flex items-center px-4 py-3.5 bg-indigo-50/50 border-t border-indigo-100/60">
+                                <div className="flex items-center justify-between flex-1 min-w-0 pr-4">
+                                    <span className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider">Tổng số dư</span>
+                                    <span className="text-sm font-black text-indigo-900 shrink-0">{mask(formatVNDCompact(totalAccountBalance, true))}</span>
+                                </div>
+                                <div className="w-14 shrink-0" />
                             </div>
                         </div>
 
@@ -688,10 +695,10 @@ const AccountBalance = ({ user, token }) => {
 
                         {/* Balance records */}
                         <div className="border-t border-gray-100">
-                            <div className="flex items-center justify-between px-4 py-3">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Nhật ký số dư</span>
-                                <button onClick={() => setShowAddRecordForm(!showAddRecordForm)} className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-                                    <RefreshCw size={11} /> Ghi nhận {showAddRecordForm ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                            <div className="flex items-center justify-between px-4 py-3.5 bg-gray-50/50 border-b border-gray-100">
+                                <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Nhật ký số dư</span>
+                                <button onClick={() => setShowAddRecordForm(!showAddRecordForm)} className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                    <Plus size={11} strokeWidth={2.5} /> Ghi nhận {showAddRecordForm ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                                 </button>
                             </div>
 
@@ -704,41 +711,75 @@ const AccountBalance = ({ user, token }) => {
                                     <input type="date" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" value={newRecord.date} onChange={e => setNewRecord({...newRecord, date: e.target.value})} />
                                     <input type="number" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-right bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Số dư mới" value={newRecord.balance} onChange={e => setNewRecord({...newRecord, balance: e.target.value})} />
                                     <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Ghi chú..." value={newRecord.note} onChange={e => setNewRecord({...newRecord, note: e.target.value})} />
-                                    <button onClick={() => { addRecord(); setShowAddRecordForm(false); }} disabled={!newRecord.account_id || !newRecord.balance} className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40">Lưu</button>
+                                    <button onClick={() => { addRecord(); setShowAddRecordForm(false); }} disabled={!newRecord.account_id || !newRecord.balance} className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 col-span-2">Lưu</button>
                                 </div>
                             )}
 
-                            <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
-                                {balanceRecords.slice().sort((a,b) => new Date(b.date)-new Date(a.date)).map(rec => {
-                                    const acc = accounts.find(a => a.id === rec.account_id);
-                                    const change = getRecordChange(rec);
-                                    const isEditing = editingRecord && editingRecord.id === rec.id;
-                                    if (isEditing) return (
-                                        <div key={rec.id} className="flex flex-wrap gap-2 px-4 py-2.5 bg-indigo-50/30">
-                                            <input type="date" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none" value={editingRecord.date} onChange={e => setEditingRecord({...editingRecord, date: e.target.value})} />
-                                            <input type="number" className="w-28 text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-right bg-white focus:outline-none" value={editingRecord.balance} onChange={e => setEditingRecord({...editingRecord, balance: e.target.value})} />
-                                            <input className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none" value={editingRecord.note} onChange={e => setEditingRecord({...editingRecord, note: e.target.value})} />
-                                            <button onClick={saveEditRecord} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"><Check size={13} /></button>
-                                            <button onClick={cancelEditRecord} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"><X size={13} /></button>
-                                        </div>
-                                    );
-                                    return (
-                                        <div key={rec.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 group">
-                                            <span className="text-[10px] font-mono text-gray-400 shrink-0 w-20">{rec.date}</span>
-                                            <span className="flex-1 text-xs text-gray-600 truncate">{acc?.name}{rec.note ? ` · ${rec.note}` : ""}</span>
-                                            {change !== null && (
-                                                <span className={`text-[10px] font-bold shrink-0 ${change > 0 ? "text-emerald-600" : change < 0 ? "text-rose-500" : "text-gray-400"}`}>
-                                                    {change > 0 ? "+" : ""}{mask(formatVNDCompact(change, true))}
-                                                </span>
-                                            )}
-                                            <span className="text-xs font-bold text-gray-800 shrink-0">{mask(formatVNDCompact(rec.balance, true))}</span>
-                                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
-                                                <button onClick={() => startEditRecord(rec)} className="p-1 text-gray-400 hover:text-indigo-600"><Edit2 size={11} /></button>
-                                                <button onClick={() => deleteRecord(rec.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={11} /></button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                            <div className="overflow-x-auto max-h-64 border-t border-gray-100">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-gray-100 bg-gray-50/50 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                            <th className="px-4 py-2 font-mono">Ngày</th>
+                                            <th className="px-4 py-2">Tài khoản</th>
+                                            <th className="px-4 py-2">Ghi chú</th>
+                                            <th className="px-4 py-2 text-right">Biến động</th>
+                                            <th className="px-4 py-2 text-right">Số dư</th>
+                                            <th className="px-4 py-2 text-right w-16">Thao tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {balanceRecords.slice().sort((a,b) => new Date(b.date)-new Date(a.date)).map(rec => {
+                                            const acc = accounts.find(a => a.id === rec.account_id);
+                                            const change = getRecordChange(rec);
+                                            const isEditing = editingRecord && editingRecord.id === rec.id;
+                                            if (isEditing) return (
+                                                <tr key={rec.id} className="bg-indigo-50/30">
+                                                    <td className="px-4 py-2" colSpan={3}>
+                                                        <div className="flex gap-2">
+                                                            <input type="date" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none" value={editingRecord.date} onChange={e => setEditingRecord({...editingRecord, date: e.target.value})} />
+                                                            <input className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none" placeholder="Ghi chú..." value={editingRecord.note} onChange={e => setEditingRecord({...editingRecord, note: e.target.value})} />
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right">
+                                                        <span className="text-gray-400">-</span>
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right">
+                                                        <input type="number" className="w-24 text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-right bg-white focus:outline-none" value={editingRecord.balance} onChange={e => setEditingRecord({...editingRecord, balance: e.target.value})} />
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right">
+                                                        <div className="flex justify-end gap-1">
+                                                            <button onClick={saveEditRecord} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg"><Check size={13} /></button>
+                                                            <button onClick={cancelEditRecord} className="p-1 text-gray-400 hover:bg-gray-100 rounded-lg"><X size={13} /></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                            return (
+                                                <tr key={rec.id} className="hover:bg-gray-50 transition-colors group">
+                                                    <td className="px-4 py-2.5 text-[10px] font-mono text-gray-400 whitespace-nowrap">{rec.date}</td>
+                                                    <td className="px-4 py-2.5 font-semibold text-gray-700 whitespace-nowrap">{acc?.name || "Tài khoản ẩn/đã xóa"}</td>
+                                                    <td className="px-4 py-2.5 text-gray-500 max-w-[200px] truncate" title={rec.note}>{rec.note || <span className="italic text-gray-300">-</span>}</td>
+                                                    <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap">
+                                                        {change !== null ? (
+                                                            <span className={`text-[10px] font-bold ${change > 0 ? "text-emerald-600" : change < 0 ? "text-rose-500" : "text-gray-400"}`}>
+                                                                {change > 0 ? "+" : ""}{mask(formatVNDCompact(change, true))}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-gray-300">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-2.5 text-right font-bold text-gray-800 font-mono whitespace-nowrap">{mask(formatVNDCompact(rec.balance, true))}</td>
+                                                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                                                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => startEditRecord(rec)} className="p-1 text-gray-400 hover:text-indigo-600"><Edit2 size={11} /></button>
+                                                            <button onClick={() => deleteRecord(rec.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={11} /></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -789,12 +830,35 @@ const AccountBalance = ({ user, token }) => {
                         {/* Add book form */}
                         {showAddBookForm && (
                             <div className="px-4 pb-4 grid grid-cols-2 gap-2 border-t border-gray-50 pt-3">
-                                {[
-                                    { ph: "Số sổ", key: "book_number" },
-                                    { ph: "Ngân hàng", key: "bank_name" },
-                                ].map(f => (
-                                    <input key={f.key} className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder={f.ph} value={newBook[f.key]} onChange={e => setNewBook({...newBook, [f.key]: e.target.value})} />
-                                ))}
+                                <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Số sổ" value={newBook.book_number} onChange={e => setNewBook({...newBook, book_number: e.target.value})} />
+                                <div className="relative">
+                                    <input 
+                                        className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" 
+                                        placeholder="Ngân hàng" 
+                                        value={newBook.bank_name} 
+                                        onChange={e => setNewBook({...newBook, bank_name: e.target.value})}
+                                        onFocus={() => setActiveBankSuggest("new_book")}
+                                        onBlur={() => setTimeout(() => setActiveBankSuggest(null), 250)}
+                                    />
+                                    {activeBankSuggest === "new_book" && (
+                                        <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 divide-y divide-slate-100">
+                                            {getBankSuggestions(newBook.bank_name).length === 0 ? (
+                                                <div className="p-2 text-[10px] text-slate-400 text-center">Tự nhập...</div>
+                                            ) : (
+                                                getBankSuggestions(newBook.bank_name).map((bank) => (
+                                                    <button
+                                                        key={bank}
+                                                        type="button"
+                                                        onClick={() => setNewBook(p => ({ ...p, bank_name: bank }))}
+                                                        className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 transition-colors font-semibold"
+                                                    >
+                                                        {bank}
+                                                    </button>
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                                 <input type="number" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Số tiền gốc" value={newBook.amount} onChange={e => setNewBook({...newBook, amount: e.target.value})} />
                                 <input type="number" step="0.1" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Lãi suất %/năm" value={newBook.interest_rate} onChange={e => setNewBook({...newBook, interest_rate: e.target.value})} />
                                 <input type="date" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" value={newBook.start_date} onChange={e => setNewBook({...newBook, start_date: e.target.value})} />
@@ -812,6 +876,7 @@ const AccountBalance = ({ user, token }) => {
                                         <th className="px-4 py-3">Số tiền</th>
                                         <th className="px-4 py-3">Lãi suất</th>
                                         <th className="px-4 py-3">Tiền lãi</th>
+                                        <th className="px-4 py-3">So với {comparisonRate}%</th>
                                         <th className="px-4 py-3">Kỳ hạn</th>
                                         <th className="px-4 py-3">Trạng thái</th>
                                         <th className="px-4 py-3 text-center">Thao tác</th>
@@ -832,10 +897,37 @@ const AccountBalance = ({ user, token }) => {
                                         if (isEditing) {
                                             return (
                                                 <tr key={book.id} className="bg-indigo-50/20">
-                                                    <td className="px-4 py-2" colSpan={7}>
+                                                    <td className="px-4 py-2" colSpan={8}>
                                                         <div className="flex gap-2 items-center flex-wrap">
                                                             <input className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-28" placeholder="Số sổ" value={editingBook.book_number} onChange={e => setEditingBook({...editingBook, book_number: e.target.value})} />
-                                                            <input className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-24" placeholder="Ngân hàng" value={editingBook.bank_name} onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})} />
+                                                            <div className="relative w-24">
+                                                                <input 
+                                                                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none" 
+                                                                    placeholder="Ngân hàng" 
+                                                                    value={editingBook.bank_name} 
+                                                                    onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})}
+                                                                    onFocus={() => setActiveBankSuggest("edit_book_desktop")}
+                                                                    onBlur={() => setTimeout(() => setActiveBankSuggest(null), 250)}
+                                                                />
+                                                                {activeBankSuggest === "edit_book_desktop" && (
+                                                                    <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 divide-y divide-slate-100">
+                                                                        {getBankSuggestions(editingBook.bank_name).length === 0 ? (
+                                                                            <div className="p-2 text-[10px] text-slate-400 text-center">Tự nhập...</div>
+                                                                        ) : (
+                                                                            getBankSuggestions(editingBook.bank_name).map((bank) => (
+                                                                                <button
+                                                                                    key={bank}
+                                                                                    type="button"
+                                                                                    onClick={() => setEditingBook(p => ({ ...p, bank_name: bank }))}
+                                                                                    className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 transition-colors font-semibold"
+                                                                                >
+                                                                                    {bank}
+                                                                                </button>
+                                                                            ))
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                             <input type="number" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-28 text-right" placeholder="Số tiền" value={editingBook.amount} onChange={e => setEditingBook({...editingBook, amount: e.target.value})} />
                                                             <input type="number" step="0.1" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-16 text-right" placeholder="Lãi suất" value={editingBook.interest_rate} onChange={e => setEditingBook({...editingBook, interest_rate: e.target.value})} />
                                                             <input type="date" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-32" value={editingBook.start_date} onChange={e => setEditingBook({...editingBook, start_date: e.target.value})} />
@@ -868,6 +960,15 @@ const AccountBalance = ({ user, token }) => {
                                                 <td className="px-4 py-3 font-black text-slate-900 whitespace-nowrap">{mask(fmtFull(book.amount))}</td>
                                                 <td className="px-4 py-3 font-semibold text-slate-500 whitespace-nowrap">{book.interest_rate}%/năm</td>
                                                 <td className="px-4 py-3 font-bold text-emerald-600 whitespace-nowrap">+{mask(fmtFull(interest))}</td>
+                                                <td className="px-4 py-3 font-bold whitespace-nowrap">
+                                                    {(() => {
+                                                        const compInterest = calculateComparisonInterest(book);
+                                                        const diff = interest - compInterest;
+                                                        const diffColor = diff > 0 ? "text-emerald-600" : diff < 0 ? "text-rose-500" : "text-slate-400";
+                                                        const diffText = diff > 0 ? `+${mask(formatVNDCompact(diff, true))}` : diff < 0 ? `-${mask(formatVNDCompact(Math.abs(diff), true))}` : "0 ₫";
+                                                        return book.status === "active" ? <span className={diffColor}>{diffText}</span> : <span className="text-slate-300">—</span>;
+                                                    })()}
+                                                </td>
                                                 <td className="px-4 py-3 whitespace-nowrap">
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] font-mono text-slate-500">{book.start_date} → {book.end_date}</span>
@@ -925,7 +1026,34 @@ const AccountBalance = ({ user, token }) => {
                                 if (isEditing) return (
                                     <div key={book.id} className="p-4 bg-indigo-50/30 grid grid-cols-2 gap-2">
                                         <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Số sổ" value={editingBook.book_number} onChange={e => setEditingBook({...editingBook, book_number: e.target.value})} />
-                                        <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Ngân hàng" value={editingBook.bank_name} onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})} />
+                                        <div className="relative">
+                                            <input 
+                                                className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" 
+                                                placeholder="Ngân hàng" 
+                                                value={editingBook.bank_name} 
+                                                onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})}
+                                                onFocus={() => setActiveBankSuggest("edit_book_mobile")}
+                                                onBlur={() => setTimeout(() => setActiveBankSuggest(null), 250)}
+                                            />
+                                            {activeBankSuggest === "edit_book_mobile" && (
+                                                <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50 divide-y divide-slate-100">
+                                                    {getBankSuggestions(editingBook.bank_name).length === 0 ? (
+                                                        <div className="p-2 text-[10px] text-slate-400 text-center">Tự nhập...</div>
+                                                    ) : (
+                                                        getBankSuggestions(editingBook.bank_name).map((bank) => (
+                                                            <button
+                                                                key={bank}
+                                                                type="button"
+                                                                onClick={() => setEditingBook(p => ({ ...p, bank_name: bank }))}
+                                                                className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 transition-colors font-semibold"
+                                                            >
+                                                                {bank}
+                                                            </button>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                         <input type="number" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Số tiền" value={editingBook.amount} onChange={e => setEditingBook({...editingBook, amount: e.target.value})} />
                                         <input type="number" step="0.1" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Lãi suất" value={editingBook.interest_rate} onChange={e => setEditingBook({...editingBook, interest_rate: e.target.value})} />
                                         <input type="date" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" value={editingBook.start_date} onChange={e => setEditingBook({...editingBook, start_date: e.target.value})} />
@@ -957,6 +1085,18 @@ const AccountBalance = ({ user, token }) => {
                                                     <span className="text-xs text-gray-400">{book.interest_rate}%/năm</span>
                                                     <span className="text-xs text-emerald-600 font-semibold">+{mask(formatVNDCompact(interest, true))}</span>
                                                 </div>
+                                                {(() => {
+                                                    const compInterest = calculateComparisonInterest(book);
+                                                    const diff = interest - compInterest;
+                                                    const diffColor = diff > 0 ? "text-emerald-600" : diff < 0 ? "text-rose-500" : "text-slate-400";
+                                                    const diffText = diff > 0 ? `+${mask(formatVNDCompact(diff, true))}` : diff < 0 ? `-${mask(formatVNDCompact(Math.abs(diff), true))}` : "0 ₫";
+                                                    return isActive ? (
+                                                        <div className="text-[11px] font-bold mt-1">
+                                                            <span className="text-gray-400">So với {comparisonRate}%: </span>
+                                                            <span className={diffColor}>{diffText}</span>
+                                                        </div>
+                                                    ) : null;
+                                                })()}
                                                 <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{book.start_date} → {book.end_date}</p>
                                                 {isActive && (
                                                     <div className="mt-1.5">
@@ -978,11 +1118,19 @@ const AccountBalance = ({ user, token }) => {
                         </div>
 
                         {/* So sánh lãi */}
-                        <div className="border-t border-gray-100 px-4 py-3 flex items-center gap-2 bg-gray-50/50">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Lãi so sánh</span>
-                            <input type="number" step="0.01" className="w-14 text-xs font-bold text-indigo-700 border border-indigo-200 bg-indigo-50 rounded-lg px-2 py-1 focus:outline-none text-center" value={comparisonRate} onChange={e => setComparisonRate(e.target.value)} />
-                            <span className="text-xs text-gray-400">%/năm →</span>
-                            <span className="text-xs font-black text-indigo-700">{mask(formatVNDCompact(totalComparisonInterest, true))}</span>
+                        <div className="border-t border-gray-100 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 bg-gray-50/50">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Lãi so sánh</span>
+                                <input type="number" step="0.01" className="w-20 text-xs font-bold text-indigo-700 border border-indigo-200 bg-indigo-50 rounded-lg px-2 py-1 focus:outline-none text-center" value={comparisonRate} onChange={e => setComparisonRate(e.target.value)} />
+                                <span className="text-xs text-gray-400">%/năm →</span>
+                                <span className="text-xs font-black text-indigo-700">{mask(formatVNDCompact(totalComparisonInterest, true))}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-auto">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Chênh lệch:</span>
+                                <span className={`text-xs font-bold ${totalDiff > 0 ? "text-emerald-600" : totalDiff < 0 ? "text-rose-500" : "text-gray-500"}`}>
+                                    {totalDiff > 0 ? "+" : ""}{mask(formatVNDCompact(totalDiff, false))}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 )}

@@ -1,9 +1,10 @@
 import React, { Suspense, lazy, useState } from "react";
-import { Wallet, DollarSign, StickyNote, CheckSquare, Utensils } from "lucide-react";
+import { Wallet, DollarSign, StickyNote, CheckSquare, Utensils, Zap, Home } from "lucide-react";
 
 const ExpenseTracker = lazy(() => import("./ExpenseTracker"));
 const FoodTracker = lazy(() => import("./FoodTracker"));
 const AccountBalance = lazy(() => import("./AccountBalance"));
+const ExpenseDienNuoc = lazy(() => import("./ExpenseDienNuoc"));
 const PersonalNotes = lazy(() => import("./PersonalNotes"));
 const PersonalTasks = lazy(() => import("./PersonalTasks"));
 
@@ -23,6 +24,7 @@ const TABS = [
     { id: "expenses", label: "Thu Chi", icon: DollarSign },
     { id: "food", label: "Ăn uống", icon: Utensils },
     { id: "balance", label: "Tài khoản", icon: Wallet },
+    { id: "diennuoc", label: "Tiền nhà", icon: Home },
     { id: "notes", label: "Ghi chú", icon: StickyNote },
     { id: "tasks", label: "Công việc", icon: CheckSquare },
 ];
@@ -72,6 +74,7 @@ const PersonalHub = ({ user, token }) => {
                     {activeTab === "expenses" && <ExpenseTracker user={user} token={token} />}
                     {activeTab === "food" && <FoodTracker token={token} />}
                     {activeTab === "balance" && <AccountBalance user={user} token={token} />}
+                    {activeTab === "diennuoc" && <ExpenseDienNuoc user={user} token={token} />}
                     {activeTab === "notes" && <PersonalNotes token={token} />}
                     {activeTab === "tasks" && <PersonalTasks token={token} />}
                 </Suspense>

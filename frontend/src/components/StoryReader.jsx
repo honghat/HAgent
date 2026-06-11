@@ -122,8 +122,6 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
   const [chaptersLoading, setChaptersLoading] = useState(true)
   const [error, setError] = useState(null)
   const [appendingNext, setAppendingNext] = useState(false)
-  const [autoAdvancing, setAutoAdvancing] = useState(false)
-  const [autoAdvancing, setAutoAdvancing] = useState(false)
   // Chương đang trong tầm nhìn (cho header + lịch sử) khi đọc liên tục
   const [viewSlug, setViewSlug] = useState(initialChapter?.slug || null)
 
@@ -207,10 +205,7 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
   // Đổi tab không đổi sessionId nên không reset (reader vẫn giữ vị trí + TTS đang chạy).
   useEffect(() => {
     if (sessionId == null || !initialChapter) return
-    // Chỉ chuyển chương nếu autoAdvanceRef chưa active (tránh ghi đè auto-advance TTS)
-    if (!autoAdvanceRef.current) {
-      setCurrentChapter(initialChapter)
-    }
+    setCurrentChapter(initialChapter)
   }, [sessionId])
 
   // Save preference helper
@@ -267,18 +262,14 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
         // Save reading history / bookmark
         saveReadingProgress(currentChapter)
 
-              // Auto-advance TTS to next chapter when TTS finished previous chapter (non-continuous mode)
-        if (autoAdvanceRef.current && !appendingNextRef.current) {
-          autoAdvanceRef.current = false
-          setAutoAdvancing(true)
+        // If we flagged auto-advance (TTS finished previous chapter), start TTS on new chapter
+        if (autoAdvanceRef.current) {
           // small delay to ensure DOM and refs updated
           setTimeout(() => {
+            autoAdvanceRef.current = false
             // start reading from first paragraph
             if (ttsEnabled) playParagraph(0)
-            setAutoAdvancing(false)
-          }, 500)
-        } else {
-          setAutoAdvancing(false)
+          }, 300)
         }
       })
       .catch(e => {
@@ -384,19 +375,8 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
         ttsContinueRef.current = paragraphsRef.current.length
         loadNextChapter()
       } else {
-        // Đảm bảo chỉ auto-advance khi có chương tiếp theo thực sự
-        if (currentChapter && chaptersList.length > 0) {
-          const currentIndex = chaptersList.findIndex(c => c.slug === currentChapter.slug)
-          if (currentIndex >= 0 && currentIndex < chaptersList.length - 1) {
-            autoAdvanceRef.current = true
-            setCurrentChapter(next)
-          } else {
-            // Đã ở chương cuối cùng
-            stopAudio()
-            setActiveParagraphIndex(-1)
-            currentIndexRef.current = -1
-          }
-        }
+        autoAdvanceRef.current = true
+        setCurrentChapter(next)
       }
     } else {
       stopAudio()
@@ -405,10 +385,10 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
     }
   }
 
-  // Cuộn để cập nhật chương đang xem + tự động chuyển chương khi gần cuối
+  // Cuộn để cập nhật chương đang xem + tự nối chương khi gần cuối (chỉ chế độ liên tục)
   const handleScroll = () => {
     const el = containerRef.current
-    if (!el) return
+    if (!el || !continuousMode) return
     const contTop = el.getBoundingClientRect().top
     let visible = sections[0]?.slug
     for (let i = 0; i < sections.length; i++) {
@@ -420,21 +400,8 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
       const sec = sections.find(s => s.slug === visible)
       if (sec) saveReadingProgress({ slug: sec.slug, title: sec.title })
     }
-
-    // Auto-advance chapter dựa trên vị trí cuộn trong chế độ liên tục
-    if (continuousMode && sections.length > 0) {
-      // Kiểm tra gần cuối chương (<= 15% chiều cao màn hình còn lại)
-      const scrollPercentage = el.scrollTop / (el.scrollHeight - el.clientHeight)
-      const lastSection = sections[sections.length - 1]
-      const sectionHeight = lastSection.paragraphs?.length > 0 ? lastSection.paragraphs.length * 40 : 400
-      const contentBottom = el.scrollTop + el.clientHeight
-      
-      if (contentBottom >= (el.scrollHeight - 200)) {
-        const next = getNextAfterLastSection()
-        if (next && !appendingNextRef.current) {
-          loadNextChapter()
-        }
-      }
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 600 && !appendingNextRef.current) {
+      loadNextChapter()
     }
   }
 
@@ -1086,12 +1053,12 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
             ) : (
               <div className="mt-16 pt-8 border-t border-gray-400/10 flex items-center justify-between font-sans text-xs">
                 <button
-                  disabled={!prevChapter || autoAdvancing}
+                  disabled={!prevChapter}
                   onClick={() => {
-                    if (prevChapter && !autoAdvancing) setCurrentChapter(prevChapter)
+                    if (prevChapter) setCurrentChapter(prevChapter)
                   }}
                   className={`flex items-center gap-1.5 rounded-full border px-4 py-2 font-bold transition-all shadow-sm ${
-                    prevChapter && !autoAdvancing
+                    prevChapter
                       ? 'border-amber-600 text-amber-600 bg-transparent hover:bg-amber-600/5'
                       : 'border-transparent opacity-30 cursor-not-allowed'
                   }`}
@@ -1110,12 +1077,12 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
                 </button>
 
                 <button
-                  disabled={!nextChapter || autoAdvancing}
+                  disabled={!nextChapter}
                   onClick={() => {
-                    if (nextChapter && !autoAdvancing) setCurrentChapter(nextChapter)
+                    if (nextChapter) setCurrentChapter(nextChapter)
                   }}
                   className={`flex items-center gap-1.5 rounded-full border px-4 py-2 font-bold transition-all shadow-sm ${
-                    nextChapter && !autoAdvancing
+                    nextChapter
                       ? 'bg-amber-600 border-amber-600 text-white hover:bg-amber-700 shadow-amber-600/10'
                       : 'border-transparent opacity-30 cursor-not-allowed'
                   }`}

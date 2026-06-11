@@ -188,24 +188,27 @@ def migrate():
                 "author_title": "Vibe Coder",
                 "pinned": True,
                 "content": """
-                    <h2>HAgent là gì?</h2>
-                    <p><strong>HAgent</strong> là một hệ sinh thái AI Agent cá nhân (Personal AI Agent Ecosystem) được thiết kế đặc biệt để giúp lập trình viên và người dùng nâng cao năng suất làm việc hàng ngày. Không chỉ dừng lại ở một chatbot thông thường, HAgent sở hữu hệ thống tools mạnh mẽ cho phép tương tác trực tiếp với hệ điều hành dưới sự kiểm soát an toàn của bạn.</p>
+                    <p>HAgent là trợ lý AI cá nhân chạy ngay trên máy của bạn — một "bộ não thứ hai" giúp bạn lập trình, quản lý công việc, tự động hóa quy trình và theo dõi tài chính, tất cả trong một giao diện duy nhất.</p>
 
-                    <h2>Các tính năng cốt lõi làm nên sức mạnh của HAgent</h2>
+                    <h2>HAgent giải quyết điều gì?</h2>
+                    <p>Thay vì phải nhảy qua lại giữa hàng chục công cụ rời rạc, bạn chỉ cần trò chuyện với HAgent. Agent tự lập kế hoạch, chọn đúng công cụ và thực thi — từ viết code, chạy lệnh terminal, tra cứu thông tin đến gửi tin nhắn đa nền tảng — luôn dưới sự kiểm soát và cho phép của bạn.</p>
+
+                    <h2>Những năng lực cốt lõi</h2>
                     <ul>
-                        <li><strong>Omni Chat đa nhân vật:</strong> Hỗ trợ tích hợp và chuyển đổi mượt mà giữa các mô hình ngôn ngữ lớn hàng đầu thế giới (Google Gemini, DeepSeek-R1, GPT-4o) để phục vụ các mục đích khác nhau từ code, dịch thuật đến viết lách.</li>
-                        <li><strong>Trợ lý lập trình thực chiến:</strong> Tích hợp sâu với terminal và trình soạn thảo file. HAgent có khả năng hiểu codebase hiện tại của bạn, tự động sửa lỗi code, chạy unit test và thực thi các câu lệnh terminal sau khi nhận được sự đồng ý của bạn.</li>
-                        <li><strong>Tự động hóa thông minh (Automation Hub):</strong> Thiết lập các tác vụ định kỳ (Cron Jobs), quản lý Docker, tự động hóa quy trình sao lưu dữ liệu (Backup) và đồng bộ tệp tin đám mây.</li>
-                        <li><strong>Quản lý tài chính cá nhân:</strong> Phân hệ theo dõi chi tiêu chi tiết (Expense Tracker), thống kê số dư ngân hàng (Account Balance) giúp bạn nắm bắt dòng tiền một cách nhanh chóng và bảo mật nhất.</li>
+                        <li><strong>Trợ lý lập trình thực chiến:</strong> Hiểu codebase hiện tại, sửa lỗi, viết kiểm thử và chạy lệnh terminal trong môi trường sandbox an toàn.</li>
+                        <li><strong>OmniChat đa kênh:</strong> Gộp Telegram, Zalo, Facebook... vào một hộp thư chung, bật/tắt tự động trả lời cho từng hội thoại với mô hình AI riêng.</li>
+                        <li><strong>Tự động hóa thông minh:</strong> Lên lịch tác vụ định kỳ (Cron), giám sát dịch vụ, quản lý Docker và sao lưu dữ liệu tự động.</li>
+                        <li><strong>Quản lý tài chính cá nhân:</strong> Ghi chép chi tiêu, theo dõi số dư tài khoản và nắm bắt dòng tiền nhanh gọn, bảo mật.</li>
+                        <li><strong>Kho tri thức tự tiến hóa:</strong> Tự rút trích và sắp xếp kiến thức sau mỗi cuộc trò chuyện thành Wiki cá nhân của riêng bạn.</li>
                     </ul>
 
-                    <div class="highlight-box bg-indigo-50 border-l-4 border-indigo-500 p-4 my-6 rounded-r-xl">
-                        <p class="font-bold text-slate-800">Cam kết bảo mật & Quyền riêng tư:</p>
-                        <p class="text-sm text-slate-600">Mọi dữ liệu cá nhân, nhật ký trò chuyện, thông tin tài chính đều được lưu trữ hoàn toàn trên máy cục bộ của bạn hoặc đồng bộ hóa mã hóa bảo mật đến tài khoản đám mây cá nhân (Google Drive), tuyệt đối không chia sẻ cho bên thứ ba.</p>
-                    </div>
+                    <h2>Nhiều mô hình, một trải nghiệm</h2>
+                    <p>HAgent tích hợp linh hoạt các mô hình ngôn ngữ hàng đầu như Google Gemini, DeepSeek-R1 hay GPT-4o. Bạn chọn đúng "bộ não" cho từng việc — lập trình, dịch thuật hay sáng tạo nội dung — mà không cần rời khỏi ứng dụng.</p>
 
-                    <h2>Tầm nhìn tương lai</h2>
-                    <p>HAgent hướng tới việc trở thành một "AI OS" - một hệ điều hành mini chạy bằng AI, nơi các agent phối hợp nhịp nhàng để giải quyết các luồng công việc phức tạp thay thế con người. Hãy cùng tham gia trải nghiệm và xây dựng tương lai năng suất vượt trội cùng HAgent!</p>
+                    <blockquote>Mọi dữ liệu cá nhân, nhật ký trò chuyện và thông tin tài chính đều được lưu trên máy của bạn hoặc đồng bộ mã hóa tới tài khoản đám mây riêng — tuyệt đối không chia sẻ cho bên thứ ba.</blockquote>
+
+                    <h2>Tầm nhìn</h2>
+                    <p>HAgent hướng tới một "AI OS" thu nhỏ: nơi nhiều agent phối hợp nhịp nhàng để xử lý những luồng công việc phức tạp thay cho bạn. Đăng nhập để bắt đầu trải nghiệm và cùng xây dựng tương lai năng suất vượt trội.</p>
                 """
             }
         ]

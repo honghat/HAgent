@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { 
-    BookOpen, Search, ArrowLeft, Calendar, Clock, 
-    Share2, Sparkles, Heart, 
-    ChevronRight, Brain 
+import {
+    BookOpen, Search, ArrowLeft, Calendar, Clock,
+    Share2, Sparkles, Heart,
+    ChevronRight, Brain
 } from "lucide-react";
+import logo from "../assets/logo.png";
 
 const CATEGORIES = ["Tất cả", "Mô hình ngôn ngữ", "Suy luận AI", "Ứng dụng AI", "Hướng dẫn"];
 
@@ -60,31 +59,6 @@ export default function BlogHub({ user, token, onViewChange }) {
         return posts.find(post => post.id === activePostId);
     }, [posts, activePostId]);
 
-    const [readmeContent, setReadmeContent] = useState("");
-    const [loadingReadme, setLoadingReadme] = useState(false);
-
-    const isReadmePost = currentPost?.id === 5 || currentPost?.pinned;
-
-    useEffect(() => {
-        if (isReadmePost && !readmeContent) {
-            setLoadingReadme(true);
-            fetch("/api/config/readme")
-                .then(r => {
-                    if (!r.ok) throw new Error("Fetch failed");
-                    return r.json();
-                })
-                .then(data => {
-                    setReadmeContent(data.content || "");
-                })
-                .catch(err => {
-                    console.error("Failed to load README.md:", err);
-                })
-                .finally(() => {
-                    setLoadingReadme(false);
-                });
-        }
-    }, [isReadmePost, readmeContent]);
-
     const filteredArticles = useMemo(() => {
         const filtered = posts.filter(post => {
             const matchesCategory = activeCategory === "Tất cả" || post.category === activeCategory;
@@ -134,7 +108,7 @@ export default function BlogHub({ user, token, onViewChange }) {
         }
     };
 
-    if (loading || (isGuest && loadingReadme)) {
+    if (loading) {
         return (
             <div className={`h-full flex items-center justify-center ${isGuest ? "bg-white" : "bg-slate-50/50"}`}>
                 <div className="flex flex-col items-center gap-3">
@@ -154,10 +128,10 @@ export default function BlogHub({ user, token, onViewChange }) {
                     {/* Guest Sticky Header */}
                     <div className="flex justify-between items-center mb-8 pb-6 border-b border-slate-100">
                         <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-base shadow-sm">H</div>
+                            <img src={logo} alt="HAgent" className="w-9 h-9 rounded-xl shadow-sm object-cover" />
                             <span className="font-extrabold text-slate-800 text-base tracking-tight">HAgent</span>
                         </div>
-                        
+
                         <button
                             onClick={() => onViewChange('login')}
                             className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all cursor-pointer"
@@ -167,32 +141,52 @@ export default function BlogHub({ user, token, onViewChange }) {
                         </button>
                     </div>
 
-                    <div className="bg-white rounded-3xl p-2 sm:p-6">
-                        {isReadmePost && readmeContent ? (
-                            <div className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
-                                markdown-content
-                                [&_h1]:text-2xl sm:[&_h1]:text-3xl [&_h1]:font-black [&_h1]:text-slate-900 [&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:border-b [&_h1]:pb-2 [&_h1]:border-slate-100
+                    <article className="bg-white rounded-3xl p-2 sm:p-6">
+                        {/* Logo Hero + Title */}
+                        <div className="flex flex-col items-center text-center mb-10">
+                            <img src={logo} alt="HAgent" className="w-20 h-20 rounded-2xl shadow-md mb-5" />
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-wider mb-3">
+                                <Sparkles size={11} /> Giới thiệu
+                            </span>
+                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 leading-tight max-w-2xl">
+                                {currentPost?.title}
+                            </h1>
+                            {currentPost && (
+                                <div className="flex items-center gap-3 text-xs font-semibold text-slate-400 mt-4">
+                                    <span className="flex items-center gap-1.5">
+                                        <Calendar size={13} />
+                                        {new Date(currentPost.date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                                    </span>
+                                    <span>•</span>
+                                    <span className="flex items-center gap-1.5"><Clock size={13} />{currentPost.readTime}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div
+                            className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
                                 [&_h2]:text-xl sm:[&_h2]:text-2xl [&_h2]:font-black [&_h2]:text-slate-800 [&_h2]:mt-8 [&_h2]:mb-4
                                 [&_h3]:text-lg sm:[&_h3]:text-xl [&_h3]:font-black [&_h3]:text-slate-800 [&_h3]:mt-6 [&_h3]:mb-3
                                 [&_p]:mb-4 [&_p]:text-justify [&_p]:leading-relaxed
                                 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_ul_li]:mb-1.5
                                 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_ol_li]:mb-1.5
                                 [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-600 [&_blockquote]:my-6 [&_blockquote]:bg-slate-50 [&_blockquote]:py-2 [&_blockquote]:pr-4 [&_blockquote]:rounded-r-lg
-                                [&_strong]:font-extrabold [&_strong]:text-slate-900
-                                [&_pre]:bg-slate-950 [&_pre]:text-slate-100 [&_pre]:p-5 [&_pre]:rounded-2xl [&_pre]:overflow-x-auto [&_pre]:my-6 [&_pre]:shadow-inner [&_pre]:border [&_pre]:border-slate-800
-                                [&_code]:bg-slate-100 [&_code]:text-indigo-600 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:text-slate-100 [&_pre_code]:p-0 [&_pre_code]:text-sm"
+                                [&_strong]:font-extrabold [&_strong]:text-slate-900"
+                            dangerouslySetInnerHTML={{ __html: currentPost?.content }}
+                        />
+
+                        {/* CTA */}
+                        <div className="mt-10 pt-8 border-t border-slate-100 flex flex-col items-center text-center gap-3">
+                            <p className="text-sm font-bold text-slate-700">Sẵn sàng trải nghiệm HAgent?</p>
+                            <button
+                                onClick={() => onViewChange('login')}
+                                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-sm hover:shadow transition-all cursor-pointer"
                             >
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {readmeContent}
-                                </ReactMarkdown>
-                            </div>
-                        ) : (
-                            <div 
-                                className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed"
-                                dangerouslySetInnerHTML={{ __html: currentPost?.content }}
-                            />
-                        )}
-                    </div>
+                                <span>Đăng nhập để bắt đầu</span>
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+                    </article>
                 </div>
             </div>
         );
@@ -259,36 +253,17 @@ export default function BlogHub({ user, token, onViewChange }) {
                             </header>
 
                             {/* Main Text Content */}
-                            {isReadmePost && readmeContent ? (
-                                <div className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
-                                    markdown-content
-                                    [&_h1]:text-xl sm:[&_h1]:text-2xl [&_h1]:font-black [&_h1]:text-slate-800 [&_h1]:mt-6 [&_h1]:mb-3
+                            <div
+                                className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
                                     [&_h2]:text-lg sm:[&_h2]:text-xl [&_h2]:font-black [&_h2]:text-slate-800 [&_h2]:mt-6 [&_h2]:mb-3
                                     [&_h3]:text-base sm:[&_h3]:text-lg [&_h3]:font-black [&_h3]:text-slate-800 [&_h3]:mt-4 [&_h3]:mb-2
-                                    [&_p]:mb-4 [&_p]:text-justify [&_p]:leading-relaxed
+                                    [&_p]:mb-4 [&_p]:text-justify
                                     [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ul_li]:mb-1
                                     [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_ol_li]:mb-1
                                     [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-600 [&_blockquote]:my-4
-                                    [&_strong]:font-extrabold [&_strong]:text-slate-800
-                                    [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-4 [&_pre]:rounded-xl [&_pre]:overflow-x-auto [&_pre]:my-4
-                                    [&_code]:bg-slate-100 [&_code]:text-indigo-600 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:text-slate-100 [&_pre_code]:p-0"
-                                >
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {readmeContent}
-                                    </ReactMarkdown>
-                                </div>
-                            ) : (
-                                <div 
-                                    className="prose max-w-none text-slate-700 text-sm sm:text-base leading-relaxed
-                                        [&_h2]:text-lg sm:[&_h2]:text-xl [&_h2]:font-black [&_h2]:text-slate-800 [&_h2]:mt-6 [&_h2]:mb-3
-                                        [&_p]:mb-4 [&_p]:text-justify
-                                        [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ul_li]:mb-1
-                                        [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_ol_li]:mb-1
-                                        [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-600 [&_blockquote]:my-4
-                                        [&_strong]:font-extrabold [&_strong]:text-slate-800"
-                                    dangerouslySetInnerHTML={{ __html: currentPost.content }}
-                                />
-                            )}
+                                    [&_strong]:font-extrabold [&_strong]:text-slate-800"
+                                dangerouslySetInnerHTML={{ __html: currentPost.content }}
+                            />
 
                             {/* Author Box */}
                             <div className="mt-8 pt-8 border-t border-slate-100">

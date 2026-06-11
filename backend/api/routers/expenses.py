@@ -196,37 +196,6 @@ def delete_category_endpoint(
     return {"detail": "Category deleted successfully"}
 
 
-# ============= INDIVIDUAL EXPENSE APIs =============
-@router.get("/{expense_id}", response_model=ExpenseResponse)
-def get_expense(
-    expense_id: int, 
-    db: Session = Depends(get_finance_db),
-    hagent_uid: str = Depends(_get_user_id)
-):
-    expense = db.query(Expense).filter(Expense.id == expense_id).first()
-    if not expense:
-        raise HTTPException(status_code=404, detail="Expense not found")
-    return expense
-
-@router.put("/{expense_id}", response_model=ExpenseResponse)
-def update_expense_endpoint(
-    expense_id: int, 
-    expense_data: ExpenseUpdate, 
-    db: Session = Depends(get_finance_db),
-    hagent_uid: str = Depends(_get_user_id)
-):
-    psql_uid = get_psql_user_id(db, hagent_uid)
-    expense_data.userid = psql_uid
-    return update_expense(db, expense_id, expense_data)
-
-@router.delete("/{expense_id}")
-def delete_expense_endpoint(
-    expense_id: int, 
-    db: Session = Depends(get_finance_db),
-    hagent_uid: str = Depends(_get_user_id)
-):
-    return delete_expense(db, expense_id)
-
 # ============= THỰC ĐƠN APIs =============
 @router.get("/food-menu", response_model=List[FoodMenuResponse])
 def read_food_menu(
@@ -258,5 +227,38 @@ def delete_food_item_endpoint(
     psql_uid = get_psql_user_id(db, hagent_uid)
     delete_food_item(db, item_id=item_id, user_id=psql_uid)
     return {"detail": "Món ăn đã được xóa khỏi thực đơn"}
+
+
+# ============= INDIVIDUAL EXPENSE APIs =============
+@router.get("/{expense_id}", response_model=ExpenseResponse)
+def get_expense(
+    expense_id: int, 
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return expense
+
+@router.put("/{expense_id}", response_model=ExpenseResponse)
+def update_expense_endpoint(
+    expense_id: int, 
+    expense_data: ExpenseUpdate, 
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    expense_data.userid = psql_uid
+    return update_expense(db, expense_id, expense_data)
+
+@router.delete("/{expense_id}")
+def delete_expense_endpoint(
+    expense_id: int, 
+    db: Session = Depends(get_finance_db),
+    hagent_uid: str = Depends(_get_user_id)
+):
+    return delete_expense(db, expense_id)
+
 
 

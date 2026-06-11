@@ -136,7 +136,7 @@ def dashboard(user_id: str = Depends(_current_user)):
         try:
             match_rows = conn.execute(
                 """
-                SELECT m.rowid AS id, j.rowid AS job_id, m.job_url, m.match_score, m.verdict, m.matched_json, m.missing_json,
+                SELECT m.user_id || '_' || m.job_url AS id, j.url AS job_id, m.job_url, m.match_score, m.verdict, m.matched_json, m.missing_json,
                        j.title, j.company, j.location, j.salary, j.salary_min, j.salary_max,
                        j.source, j.posted_date
                 FROM cv_match_scores m

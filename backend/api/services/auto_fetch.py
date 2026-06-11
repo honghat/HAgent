@@ -338,7 +338,7 @@ def _finish_source(source: dict, *, fetched: int = 0, saved: int = 0, skipped: i
 
 def _next_run_at(source: dict) -> str:
     seconds = _normalize_interval(source.get("interval_seconds") or DEFAULT_INTERVAL_SECONDS)
-    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).strftime("%Y-%m-%d %H:%M:%S")
+    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).strftime("%Y-%m-%d %H:%M:%S+00")
 
 
 def _row_to_source(row) -> dict:

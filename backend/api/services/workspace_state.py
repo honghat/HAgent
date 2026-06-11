@@ -103,7 +103,7 @@ def _load_session_todos(session_id: str) -> list[dict]:
                 SELECT id, content, status
                 FROM session_todos
                 WHERE session_id = ?
-                ORDER BY created_at ASC, rowid ASC
+                ORDER BY created_at ASC, id ASC
                 """,
                 (session_id,),
             ).fetchall()

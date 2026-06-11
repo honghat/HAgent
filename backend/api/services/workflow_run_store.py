@@ -129,7 +129,7 @@ def list_run_steps(run_id: str) -> list[dict]:
                    input_json, output_json, error, started_at, finished_at
             FROM workflow_run_steps
             WHERE run_id = ?
-            ORDER BY started_at ASC, rowid ASC
+            ORDER BY started_at ASC, id ASC
             """,
             (run_id,),
         ).fetchall()
@@ -156,7 +156,7 @@ def list_run_artifacts(run_id: str, user_id: str) -> list[dict]:
             SELECT id, run_id, workflow_id, user_id, node_id, payload_json, created_at
             FROM workflow_artifacts
             WHERE run_id = ? AND user_id = ?
-            ORDER BY created_at ASC, rowid ASC
+            ORDER BY created_at ASC, id ASC
             """,
             (run_id, user_id),
         ).fetchall()

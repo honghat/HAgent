@@ -1313,9 +1313,9 @@ async def delete_job_by_ref(job_ref: str):
         row = conn.execute(
             """
             SELECT url FROM cached_jobs
-            WHERE url = ? OR rowid = ?
+            WHERE url = ?
             """,
-            (job_ref, job_ref if str(job_ref).isdigit() else -1),
+            (job_ref,),
         ).fetchone()
     if not row:
         raise HTTPException(404, "Job not found")

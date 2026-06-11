@@ -185,7 +185,7 @@ def _next_run_at(graph: dict, interval_seconds: int) -> str:
         target = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if target <= now_local:
             target += timedelta(days=1)
-        return target.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        return target.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S+00")
 
     next_time = datetime.now(timezone.utc) + timedelta(seconds=max(60, int(interval_seconds or 7200)))
-    return next_time.strftime("%Y-%m-%d %H:%M:%S")
+    return next_time.strftime("%Y-%m-%d %H:%M:%S+00")

@@ -270,6 +270,11 @@ function BrowseMode({ api }) {
   }
 
   async function handleRenameTable() {
+    const isSys = tables.find(t => t.name === sel)?.system
+    if (isSys) {
+      const force = window.confirm(`CẢNH BÁO NGUY HIỂM: "${sel}" là bảng hệ thống của HAgent. Đổi tên có thể làm hỏng ứng dụng. Bạn vẫn muốn tiếp tục?`)
+      if (!force) return
+    }
     const newName = window.prompt(`Nhập tên mới cho bảng "${sel}":`, sel)
     if (!newName) return
     const trimmed = newName.trim()
@@ -287,8 +292,14 @@ function BrowseMode({ api }) {
   }
 
   async function handleDropTable() {
-    const ok = window.confirm(`Bạn có chắc chắn muốn xoá bảng "${sel}"? Lệnh này không thể hoàn tác.`)
-    if (!ok) return
+    const isSys = tables.find(t => t.name === sel)?.system
+    if (isSys) {
+      const force = window.confirm(`CẢNH BÁO CỰC KỲ NGUY HIỂM: "${sel}" là bảng hệ thống của HAgent. Xoá bảng này CHẮC CHẮN sẽ làm hỏng hoặc ngừng hoạt động ứng dụng. Bạn có chắc chắn muốn xoá?`)
+      if (!force) return
+    } else {
+      const ok = window.confirm(`Bạn có chắc chắn muốn xoá bảng "${sel}"? Lệnh này không thể hoàn tác.`)
+      if (!ok) return
+    }
     const cascade = window.confirm(`Xoá cả các ràng buộc liên quan (CASCADE)? Chọn 'Cancel' để xoá thông thường (RESTRICT).`)
     setLoading(true); setErr('')
     try {
@@ -308,6 +319,8 @@ function BrowseMode({ api }) {
 
   if (!tables) return <Spinner />
 
+  const selTable = tables.find(t => t.name === sel)
+
   return (
     <div className="flex flex-col gap-3 md:flex-row">
       <aside className="shrink-0 md:w-52">
@@ -315,7 +328,10 @@ function BrowseMode({ api }) {
           {tables.length === 0 ? <EmptyState>Chưa có bảng</EmptyState> : tables.map(t => (
             <button key={t.name} onClick={() => openTable(t.name)}
               className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] transition-all ${sel === t.name ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-              <span className="truncate font-medium">{t.name}</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                {!t.system && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse" title="Bảng tự định nghĩa (Có thể xoá an toàn)" />}
+                <span className="truncate font-medium">{t.name}</span>
+              </div>
               <span className={`shrink-0 text-[10px] ${sel === t.name ? 'text-gray-300' : 'text-gray-400'}`}>{t.rows}</span>
             </button>
           ))}
@@ -338,6 +354,13 @@ function BrowseMode({ api }) {
                 <button className={btn('soft')} onClick={handleRenameTable} title="Đổi tên bảng">✏️ Đổi tên</button>
                 <button className={btn('danger')} onClick={handleDropTable} title="Xoá bảng">🗑️ Xoá bảng</button>
                 <span className="font-mono text-[12px] font-semibold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-md">{sel}</span>
+                {selTable && (
+                  selTable.system ? (
+                    <Badge color="gray">Hệ thống</Badge>
+                  ) : (
+                    <Badge color="green">Có thể xoá</Badge>
+                  )
+                )}
               </div>
             </div>
 

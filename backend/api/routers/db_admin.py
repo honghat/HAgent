@@ -32,6 +32,26 @@ MAX_ROWS = 1000  # trần số dòng trả về cho mỗi câu SELECT để bả
 # connId -> creds. Chỉ trong RAM; mất khi restart (frontend sẽ tự kết nối lại).
 _SESSIONS: dict[str, dict] = {}
 
+_SYSTEM_TABLES = set()
+try:
+    from api.services.pg_schema import SCHEMA_STATEMENTS
+    for stmt in SCHEMA_STATEMENTS:
+        m = re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"([^"]+)"|([A-Za-z0-9_]+))', stmt, re.IGNORECASE)
+        if m:
+            tb = m.group(1) or m.group(2)
+            _SYSTEM_TABLES.add(tb)
+            _SYSTEM_TABLES.add(tb.lower())
+except Exception:
+    pass
+
+try:
+    from api.services.finance_db import Base
+    for tb in Base.metadata.tables:
+        _SYSTEM_TABLES.add(tb)
+        _SYSTEM_TABLES.add(tb.lower())
+except Exception:
+    pass
+
 
 class ConnectBody(BaseModel):
     useDefault: bool = False
@@ -262,9 +282,11 @@ def list_tables(request: Request, connId: str):
             if est < 0:
                 cur.execute(sql.SQL("SELECT count(*) AS n FROM {}").format(sql.Identifier(r["table_name"])))
                 est = int(cur.fetchone()["n"])
+            is_system = r["table_name"] in _SYSTEM_TABLES or r["table_name"].lower() in _SYSTEM_TABLES
             tables.append({
                 "name": r["table_name"], "rows": est, "columns": int(r["columns"]),
                 "refs": sorted(refmap.get(r["table_name"], [])),
+                "system": is_system,
             })
         return {"tables": tables}
     finally:

@@ -7,6 +7,7 @@ const AdminRoles = lazy(() => import('./admin/AdminRoles.jsx'))
 const AdminDevices = lazy(() => import('./admin/AdminDevices.jsx'))
 const AdminAudit = lazy(() => import('./admin/AdminAudit.jsx'))
 const AdminControls = lazy(() => import('./admin/AdminControls.jsx'))
+const AdminDatabase = lazy(() => import('./admin/AdminDatabase.jsx'))
 const ServicesPanel = lazy(() => import('./ServicesPanel.jsx'))
 
 const tabs = [
@@ -33,6 +34,10 @@ const tabs = [
   {
     id: 'controls', label: 'Điều khiển',
     icon: <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 2v10M6.34 6.34a8 8 0 1011.32 0" /></svg>,
+  },
+  {
+    id: 'database', label: 'Cơ sở dữ liệu',
+    icon: <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" /><path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /></svg>,
   },
   {
     id: 'services', label: 'Dịch vụ',
@@ -89,6 +94,7 @@ export default function AdminHub({ token, currentUser }) {
             {activeTab === 'devices' && <AdminDevices token={token} />}
             {activeTab === 'audit' && <AdminAudit token={token} />}
             {activeTab === 'controls' && <AdminControls token={token} />}
+            {activeTab === 'database' && <AdminDatabase token={token} />}
             {activeTab === 'services' && <ServicesPanel token={token} />}
           </Suspense>
         </div>

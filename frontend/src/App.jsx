@@ -276,7 +276,7 @@ export default function App() {
       <button
         type="button"
         onClick={toggleSidebar}
-        className={`hidden sm:flex fixed top-1/2 z-[120] h-10 w-6 -translate-y-1/2 items-center justify-center rounded-r-xl border border-l-0 border-black/[0.16] bg-white/90 text-gray-400 shadow-[0_8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl transition-all hover:w-7 hover:bg-white hover:text-gray-950 ${sidebarCollapsed ? 'left-0' : 'left-[8.25rem]'}`}
+        className={`hidden sm:flex fixed top-1/2 z-[120] h-10 w-6 -translate-y-1/2 items-center justify-center rounded-r-xl border border-l-0 border-black/[0.16] bg-white/90 text-gray-400 shadow-[0_8px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl transition-all hover:w-7 hover:bg-white hover:text-gray-950 ${sidebarCollapsed ? 'left-0' : 'left-44'}`}
         title={sidebarCollapsed ? 'Hiện sidebar' : 'Ẩn sidebar'}
         aria-label={sidebarCollapsed ? 'Hiện sidebar' : 'Ẩn sidebar'}
       >

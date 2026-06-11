@@ -8,7 +8,7 @@ import importlib
 import logging
 import traceback
 
-from api.routers import agent_stream, agents, app_tools, auth, auto_fetch, browser_view, camera, chat_bridge, coach, comfyui_workflows, config, context, cron, cv, cv_generate, drive, english, entertainment, evolution, files, goals, google_accounts, google_photos, health, i2v, learn_admin, learn_ai, learn_core, learn_stt, lessons, media, messages, mindmap, music, omni, pdf_tools, photo, quick_commands, services, sessions, skills, status, stop, telegram, tts, truyencv, video, video_editor, voice, web, wiki, workflows, workspace, admin, expenses, balance, personal_notes, personal_tasks
+from api.routers import agent_stream, agents, app_tools, auth, auto_fetch, browser_view, camera, chat_bridge, coach, comfyui_workflows, config, context, cron, cv, cv_generate, drive, english, entertainment, evolution, files, goals, google_accounts, google_photos, health, i2v, learn_admin, learn_ai, learn_core, learn_stt, lessons, media, messages, mindmap, music, omni, pdf_tools, photo, quick_commands, services, sessions, skills, status, stop, telegram, tts, truyencv, video, video_editor, voice, web, wiki, workflows, workspace, admin, db_admin, expenses, balance, personal_notes, personal_tasks
 from api.services.db import DATA_DIR, init_db
 from api.services.workflow_scheduler import start_workflow_scheduler
 
@@ -83,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(admin.router)
+    app.include_router(db_admin.router)
     app.include_router(chat_bridge.router)
     app.include_router(i2v.router)
     app.include_router(comfyui_workflows.router)

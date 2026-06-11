@@ -619,6 +619,23 @@ def get_db() -> PgConnectionCompat:
     return get_connection()
 
 
+def get_raw_connection(dbname: str | None = None):
+    """Raw psycopg2 connection (KHÔNG dịch SQL) — dùng cho công cụ quản trị DB.
+
+    Trả về connection psycopg2 nguyên bản để chạy SQL tuỳ ý từ admin mà không
+    bị lớp tương thích SQLite biến đổi (vd '?', date(...)). Tự quản lý đóng/mở.
+    `dbname` cho phép kết nối tới database khác trên cùng server (giữ host/user/pass).
+    """
+    conn = psycopg2.connect(
+        host=_DB_SERVER, port=_DB_PORT,
+        dbname=dbname or _DB_DATABASE,
+        user=_DB_USERNAME, password=_DB_PASSWORD,
+        connect_timeout=5,
+    )
+    conn.autocommit = False
+    return conn
+
+
 # ── DDL (init_db) ──────────────────────────────────────────────────────────
 
 def init_db() -> None:

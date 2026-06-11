@@ -3,6 +3,7 @@ import { canAccess, isAdmin } from '../lib/permissions.js'
 
 export default function Header({ user, view, collapsed = false, onViewChange, onLogout }) {
   const allTabs = [
+    { id: 'blog', label: 'Blog AI', icon: <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 4a2 2 0 00-2-2m2 2a2 2 0 012 2v8a2 2 0 01-2 2h-2m-6-13H7m6 4H7m8 4H7" /></svg> },
     { id: 'chat', label: 'Chat', icon: <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
     { id: 'system', label: 'Hệ thống', icon: <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M4 7h16M4 12h16M4 17h16" /><path d="M8 7v10M16 7v10" /></svg> },
     { id: 'automation', label: 'Công cụ', icon: <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg> },
@@ -14,7 +15,7 @@ export default function Header({ user, view, collapsed = false, onViewChange, on
   ]
 
   const tabs = allTabs.filter(tab => {
-    if (tab.id === 'personal') return true
+    if (tab.id === 'personal' || tab.id === 'blog') return true
     return tab.id === 'admin' ? isAdmin(user) : canAccess(user, tab.id)
   })
 

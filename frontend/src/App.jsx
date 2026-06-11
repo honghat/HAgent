@@ -11,11 +11,12 @@ import SystemHub from './components/SystemHub.jsx'
 import EntertainmentHub from './components/EntertainmentHub.jsx'
 import AdminHub from './components/AdminHub.jsx'
 import PersonalHub from './components/PersonalHub.jsx'
+import BlogHub from './components/BlogHub.jsx'
 import { GlobalToastViewport } from './components/Toast.jsx'
 import { getDeviceCredentials, isSignedOut, saveDeviceCredentials, setSignedOut } from './lib/deviceAuth.js'
 import { canAccess } from './lib/permissions.js'
 
-const TOP_TABS = ['chat', 'system', 'automation', 'learning', 'personal', 'entertainment', 'settings', 'admin']
+const TOP_TABS = ['blog', 'chat', 'system', 'automation', 'learning', 'personal', 'entertainment', 'settings', 'admin']
 
 function readStorage(key, fallback = '') {
   try {
@@ -44,7 +45,7 @@ function readLaunchParams() {
   const entertainmentTab = params.get('entertainment_tab') || params.get('hagent_entertainment_tab') || ''
   const videoId = (params.get('video_id') || params.get('hagent_video_id') || '').trim()
   return {
-    view: ['chat', 'wiki', 'automation', 'learning', 'personal', 'system', 'settings', 'entertainment', 'admin'].includes(view) ? view : '',
+    view: ['blog', 'chat', 'wiki', 'automation', 'learning', 'personal', 'system', 'settings', 'entertainment', 'admin'].includes(view) ? view : '',
     entertainmentTab: ['browse', 'detail', 'reader', 'video', 'app-api'].includes(entertainmentTab) ? entertainmentTab : '',
     videoId: /^[A-Za-z0-9_-]{1,80}$/.test(videoId) ? videoId : '',
   }
@@ -83,7 +84,7 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(readStorage('token'))
   const [authLoading, setAuthLoading] = useState(!isSignedOut())
-  const [view, setView] = useState(() => launchParams.view || readStorage('hagent_view', 'chat'))
+  const [view, setView] = useState(() => launchParams.view || readStorage('hagent_view', 'blog'))
   const [provider, setProvider] = useState(readStorage('hagent_provider'))
   const [cxModel, setCxModel] = useState(readStorage('hagent_cx_model', 'cx/gpt-5.5'))
   const [agents, setAgents] = useState([])
@@ -285,6 +286,7 @@ export default function App() {
         </svg>
       </button>
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          {view === 'blog' && <BlogHub user={user} token={token} />}
           {view === 'chat' && <ChatHub token={token} provider={provider} cxModel={cxModel} agents={agents} user={user} onProviderChange={saveProvider} onShowAgentManager={() => setView('settings')} onLogout={logout} />}
           {view === 'wiki' && <Wiki token={token} provider={provider} />}
           {view === 'automation' && <AutomationHub token={token} provider={provider} cxModel={cxModel} user={user} />}

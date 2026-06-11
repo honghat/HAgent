@@ -10,6 +10,8 @@ import AssetOverview from "./AssetOverview";
 
 const API_URL = "/api/balance";
 
+const POPULAR_BANKS = ["VCB", "TCB", "ACB", "MB", "BIDV", "VietinBank", "Agribank", "TPBank", "VPBank", "Sacombank", "HDBank", "VIB"];
+
 const getOneYearFromNow = () => {
     const today = new Date();
     const oneYearLater = new Date(today);
@@ -110,7 +112,7 @@ const AccountBalance = ({ user, token }) => {
     const [balanceRecords, setBalanceRecords] = useState([]);
     const [savingsBooks, setSavingsBooks] = useState([]);
     const [activeTab, setActiveTab] = useState("comparison"); 
-    const [comparisonRate, setComparisonRate] = useState("6.95"); 
+    const [comparisonRate, setComparisonRate] = useState("7.4"); 
 
     const [newAccount, setNewAccount] = useState({ name: "", balance: "" });
     const [newRecord, setNewRecord] = useState({
@@ -789,12 +791,8 @@ const AccountBalance = ({ user, token }) => {
                         {/* Add book form */}
                         {showAddBookForm && (
                             <div className="px-4 pb-4 grid grid-cols-2 gap-2 border-t border-gray-50 pt-3">
-                                {[
-                                    { ph: "Số sổ", key: "book_number" },
-                                    { ph: "Ngân hàng", key: "bank_name" },
-                                ].map(f => (
-                                    <input key={f.key} className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder={f.ph} value={newBook[f.key]} onChange={e => setNewBook({...newBook, [f.key]: e.target.value})} />
-                                ))}
+                                <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Số sổ" value={newBook.book_number} onChange={e => setNewBook({...newBook, book_number: e.target.value})} />
+                                <input list="banks-list" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Ngân hàng" value={newBook.bank_name} onChange={e => setNewBook({...newBook, bank_name: e.target.value})} />
                                 <input type="number" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Số tiền gốc" value={newBook.amount} onChange={e => setNewBook({...newBook, amount: e.target.value})} />
                                 <input type="number" step="0.1" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Lãi suất %/năm" value={newBook.interest_rate} onChange={e => setNewBook({...newBook, interest_rate: e.target.value})} />
                                 <input type="date" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" value={newBook.start_date} onChange={e => setNewBook({...newBook, start_date: e.target.value})} />
@@ -835,7 +833,7 @@ const AccountBalance = ({ user, token }) => {
                                                     <td className="px-4 py-2" colSpan={7}>
                                                         <div className="flex gap-2 items-center flex-wrap">
                                                             <input className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-28" placeholder="Số sổ" value={editingBook.book_number} onChange={e => setEditingBook({...editingBook, book_number: e.target.value})} />
-                                                            <input className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-24" placeholder="Ngân hàng" value={editingBook.bank_name} onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})} />
+                                                            <input list="banks-list" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-24" placeholder="Ngân hàng" value={editingBook.bank_name} onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})} />
                                                             <input type="number" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-28 text-right" placeholder="Số tiền" value={editingBook.amount} onChange={e => setEditingBook({...editingBook, amount: e.target.value})} />
                                                             <input type="number" step="0.1" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-16 text-right" placeholder="Lãi suất" value={editingBook.interest_rate} onChange={e => setEditingBook({...editingBook, interest_rate: e.target.value})} />
                                                             <input type="date" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-32" value={editingBook.start_date} onChange={e => setEditingBook({...editingBook, start_date: e.target.value})} />
@@ -925,7 +923,7 @@ const AccountBalance = ({ user, token }) => {
                                 if (isEditing) return (
                                     <div key={book.id} className="p-4 bg-indigo-50/30 grid grid-cols-2 gap-2">
                                         <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Số sổ" value={editingBook.book_number} onChange={e => setEditingBook({...editingBook, book_number: e.target.value})} />
-                                        <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Ngân hàng" value={editingBook.bank_name} onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})} />
+                                        <input list="banks-list" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Ngân hàng" value={editingBook.bank_name} onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})} />
                                         <input type="number" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Số tiền" value={editingBook.amount} onChange={e => setEditingBook({...editingBook, amount: e.target.value})} />
                                         <input type="number" step="0.1" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Lãi suất" value={editingBook.interest_rate} onChange={e => setEditingBook({...editingBook, interest_rate: e.target.value})} />
                                         <input type="date" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" value={editingBook.start_date} onChange={e => setEditingBook({...editingBook, start_date: e.target.value})} />
@@ -980,13 +978,16 @@ const AccountBalance = ({ user, token }) => {
                         {/* So sánh lãi */}
                         <div className="border-t border-gray-100 px-4 py-3 flex items-center gap-2 bg-gray-50/50">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Lãi so sánh</span>
-                            <input type="number" step="0.01" className="w-14 text-xs font-bold text-indigo-700 border border-indigo-200 bg-indigo-50 rounded-lg px-2 py-1 focus:outline-none text-center" value={comparisonRate} onChange={e => setComparisonRate(e.target.value)} />
+                            <input type="number" step="0.01" className="w-20 text-xs font-bold text-indigo-700 border border-indigo-200 bg-indigo-50 rounded-lg px-2 py-1 focus:outline-none text-center" value={comparisonRate} onChange={e => setComparisonRate(e.target.value)} />
                             <span className="text-xs text-gray-400">%/năm →</span>
                             <span className="text-xs font-black text-indigo-700">{mask(formatVNDCompact(totalComparisonInterest, true))}</span>
                         </div>
                     </div>
                 )}
             </div>
+            <datalist id="banks-list">
+                {POPULAR_BANKS.map(bank => <option key={bank} value={bank} />)}
+            </datalist>
         </div>
     );
 };

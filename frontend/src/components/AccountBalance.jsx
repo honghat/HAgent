@@ -656,23 +656,65 @@ const AccountBalance = ({ user, token }) => {
                 {activeTab === "balance" && (
                     <div className="flex flex-col">
                         {/* Ghi nhận số dư */}
-                        <div className="border-b border-gray-100 px-4 py-3 bg-gray-50/20">
-                            <button onClick={() => setShowAddRecordForm(!showAddRecordForm)} className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
-                                <Plus size={13} /> Ghi nhận số dư
-                                {showAddRecordForm ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                            </button>
-                            {showAddRecordForm && (
-                                <div className="grid grid-cols-2 gap-2 mt-2">
-                                    <select className="col-span-2 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" value={newRecord.account_id} onChange={e => setNewRecord({...newRecord, account_id: e.target.value})}>
+                        <div className="bg-slate-50/50 border-b border-gray-100 p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Wallet size={14} className="text-indigo-500" />
+                                <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Ghi nhận số dư</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                                <div className="flex flex-col gap-1 sm:col-span-2 md:col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tài khoản</label>
+                                    <select 
+                                        className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all font-semibold text-slate-700" 
+                                        value={newRecord.account_id} 
+                                        onChange={e => setNewRecord({...newRecord, account_id: e.target.value})}
+                                    >
                                         <option value="">Chọn tài khoản</option>
                                         {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                     </select>
-                                    <input type="date" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" value={newRecord.date} onChange={e => setNewRecord({...newRecord, date: e.target.value})} />
-                                    <input type="number" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-right bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Số dư mới" value={newRecord.balance} onChange={e => setNewRecord({...newRecord, balance: e.target.value})} />
-                                    <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-gray-50 focus:outline-none focus:border-indigo-400" placeholder="Ghi chú..." value={newRecord.note} onChange={e => setNewRecord({...newRecord, note: e.target.value})} />
-                                    <button onClick={() => { addRecord(); setShowAddRecordForm(false); }} disabled={!newRecord.account_id || !newRecord.balance} className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 col-span-2">Lưu</button>
                                 </div>
-                            )}
+
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ngày ghi nhận</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all font-semibold text-slate-700" 
+                                        value={newRecord.date} 
+                                        onChange={e => setNewRecord({...newRecord, date: e.target.value})} 
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Số dư mới</label>
+                                    <input 
+                                        type="number" 
+                                        className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all text-right font-black text-slate-800" 
+                                        placeholder="0"
+                                        value={newRecord.balance} 
+                                        onChange={e => setNewRecord({...newRecord, balance: e.target.value})} 
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-1 sm:col-span-2 md:col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ghi chú</label>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            className="flex-1 min-w-0 text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all text-slate-700" 
+                                            placeholder="Ghi chú..." 
+                                            value={newRecord.note} 
+                                            onChange={e => setNewRecord({...newRecord, note: e.target.value})} 
+                                        />
+                                        <button 
+                                            onClick={() => { addRecord(); }} 
+                                            disabled={!newRecord.account_id || !newRecord.balance} 
+                                            className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all shadow-[0_2px_6px_rgba(99,102,241,0.2)] shrink-0 cursor-pointer"
+                                        >
+                                            Lưu
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Account list */}

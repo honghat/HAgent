@@ -64,7 +64,9 @@ def update_anuong_endpoint(
 ):
     """Cập nhật bản ghi ăn uống"""
     psql_uid = get_psql_user_id(db, hagent_uid)
-    anuong_data.user_id = psql_uid
+    item = db.query(AnUong).filter(AnUong.id == anuong_id, AnUong.user_id == psql_uid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Ăn uống record not found or access denied")
     return update_anuong(db, anuong_id, anuong_data)
 
 @router.delete("/anuong/{anuong_id}")
@@ -74,6 +76,10 @@ def delete_anuong_endpoint(
     hagent_uid: str = Depends(_get_user_id)
 ):
     """Xóa bản ghi ăn uống"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    item = db.query(AnUong).filter(AnUong.id == anuong_id, AnUong.user_id == psql_uid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Ăn uống record not found or access denied")
     return delete_anuong(db, anuong_id)
 
 # ============= ĐIỆN NƯỚC APIs =============

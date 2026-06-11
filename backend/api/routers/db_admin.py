@@ -107,6 +107,11 @@ class TableRename(BaseModel):
     newName: str
 
 
+class TableTruncate(BaseModel):
+    connId: str
+    cascade: bool = False
+
+
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _TEXT_UDTS = {"text", "varchar", "bpchar", "name", "citext", "char"}
 
@@ -565,6 +570,30 @@ def drop_table(name: str, body: TableDrop, request: Request):
             conn.rollback()
             raise HTTPException(status_code=400, detail=str(e).strip())
         rbac.log_audit(uid, actor.get("username", ""), "db.drop", "table", name,
+                       {"cascade": body.cascade}, rbac.client_ip(request))
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+# ── Xoá sạch bảng (Truncate) ────────────────────────────────────────────────
+@router.post("/tables/{name}/truncate")
+def truncate_table(name: str, body: TableTruncate, request: Request):
+    uid, actor = rbac.require_admin(request)
+    conn = _conn(body.connId)
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if name not in _table_names(cur):
+            raise HTTPException(status_code=404, detail="Bảng không tồn tại")
+        q = sql.SQL("TRUNCATE TABLE {} RESTART IDENTITY {}").format(
+            sql.Identifier(name), sql.SQL("CASCADE" if body.cascade else "RESTRICT"))
+        try:
+            cur.execute(q)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise HTTPException(status_code=400, detail=str(e).strip())
+        rbac.log_audit(uid, actor.get("username", ""), "db.truncate", "table", name,
                        {"cascade": body.cascade}, rbac.client_ip(request))
         return {"ok": True}
     finally:

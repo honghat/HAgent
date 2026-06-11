@@ -122,6 +122,7 @@ function useDbApi(token, session, setSession) {
     del: (n, pk) => withConn(id => adminApi.dbDeleteRow(token, id, n, pk)),
     rename: (n, newName) => withConn(id => adminApi.dbRenameTable(token, id, n, newName)),
     drop: (n, cascade) => withConn(id => adminApi.dbDropTable(token, id, n, cascade)),
+    truncate: (n, cascade) => withConn(id => adminApi.dbTruncateTable(token, id, n, cascade)),
   }
 }
 
@@ -315,6 +316,29 @@ function BrowseMode({ api }) {
     }
   }
 
+  async function handleTruncateTable() {
+    const isSys = tables.find(t => t.name === sel)?.system
+    if (isSys) {
+      const force = window.confirm(`CẢNH BÁO CỰC KỲ NGUY HIỂM: "${sel}" là bảng hệ thống của HAgent. Xoá sạch dòng trong bảng này có thể làm hỏng hoặc mất dữ liệu quan trọng của ứng dụng. Bạn có chắc chắn muốn tiếp tục?`)
+      if (!force) return
+    } else {
+      const ok = window.confirm(`Bạn có chắc chắn muốn xoá tất cả dòng trong bảng "${sel}"? Lệnh này không thể hoàn tác.`)
+      if (!ok) return
+    }
+    const cascade = window.confirm(`Xoá sạch cả các dòng liên quan ở bảng khác có khoá ngoại tham chiếu (CASCADE)? Chọn 'Cancel' để xoá thông thường (RESTRICT).`)
+    setLoading(true); setErr('')
+    try {
+      await api.truncate(sel, cascade)
+      setOffset(0)
+      loadData(sel, 0)
+      await refreshTables()
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const hasPk = !!(meta && meta.some(c => c.pk))
 
   if (!tables) return <Spinner />
@@ -348,7 +372,10 @@ function BrowseMode({ api }) {
               </div>
               <div className="flex items-center gap-2">
                 {view === 'data' && meta && (
-                  <button className={btn('soft')} onClick={() => setEdit({ mode: 'insert' })}>+ Thêm dòng</button>
+                  <>
+                    <button className={btn('soft')} onClick={() => setEdit({ mode: 'insert' })}>+ Thêm dòng</button>
+                    <button className={btn('danger')} onClick={handleTruncateTable} title="Xoá tất cả dòng">🧹 Xoá tất cả dòng</button>
+                  </>
                 )}
                 <button className={btn('soft')} onClick={handleRenameTable} title="Đổi tên bảng">✏️ Đổi tên</button>
                 <button className={btn('danger')} onClick={handleDropTable} title="Xoá bảng">🗑️ Xoá bảng</button>

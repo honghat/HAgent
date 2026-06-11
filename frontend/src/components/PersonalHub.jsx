@@ -22,8 +22,8 @@ function TabLoading() {
 
 const TABS = [
     { id: "expenses", label: "Thu Chi", icon: DollarSign },
-    { id: "food", label: "Ăn uống", icon: Utensils },
     { id: "balance", label: "Tài khoản", icon: Wallet },
+    { id: "food", label: "Ăn uống", icon: Utensils },
     { id: "diennuoc", label: "Tiền nhà", icon: Home },
     { id: "notes", label: "Ghi chú", icon: StickyNote },
     { id: "tasks", label: "Công việc", icon: CheckSquare },
@@ -72,8 +72,8 @@ const PersonalHub = ({ user, token }) => {
             <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
                 <Suspense fallback={<TabLoading />}>
                     {activeTab === "expenses" && <ExpenseTracker user={user} token={token} />}
-                    {activeTab === "food" && <FoodTracker token={token} />}
                     {activeTab === "balance" && <AccountBalance user={user} token={token} />}
+                    {activeTab === "food" && <FoodTracker token={token} />}
                     {activeTab === "diennuoc" && <ExpenseDienNuoc user={user} token={token} />}
                     {activeTab === "notes" && <PersonalNotes token={token} />}
                     {activeTab === "tasks" && <PersonalTasks token={token} />}

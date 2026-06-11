@@ -123,6 +123,7 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
   const [error, setError] = useState(null)
   const [appendingNext, setAppendingNext] = useState(false)
   const [autoAdvancing, setAutoAdvancing] = useState(false)
+  const [autoAdvancing, setAutoAdvancing] = useState(false)
   // Chương đang trong tầm nhìn (cho header + lịch sử) khi đọc liên tục
   const [viewSlug, setViewSlug] = useState(initialChapter?.slug || null)
 

@@ -803,11 +803,116 @@ const AccountBalance = ({ user, token }) => {
                             </div>
                         )}
 
-                        {/* Savings book cards */}
-                        <div className="divide-y divide-gray-50">
+                        {/* Savings book Desktop Table View */}
+                        <div className="hidden md:block overflow-hidden border border-slate-100 rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.015)] m-4">
+                            <table className="w-full border-collapse text-left text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        <th className="px-4 py-3">NH / Số sổ</th>
+                                        <th className="px-4 py-3">Số tiền</th>
+                                        <th className="px-4 py-3">Lãi suất</th>
+                                        <th className="px-4 py-3">Tiền lãi</th>
+                                        <th className="px-4 py-3">Kỳ hạn</th>
+                                        <th className="px-4 py-3">Trạng thái</th>
+                                        <th className="px-4 py-3 text-center">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {savingsBooksToRender.map((book) => {
+                                        const interest = calculateInterest(book.amount, book.interest_rate, book.start_date, book.end_date);
+                                        const daysLeft = getDaysRemaining(book.end_date);
+                                        const isActive = book.status === "active";
+                                        const isEditing = editingBook && editingBook.id === book.id;
+                                        const cs = getCardStyle(book.bank_name);
+                                        const dStart = new Date(book.start_date), dEnd = new Date(book.end_date);
+                                        const totalDays = Math.max(1, Math.ceil((dEnd - dStart) / 86400000));
+                                        const elapsed = Math.max(0, Math.ceil((new Date() - dStart) / 86400000));
+                                        const pct = isActive ? Math.min(100, Math.round((elapsed / totalDays) * 100)) : 100;
+
+                                        if (isEditing) {
+                                            return (
+                                                <tr key={book.id} className="bg-indigo-50/20">
+                                                    <td className="px-4 py-2" colSpan={7}>
+                                                        <div className="flex gap-2 items-center flex-wrap">
+                                                            <input className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-28" placeholder="Số sổ" value={editingBook.book_number} onChange={e => setEditingBook({...editingBook, book_number: e.target.value})} />
+                                                            <input className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-24" placeholder="Ngân hàng" value={editingBook.bank_name} onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})} />
+                                                            <input type="number" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-28 text-right" placeholder="Số tiền" value={editingBook.amount} onChange={e => setEditingBook({...editingBook, amount: e.target.value})} />
+                                                            <input type="number" step="0.1" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-16 text-right" placeholder="Lãi suất" value={editingBook.interest_rate} onChange={e => setEditingBook({...editingBook, interest_rate: e.target.value})} />
+                                                            <input type="date" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-32" value={editingBook.start_date} onChange={e => setEditingBook({...editingBook, start_date: e.target.value})} />
+                                                            <input type="date" className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-32" value={editingBook.end_date} onChange={e => setEditingBook({...editingBook, end_date: e.target.value})} />
+                                                            <select className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none w-28" value={editingBook.status} onChange={e => setEditingBook({...editingBook, status: e.target.value})}>
+                                                                <option value="active">Đang gửi</option>
+                                                                <option value="matured">Đáo hạn</option>
+                                                            </select>
+                                                            <div className="flex gap-1 ml-auto">
+                                                                <button onClick={saveEditBook} className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700">Lưu</button>
+                                                                <button onClick={cancelEditBook} className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Hủy</button>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+
+                                        return (
+                                            <tr key={book.id} className={`hover:bg-slate-50/30 transition-colors group ${!isActive ? "opacity-60" : ""}`}>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-[8px] font-black shrink-0 border ${cs.bg}`}>{cs.logo.slice(0,3)}</span>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold text-slate-800">{book.bank_name}</span>
+                                                            <span className="font-mono text-[10px] text-slate-400">#{book.book_number}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 font-black text-slate-900 whitespace-nowrap">{mask(fmtFull(book.amount))}</td>
+                                                <td className="px-4 py-3 font-semibold text-slate-500 whitespace-nowrap">{book.interest_rate}%/năm</td>
+                                                <td className="px-4 py-3 font-bold text-emerald-600 whitespace-nowrap">+{mask(fmtFull(interest))}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-mono text-slate-500">{book.start_date} → {book.end_date}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col gap-1 min-w-[120px]">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            {isActive ? (
+                                                                daysLeft <= 0 ? (
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 animate-pulse">Đáo hạn</span>
+                                                                ) : daysLeft <= 30 ? (
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-600">Còn {daysLeft}d</span>
+                                                                ) : (
+                                                                    <span className="text-[9px] font-semibold text-slate-500">Còn {daysLeft} ngày</span>
+                                                                )
+                                                            ) : (
+                                                                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Đã đóng</span>
+                                                            )}
+                                                        </div>
+                                                        {isActive && (
+                                                            <div className="w-full bg-gray-100 rounded-full h-1 overflow-hidden">
+                                                                <div className={`h-full rounded-full transition-all ${daysLeft <= 0 ? "bg-red-400 animate-pulse" : "bg-indigo-400"}`} style={{ width: `${pct}%` }} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <button onClick={() => toggleBookStatus(book)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 rounded-lg transition" title={isActive ? "Đóng sổ" : "Mở lại sổ"}><RefreshCw size={12} /></button>
+                                                        <button onClick={() => startEditBook(book)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition" title="Sửa sổ"><Edit2 size={12} /></button>
+                                                        <button onClick={() => deleteBook(book.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Xóa sổ"><Trash2 size={12} /></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Savings book Mobile Card View */}
+                        <div className="block md:hidden divide-y divide-gray-50">
                             {savingsBooksToRender.map(book => {
                                 const interest = calculateInterest(book.amount, book.interest_rate, book.start_date, book.end_date);
-                                const comparisonInterest = calculateComparisonInterest(book);
                                 const daysLeft = getDaysRemaining(book.end_date);
                                 const isActive = book.status === "active";
                                 const isEditing = editingBook && editingBook.id === book.id;
@@ -818,7 +923,7 @@ const AccountBalance = ({ user, token }) => {
                                 const pct = isActive ? Math.min(100, Math.round((elapsed / totalDays) * 100)) : 100;
 
                                 if (isEditing) return (
-                                    <div key={book.id} className="px-4 py-3 bg-indigo-50/30 grid grid-cols-2 gap-2">
+                                    <div key={book.id} className="p-4 bg-indigo-50/30 grid grid-cols-2 gap-2">
                                         <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Số sổ" value={editingBook.book_number} onChange={e => setEditingBook({...editingBook, book_number: e.target.value})} />
                                         <input className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Ngân hàng" value={editingBook.bank_name} onChange={e => setEditingBook({...editingBook, bank_name: e.target.value})} />
                                         <input type="number" className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none" placeholder="Số tiền" value={editingBook.amount} onChange={e => setEditingBook({...editingBook, amount: e.target.value})} />

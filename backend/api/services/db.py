@@ -226,7 +226,7 @@ def _translate_sql(sql: str) -> str:
     result = re.sub(r"\bcompleted\s*=\s*0\b", "completed = FALSE", result, flags=re.IGNORECASE)
 
     # For EnglishLesson and Lesson insert queries:
-    if ("EnglishLesson" in result or "Lesson" in result) and "completed" in result:
+    if any(tbl in result for tbl in ("EnglishLesson", "Lesson", "english_lesson", "lesson")) and "completed" in result:
         result = re.sub(r",\s*0,\s*0\s*\)$", ", FALSE, 0)", result)
 
     # Quote camelCase identifiers that PostgreSQL stores case-sensitively.

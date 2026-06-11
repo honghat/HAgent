@@ -329,7 +329,6 @@ function BrowseMode({ api }) {
             <button key={t.name} onClick={() => openTable(t.name)}
               className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] transition-all ${sel === t.name ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
               <div className="flex items-center gap-1.5 min-w-0">
-                {!t.system && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse" title="Bảng tự định nghĩa (Có thể xoá an toàn)" />}
                 <span className="truncate font-medium">{t.name}</span>
               </div>
               <span className={`shrink-0 text-[10px] ${sel === t.name ? 'text-gray-300' : 'text-gray-400'}`}>{t.rows}</span>
@@ -354,12 +353,8 @@ function BrowseMode({ api }) {
                 <button className={btn('soft')} onClick={handleRenameTable} title="Đổi tên bảng">✏️ Đổi tên</button>
                 <button className={btn('danger')} onClick={handleDropTable} title="Xoá bảng">🗑️ Xoá bảng</button>
                 <span className="font-mono text-[12px] font-semibold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-md">{sel}</span>
-                {selTable && (
-                  selTable.system ? (
-                    <Badge color="gray">Hệ thống</Badge>
-                  ) : (
-                    <Badge color="green">Có thể xoá</Badge>
-                  )
+                {selTable && selTable.system && (
+                  <Badge color="gray">Hệ thống</Badge>
                 )}
               </div>
             </div>

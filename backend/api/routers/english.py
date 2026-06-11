@@ -37,11 +37,11 @@ router = APIRouter(prefix="/api/english", tags=["english"])
 
 
 def _ensure_strength_column(db) -> None:
-    existing = {row["name"].lower() for row in db.execute('PRAGMA table_info("EnglishLesson")').fetchall()}
+    existing = {row["name"].lower() for row in db.execute('PRAGMA table_info("english_lesson")').fetchall()}
     if "strength" not in existing:
-        db.execute('ALTER TABLE "EnglishLesson" ADD COLUMN strength INTEGER NOT NULL DEFAULT 0')
+        db.execute('ALTER TABLE english_lesson ADD COLUMN strength INTEGER NOT NULL DEFAULT 0')
     if "gapnotes" not in existing:
-        db.execute('ALTER TABLE "EnglishLesson" ADD COLUMN gapNotes TEXT NOT NULL DEFAULT \'\'')
+        db.execute('ALTER TABLE english_lesson ADD COLUMN gapNotes TEXT NOT NULL DEFAULT \'\'')
     db.commit()
 
 
@@ -49,24 +49,7 @@ def _ensure_strength_column(db) -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def get_legacy_user_id(db, user_id: str) -> int:
-    row = db.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not row:
-        username = user_id
-    else:
-        username = row["username"] if "username" in row.keys() else row[0]
-    
-    user_row = db.execute('SELECT id FROM "User" WHERE name = ?', (username,)).fetchone()
-    if user_row:
-        return user_row["id"] if "id" in user_row.keys() else user_row[0]
-    
-    cursor = db.cursor()
-    cursor.execute(
-        'INSERT INTO "User" (name, email, password, role, status) VALUES (?, ?, \'legacy\', \'user\', \'approved\')',
-        (username, f"{username}@legacy.local")
-    )
-    db.commit()
-    return cursor.lastrowid
+
 
 
 def _now() -> str:
@@ -137,9 +120,9 @@ def list_english(user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
         _ensure_strength_column(db)
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         rows = db.execute(
-            'SELECT id, type, content, metadata, title, "order", completed, learnCount, nextReviewAt, lastReviewedAt, intervalDays, easeFactor, reviewCount, strength, gapNotes FROM "EnglishLesson" WHERE userId = ? ORDER BY createdAt ASC',
+            'SELECT id, type, content, metadata, title, "order", completed, learnCount, nextReviewAt, lastReviewedAt, intervalDays, easeFactor, reviewCount, strength, gapNotes FROM english_lesson WHERE userId = ? ORDER BY createdAt ASC',
             (legacy_uid,),
         ).fetchall()
         result = []
@@ -155,14 +138,14 @@ def list_english(user_id: str = Depends(get_current_user_id)):
 def create_english_item(body: EnglishItemCreate, user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         meta_str = json.dumps(body.metadata or {})
         db.execute(
-            'INSERT INTO "EnglishLesson" (type, content, title, metadata, userId, completed, learnCount) VALUES (?, ?, ?, ?, ?, 0, 0)',
+            'INSERT INTO english_lesson (type, content, title, metadata, userId, completed, learnCount) VALUES (?, ?, ?, ?, ?, 0, 0)',
             (body.type, body.content, body.title, meta_str, legacy_uid),
         )
         db.commit()
-        row = db.execute('SELECT * FROM "EnglishLesson" WHERE userId = ? ORDER BY id DESC LIMIT 1', (legacy_uid,)).fetchone()
+        row = db.execute('SELECT * FROM english_lesson WHERE userId = ? ORDER BY id DESC LIMIT 1', (legacy_uid,)).fetchone()
         return _row_to_dict(row)
     finally:
         db.close()
@@ -172,14 +155,14 @@ def create_english_item(body: EnglishItemCreate, user_id: str = Depends(get_curr
 def patch_english_item(body: EnglishItemPatch, user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         try:
             item_id = int(body.id)
         except (TypeError, ValueError):
             item_id = body.id
 
         row = db.execute(
-            'SELECT * FROM "EnglishLesson" WHERE id = ? AND userId = ?',
+            'SELECT * FROM english_lesson WHERE id = ? AND userId = ?',
             (item_id, legacy_uid),
         ).fetchone()
         if not row:
@@ -198,12 +181,12 @@ def patch_english_item(body: EnglishItemPatch, user_id: str = Depends(get_curren
             params.append(item_id)
             params.append(legacy_uid)
             db.execute(
-                f'UPDATE "EnglishLesson" SET {", ".join(updates)} WHERE id = ? AND userId = ?',
+                f'UPDATE english_lesson SET {", ".join(updates)} WHERE id = ? AND userId = ?',
                 params,
             )
             db.commit()
 
-        updated = db.execute('SELECT * FROM "EnglishLesson" WHERE id = ?', (item_id,)).fetchone()
+        updated = db.execute('SELECT * FROM english_lesson WHERE id = ?', (item_id,)).fetchone()
         return _row_to_dict(updated)
     finally:
         db.close()
@@ -213,14 +196,14 @@ def patch_english_item(body: EnglishItemPatch, user_id: str = Depends(get_curren
 def delete_english_item(body: EnglishItemDelete, user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         try:
             item_id = int(body.id)
         except (TypeError, ValueError):
             item_id = body.id
 
         result = db.execute(
-            'DELETE FROM "EnglishLesson" WHERE id = ? AND userId = ?',
+            'DELETE FROM english_lesson WHERE id = ? AND userId = ?',
             (item_id, legacy_uid),
         )
         db.commit()
@@ -235,15 +218,15 @@ def delete_english_item(body: EnglishItemDelete, user_id: str = Depends(get_curr
 def delete_unit(unit_id: int, user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         if unit_id == 0:
             cur = db.execute(
-                'DELETE FROM "EnglishLesson" WHERE userId = ? AND ((metadata::jsonb->>\'unit\') IS NULL OR (metadata::jsonb->>\'unit\')::int = 0)',
+                'DELETE FROM english_lesson WHERE userId = ? AND ((metadata::jsonb->>\'unit\') IS NULL OR (metadata::jsonb->>\'unit\')::int = 0)',
                 (legacy_uid,),
             )
         else:
             cur = db.execute(
-                'DELETE FROM "EnglishLesson" WHERE userId = ? AND (metadata::jsonb->>\'unit\')::int = ?',
+                'DELETE FROM english_lesson WHERE userId = ? AND (metadata::jsonb->>\'unit\')::int = ?',
                 (legacy_uid, unit_id),
             )
         db.commit()
@@ -279,10 +262,10 @@ async def gen_batch(body: GenBatchBody, request: Request, user_id: str = Depends
     # Determine next unit number
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         row = db.execute(
             """SELECT MAX((metadata::jsonb->>'unit')::int) as max_unit
-               FROM "EnglishLesson" WHERE userId = ? AND metadata::jsonb->>'level' = ?""",
+               FROM english_lesson WHERE userId = ? AND metadata::jsonb->>'level' = ?""",
             (legacy_uid, level),
         ).fetchone()
         next_unit = (row["max_unit"] or 0) + 1
@@ -339,7 +322,7 @@ Bài số {next_unit}. Trả về JSON ONLY:
 
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         now = _now()
 
         def insert(item_type, content, extra_meta):
@@ -350,7 +333,7 @@ Bài số {next_unit}. Trả về JSON ONLY:
                     content = str(content) if content else ""
             meta = json.dumps({**base_meta, **extra_meta})
             db.execute(
-                'INSERT INTO "EnglishLesson" (type, content, title, metadata, userId, completed, learnCount) VALUES (?, ?, ?, ?, ?, 0, 0)',
+                'INSERT INTO english_lesson (type, content, title, metadata, userId, completed, learnCount) VALUES (?, ?, ?, ?, ?, 0, 0)',
                 (item_type, content, extra_meta.get("title", ""), meta, legacy_uid),
             )
 
@@ -417,11 +400,11 @@ def review_queue(user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
         _ensure_strength_column(db)
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         rows = db.execute(
             """SELECT id, type, title, metadata, nextReviewAt, lastReviewedAt, intervalDays, easeFactor, reviewCount, strength, gapNotes
-               FROM "EnglishLesson"
+               FROM english_lesson
                WHERE userId = ? AND (nextReviewAt IS NULL OR nextReviewAt <= ?)
                ORDER BY (nextReviewAt IS NULL) DESC, nextReviewAt ASC
                LIMIT 50""",
@@ -432,7 +415,7 @@ def review_queue(user_id: str = Depends(get_current_user_id)):
         db.close()
 
 
-async def _apply_recall_schedule(db, legacy_uid: int, item_id, eval_result: dict, manual_strength: int | None = None):
+async def _apply_recall_schedule(db, legacy_uid: str, item_id, eval_result: dict, manual_strength: int | None = None):
     """Run SM-2 step and persist the schedule for the given English item."""
     if manual_strength is not None:
         try:
@@ -441,7 +424,7 @@ async def _apply_recall_schedule(db, legacy_uid: int, item_id, eval_result: dict
         except Exception:
             pass
     row = db.execute(
-        'SELECT strength, reviewCount, intervalDays, easeFactor FROM "EnglishLesson" WHERE id = ? AND userId = ?',
+        'SELECT strength, reviewCount, intervalDays, easeFactor FROM english_lesson WHERE id = ? AND userId = ?',
         (item_id, legacy_uid),
     ).fetchone()
     prev_strength = int(row["strength"] or 0) if row else 0
@@ -454,7 +437,7 @@ async def _apply_recall_schedule(db, legacy_uid: int, item_id, eval_result: dict
     )
     last_reviewed = datetime.now(timezone.utc).isoformat(timespec="seconds")
     db.execute(
-        """UPDATE "EnglishLesson" SET
+        """UPDATE english_lesson SET
              lastReviewedAt = ?,
              nextReviewAt = ?,
              intervalDays = ?,
@@ -483,14 +466,14 @@ async def recall_english(body: EnglishRecallBody, request: Request, user_id: str
     db = get_db()
     try:
         _ensure_strength_column(db)
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         try:
             item_id = int(body.id)
         except (TypeError, ValueError):
             item_id = body.id
 
         row = db.execute(
-            'SELECT * FROM "EnglishLesson" WHERE id = ? AND userId = ?',
+            'SELECT * FROM english_lesson WHERE id = ? AND userId = ?',
             (item_id, legacy_uid),
         ).fetchone()
         if not row:
@@ -550,14 +533,14 @@ async def shadow_english(body: EnglishShadowBody, request: Request, user_id: str
     db = get_db()
     try:
         _ensure_strength_column(db)
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         try:
             item_id = int(body.id)
         except (TypeError, ValueError):
             item_id = body.id
 
         row = db.execute(
-            'SELECT * FROM "EnglishLesson" WHERE id = ? AND userId = ?',
+            'SELECT * FROM english_lesson WHERE id = ? AND userId = ?',
             (item_id, legacy_uid),
         ).fetchone()
         if not row:
@@ -607,7 +590,7 @@ async def shadow_english(body: EnglishShadowBody, request: Request, user_id: str
         schedule = await _apply_recall_schedule(db, legacy_uid, item_id, {"strength": merged["strength"], "quality": merged["quality"]})
         # Persist diff/tip into gapNotes as well.
         db.execute(
-            'UPDATE "EnglishLesson" SET gapNotes = ? WHERE id = ? AND userId = ?',
+            'UPDATE english_lesson SET gapNotes = ? WHERE id = ? AND userId = ?',
             (build_shadow_diff_note(merged), item_id, legacy_uid),
         )
         db.commit()

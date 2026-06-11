@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from api.routers.auth import _get_user_id
-from api.services.finance_db import get_finance_db
+from api.services.finance_db import get_finance_db, get_psql_user_id
 from api.services.finance_models import Account, BalanceRecord, SavingsBook
 from api.services.finance_schemas import (
     AccountCreate, AccountUpdate, AccountResponse,
@@ -27,7 +27,8 @@ async def get_all_accounts(
     hagent_uid: str = Depends(_get_user_id)
 ):
     try:
-        accounts = get_accounts(db, skip=skip, limit=limit)
+        psql_uid = get_psql_user_id(db, hagent_uid)
+        accounts = get_accounts(db, user_id=psql_uid, skip=skip, limit=limit)
         if not accounts:
             return []
         return accounts
@@ -41,7 +42,8 @@ async def create_new_account(
     hagent_uid: str = Depends(_get_user_id)
 ):
     try:
-        return create_account(db, account)
+        psql_uid = get_psql_user_id(db, hagent_uid)
+        return create_account(db, account, user_id=psql_uid)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating account: {str(e)}")
 
@@ -154,7 +156,8 @@ async def get_all_savings_books(
     hagent_uid: str = Depends(_get_user_id)
 ):
     try:
-        books = get_savings_books(db, status=status, skip=skip, limit=limit)
+        psql_uid = get_psql_user_id(db, hagent_uid)
+        books = get_savings_books(db, user_id=psql_uid, status=status, skip=skip, limit=limit)
         if not books:
             return []
         return books
@@ -168,7 +171,8 @@ async def create_new_savings_book(
     hagent_uid: str = Depends(_get_user_id)
 ):
     try:
-        return create_savings_book(db, book)
+        psql_uid = get_psql_user_id(db, hagent_uid)
+        return create_savings_book(db, book, user_id=psql_uid)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating savings book: {str(e)}")
 

@@ -137,16 +137,17 @@ def delete_anuong(db: Session, anuong_id: int):
     return {"message": "Deleted successfully"}
 
 # ============ ACCOUNT CRUD ============
-def get_accounts(db: Session, skip: int = 0, limit: int = 100) -> List[Account]:
-    return db.query(Account).offset(skip).limit(limit).all()
+def get_accounts(db: Session, user_id: int, skip: int = 0, limit: int = 100) -> List[Account]:
+    return db.query(Account).filter(Account.user_id == user_id).offset(skip).limit(limit).all()
 
 def get_account(db: Session, account_id: int) -> Optional[Account]:
     return db.query(Account).filter(Account.id == account_id).first()
 
-def create_account(db: Session, account: AccountCreate) -> Account:
+def create_account(db: Session, account: AccountCreate, user_id: int) -> Account:
     db_account = Account(
         name=account.name,
-        balance=account.balance
+        balance=account.balance,
+        user_id=user_id
     )
     db.add(db_account)
     db.commit()
@@ -231,11 +232,12 @@ def delete_balance_record(db: Session, record_id: int) -> bool:
 # ============ SAVINGS BOOK CRUD ============
 def get_savings_books(
     db: Session, 
+    user_id: int,
     status: Optional[str] = None, 
     skip: int = 0, 
     limit: int = 100
 ) -> List[SavingsBook]:
-    query = db.query(SavingsBook)
+    query = db.query(SavingsBook).filter(SavingsBook.user_id == user_id)
     if status:
         query = query.filter(SavingsBook.status == status)
     return query.order_by(SavingsBook.start_date.desc()).offset(skip).limit(limit).all()
@@ -243,7 +245,7 @@ def get_savings_books(
 def get_savings_book(db: Session, book_id: int) -> Optional[SavingsBook]:
     return db.query(SavingsBook).filter(SavingsBook.id == book_id).first()
 
-def create_savings_book(db: Session, book: SavingsBookCreate) -> SavingsBook:
+def create_savings_book(db: Session, book: SavingsBookCreate, user_id: int) -> SavingsBook:
     db_book = SavingsBook(
         book_number=book.book_number,
         bank_name=book.bank_name,
@@ -251,7 +253,8 @@ def create_savings_book(db: Session, book: SavingsBookCreate) -> SavingsBook:
         interest_rate=book.interest_rate,
         start_date=book.start_date,
         end_date=book.end_date,
-        status=book.status
+        status=book.status,
+        user_id=user_id
     )
     db.add(db_book)
     db.commit()

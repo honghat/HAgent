@@ -36,11 +36,11 @@ router = APIRouter(prefix="/api/lessons", tags=["lessons"])
 
 
 def _ensure_gap_column(db) -> None:
-    existing = {row["name"].lower() for row in db.execute('PRAGMA table_info("Lesson")').fetchall()}
+    existing = {row["name"].lower() for row in db.execute('PRAGMA table_info("lesson")').fetchall()}
     if "gapnotes" not in existing:
-        db.execute('ALTER TABLE "Lesson" ADD COLUMN gapNotes TEXT NOT NULL DEFAULT \'\'')
+        db.execute('ALTER TABLE lesson ADD COLUMN gapNotes TEXT NOT NULL DEFAULT \'\'')
     if "strength" not in existing:
-        db.execute('ALTER TABLE "Lesson" ADD COLUMN strength INTEGER NOT NULL DEFAULT 0')
+        db.execute('ALTER TABLE lesson ADD COLUMN strength INTEGER NOT NULL DEFAULT 0')
     db.commit()
 
 
@@ -48,24 +48,7 @@ def _ensure_gap_column(db) -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def get_legacy_user_id(db, user_id: str) -> int:
-    row = db.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not row:
-        username = user_id
-    else:
-        username = row["username"] if "username" in row.keys() else row[0]
-    
-    user_row = db.execute('SELECT id FROM "User" WHERE name = ?', (username,)).fetchone()
-    if user_row:
-        return user_row["id"] if "id" in user_row.keys() else user_row[0]
-    
-    cursor = db.cursor()
-    cursor.execute(
-        'INSERT INTO "User" (name, email, password, role, status) VALUES (?, ?, \'legacy\', \'user\', \'approved\')',
-        (username, f"{username}@legacy.local")
-    )
-    db.commit()
-    return cursor.lastrowid
+
 
 
 def _now() -> str:
@@ -124,9 +107,9 @@ def list_lessons(user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
         _ensure_gap_column(db)
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         rows = db.execute(
-            'SELECT id, track, topic, content, "order", completed, learnCount, createdAt, nextReviewAt, lastReviewedAt, intervalDays, easeFactor, reviewCount, strength, gapNotes FROM "Lesson" WHERE userId = ? ORDER BY "order" ASC, createdAt ASC',
+            'SELECT id, track, topic, content, "order", completed, learnCount, createdAt, nextReviewAt, lastReviewedAt, intervalDays, easeFactor, reviewCount, strength, gapNotes FROM lesson WHERE userId = ? ORDER BY "order" ASC, createdAt ASC',
             (legacy_uid,),
         ).fetchall()
         return [_row_to_dict(r) for r in rows]
@@ -138,9 +121,9 @@ def list_lessons(user_id: str = Depends(get_current_user_id)):
 def create_lesson(body: LessonCreate, user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         dup = db.execute(
-            'SELECT id, topic, content, track, "order", completed, createdAt FROM "Lesson" WHERE userId = ? AND track = ? AND topic = ?',
+            'SELECT id, topic, content, track, "order", completed, createdAt FROM lesson WHERE userId = ? AND track = ? AND topic = ?',
             (legacy_uid, body.track, body.topic),
         ).fetchone()
         if dup:
@@ -149,11 +132,11 @@ def create_lesson(body: LessonCreate, user_id: str = Depends(get_current_user_id
             return d
 
         db.execute(
-            'INSERT INTO "Lesson" (topic, content, track, userId, "order", completed, learnCount) VALUES (?, ?, ?, ?, ?, 0, 0)',
+            'INSERT INTO lesson (topic, content, track, userId, "order", completed, learnCount) VALUES (?, ?, ?, ?, ?, 0, 0)',
             (body.topic, body.content, body.track, legacy_uid, body.order or 0),
         )
         db.commit()
-        row = db.execute('SELECT * FROM "Lesson" WHERE userId = ? AND track = ? AND topic = ? ORDER BY id DESC LIMIT 1', (legacy_uid, body.track, body.topic)).fetchone()
+        row = db.execute('SELECT * FROM lesson WHERE userId = ? AND track = ? AND topic = ? ORDER BY id DESC LIMIT 1', (legacy_uid, body.track, body.topic)).fetchone()
         return _row_to_dict(row)
     finally:
         db.close()
@@ -163,14 +146,14 @@ def create_lesson(body: LessonCreate, user_id: str = Depends(get_current_user_id
 def patch_lesson(body: LessonPatch, user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         try:
             lesson_id = int(body.id)
         except (TypeError, ValueError):
             lesson_id = body.id
 
         row = db.execute(
-            'SELECT * FROM "Lesson" WHERE id = ? AND userId = ?',
+            'SELECT * FROM lesson WHERE id = ? AND userId = ?',
             (lesson_id, legacy_uid),
         ).fetchone()
         if not row:
@@ -188,12 +171,12 @@ def patch_lesson(body: LessonPatch, user_id: str = Depends(get_current_user_id))
             params.append(lesson_id)
             params.append(legacy_uid)
             db.execute(
-                f'UPDATE "Lesson" SET {", ".join(updates)} WHERE id = ? AND userId = ?',
+                f'UPDATE lesson SET {", ".join(updates)} WHERE id = ? AND userId = ?',
                 params,
             )
             db.commit()
 
-        updated = db.execute('SELECT * FROM "Lesson" WHERE id = ?', (lesson_id,)).fetchone()
+        updated = db.execute('SELECT * FROM lesson WHERE id = ?', (lesson_id,)).fetchone()
         return _row_to_dict(updated)
     finally:
         db.close()
@@ -203,14 +186,14 @@ def patch_lesson(body: LessonPatch, user_id: str = Depends(get_current_user_id))
 def delete_lesson(body: LessonDelete, user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         try:
             lesson_id = int(body.id)
         except (TypeError, ValueError):
             lesson_id = body.id
 
         result = db.execute(
-            'DELETE FROM "Lesson" WHERE id = ? AND userId = ?',
+            'DELETE FROM lesson WHERE id = ? AND userId = ?',
             (lesson_id, legacy_uid),
         )
         db.commit()
@@ -237,11 +220,11 @@ def review_queue(user_id: str = Depends(get_current_user_id)):
     db = get_db()
     try:
         _ensure_gap_column(db)
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         rows = db.execute(
             """SELECT id, track, topic, nextReviewAt, lastReviewedAt, intervalDays, easeFactor, reviewCount, gapNotes
-               FROM "Lesson"
+               FROM lesson
                WHERE userId = ? AND (nextReviewAt IS NULL OR nextReviewAt <= ?)
                ORDER BY (nextReviewAt IS NULL) DESC, nextReviewAt ASC
                LIMIT 50""",
@@ -258,7 +241,7 @@ async def recall_lesson(body: LessonRecallBody, request: Request, user_id: str =
     db = get_db()
     try:
         _ensure_gap_column(db)
-        legacy_uid = get_legacy_user_id(db, user_id)
+        legacy_uid = user_id
 
         lesson_id_raw = body.id
         if lesson_id_raw is None:
@@ -269,7 +252,7 @@ async def recall_lesson(body: LessonRecallBody, request: Request, user_id: str =
             lesson_id = lesson_id_raw
 
         row = db.execute(
-            'SELECT * FROM "Lesson" WHERE id = ? AND userId = ?',
+            'SELECT * FROM lesson WHERE id = ? AND userId = ?',
             (lesson_id, legacy_uid),
         ).fetchone()
         if not row:
@@ -321,7 +304,7 @@ async def recall_lesson(body: LessonRecallBody, request: Request, user_id: str =
         last_reviewed = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
         db.execute(
-            """UPDATE "Lesson" SET
+            """UPDATE lesson SET
                  lastReviewedAt = ?,
                  nextReviewAt = ?,
                  intervalDays = ?,

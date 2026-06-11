@@ -57,6 +57,7 @@ class Account(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     balance = Column(Float, default=0.0)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True)
     balance_records = relationship("BalanceRecord", back_populates="account", cascade="all, delete-orphan")
 
 class BalanceRecord(Base):
@@ -78,6 +79,7 @@ class SavingsBook(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     status = Column(String, default="active")
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True)
 
 class ExpenseCategory(Base):
     """Danh mục chi tiêu — lưu tên, màu sắc, icon và thứ tự hiển thị"""

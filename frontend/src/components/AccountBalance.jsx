@@ -562,6 +562,26 @@ const AccountBalance = ({ user, token }) => {
     return (
         <div className="w-full flex flex-col gap-4">
 
+            {/* ── Tabs ── */}
+            <div className="flex p-0.5 bg-slate-200/60 rounded-xl select-none overflow-x-auto no-scrollbar gap-0.5 max-w-fit mx-auto">
+                {BALANCE_TABS.map(tab => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-4 rounded-lg text-xs font-bold transition-all duration-200 select-none cursor-pointer ${
+                                isActive ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-white/40"
+                            }`}
+                        >
+                            <Icon size={13} className={isActive ? "text-indigo-600" : "text-slate-400"} />
+                            <span>{tab.label}</span>
+                        </button>
+                    );
+                })}
+            </div>
+
             {/* ── Header tổng quan ── */}
             <div className="bg-white border border-gray-100 rounded-2xl p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -598,26 +618,6 @@ const AccountBalance = ({ user, token }) => {
                         </div>
                     ))}
                 </div>
-            </div>
-
-            {/* ── Tabs ── */}
-            <div className="flex p-0.5 bg-slate-200/60 rounded-xl select-none overflow-x-auto no-scrollbar gap-0.5 max-w-fit mx-auto">
-                {BALANCE_TABS.map(tab => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center justify-center gap-1.5 py-1.5 px-4 rounded-lg text-xs font-bold transition-all duration-200 select-none cursor-pointer ${
-                                isActive ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-white/40"
-                            }`}
-                        >
-                            <Icon size={13} className={isActive ? "text-indigo-600" : "text-slate-400"} />
-                            <span>{tab.label}</span>
-                        </button>
-                    );
-                })}
             </div>
 
             {/* ── Nội dung tab ── */}

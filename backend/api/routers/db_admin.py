@@ -72,6 +72,11 @@ class TableDrop(BaseModel):
     cascade: bool = False
 
 
+class TableRename(BaseModel):
+    connId: str
+    newName: str
+
+
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _TEXT_UDTS = {"text", "varchar", "bpchar", "name", "citext", "char"}
 
@@ -473,6 +478,39 @@ def delete_row(name: str, body: RowDelete, request: Request):
         rbac.log_audit(uid, actor.get("username", ""), "db.delete", "table", name,
                        {"pk": body.pk}, rbac.client_ip(request))
         return {"ok": True, "affected": affected}
+    finally:
+        conn.close()
+
+
+# ── Đổi tên bảng ─────────────────────────────────────────────────────────
+@router.post("/tables/{name}/rename")
+def rename_table(name: str, body: TableRename, request: Request):
+    uid, actor = rbac.require_admin(request)
+    new_name = body.newName.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Tên bảng mới không được để trống")
+    if not _IDENT_RE.match(new_name):
+        raise HTTPException(status_code=400, detail="Tên bảng không hợp lệ")
+    conn = _conn(body.connId)
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if name not in _table_names(cur):
+            raise HTTPException(status_code=404, detail="Bảng không tồn tại")
+        if new_name in _table_names(cur):
+            raise HTTPException(status_code=400, detail="Tên bảng mới đã tồn tại")
+        
+        q = sql.SQL("ALTER TABLE {} RENAME TO {}").format(
+            sql.Identifier(name), sql.Identifier(new_name)
+        )
+        try:
+            cur.execute(q)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise HTTPException(status_code=400, detail=str(e).strip())
+        rbac.log_audit(uid, actor.get("username", ""), "db.rename_table", "table", name,
+                       {"newName": new_name}, rbac.client_ip(request))
+        return {"ok": True}
     finally:
         conn.close()
 

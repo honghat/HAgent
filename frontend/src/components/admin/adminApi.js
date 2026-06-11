@@ -55,4 +55,6 @@ export const adminApi = {
     req('POST', `/db/tables/${encodeURIComponent(name)}/row/delete`, t, { connId: c, pk }),
   dbDropTable: (t, c, name, cascade) =>
     req('POST', `/db/tables/${encodeURIComponent(name)}/drop`, t, { connId: c, cascade }),
+  dbRenameTable: (t, c, name, newName) =>
+    req('POST', `/db/tables/${encodeURIComponent(name)}/rename`, t, { connId: c, newName }),
 }

@@ -120,6 +120,8 @@ function useDbApi(token, session, setSession) {
     insert: (n, values) => withConn(id => adminApi.dbInsertRow(token, id, n, values)),
     update: (n, pk, set) => withConn(id => adminApi.dbUpdateRow(token, id, n, pk, set)),
     del: (n, pk) => withConn(id => adminApi.dbDeleteRow(token, id, n, pk)),
+    rename: (n, newName) => withConn(id => adminApi.dbRenameTable(token, id, n, newName)),
+    drop: (n, cascade) => withConn(id => adminApi.dbDropTable(token, id, n, cascade)),
   }
 }
 
@@ -229,9 +231,18 @@ function BrowseMode({ api }) {
   const [loading, setLoading] = useState(false)
   const [edit, setEdit] = useState(null) // { mode:'insert' } | { mode:'edit', row }
 
-  useEffect(() => {
-    api.tables().then(d => setTables(d.tables || [])).catch(e => setErr(e.message))
+  const refreshTables = useCallback(async () => {
+    try {
+      const d = await api.tables()
+      setTables(d.tables || [])
+    } catch (e) {
+      setErr(e.message)
+    }
   }, [api])
+
+  useEffect(() => {
+    refreshTables()
+  }, [refreshTables])
 
   const loadData = useCallback((name, off) => {
     setLoading(true); setErr('')
@@ -256,6 +267,41 @@ function BrowseMode({ api }) {
     const pk = Object.fromEntries(meta.filter(c => c.pk).map(c => [c.name, edit.row[c.name]]))
     await api.del(sel, pk)
     setEdit(null); loadData(sel, offset)
+  }
+
+  async function handleRenameTable() {
+    const newName = window.prompt(`Nhập tên mới cho bảng "${sel}":`, sel)
+    if (!newName) return
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === sel) return
+    setLoading(true); setErr('')
+    try {
+      await api.rename(sel, trimmed)
+      setSel(trimmed)
+      await refreshTables()
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDropTable() {
+    const ok = window.confirm(`Bạn có chắc chắn muốn xoá bảng "${sel}"? Lệnh này không thể hoàn tác.`)
+    if (!ok) return
+    const cascade = window.confirm(`Xoá cả các ràng buộc liên quan (CASCADE)? Chọn 'Cancel' để xoá thông thường (RESTRICT).`)
+    setLoading(true); setErr('')
+    try {
+      await api.drop(sel, cascade)
+      setSel(null)
+      setData(null)
+      setMeta(null)
+      await refreshTables()
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const hasPk = !!(meta && meta.some(c => c.pk))
@@ -289,7 +335,9 @@ function BrowseMode({ api }) {
                 {view === 'data' && meta && (
                   <button className={btn('soft')} onClick={() => setEdit({ mode: 'insert' })}>+ Thêm dòng</button>
                 )}
-                <span className="font-mono text-[12px] font-semibold text-gray-700">{sel}</span>
+                <button className={btn('soft')} onClick={handleRenameTable} title="Đổi tên bảng">✏️ Đổi tên</button>
+                <button className={btn('danger')} onClick={handleDropTable} title="Xoá bảng">🗑️ Xoá bảng</button>
+                <span className="font-mono text-[12px] font-semibold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-md">{sel}</span>
               </div>
             </div>
 

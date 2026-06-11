@@ -161,6 +161,18 @@ const AccountBalance = ({ user, token }) => {
         }
     }, [token]);
 
+    useEffect(() => {
+        if (accounts.length > 0 && !newRecord.account_id) {
+            const vcbAcc = accounts.find(a => {
+                const lower = a.name.toLowerCase();
+                return lower.includes("vcb") || lower.includes("vietcombank");
+            });
+            if (vcbAcc) {
+                setNewRecord(prev => ({ ...prev, account_id: String(vcbAcc.id) }));
+            }
+        }
+    }, [accounts]);
+
     const fetchAccounts = async () => {
         try {
             const res = await fetch(`${API_URL}/accounts`, {
@@ -290,8 +302,12 @@ const AccountBalance = ({ user, token }) => {
                     note: newRecord.note
                 })
             });
+            const vcbAcc = accounts.find(a => {
+                const lower = a.name.toLowerCase();
+                return lower.includes("vcb") || lower.includes("vietcombank");
+            });
             setNewRecord({
-                account_id: "",
+                account_id: vcbAcc ? String(vcbAcc.id) : "",
                 date: getToday(),
                 balance: "",
                 note: ""

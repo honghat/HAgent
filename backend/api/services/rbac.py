@@ -54,6 +54,7 @@ PERMISSION_CATALOG = [
         {"key": "automation:workflows", "label": "Workflow"},
         {"key": "automation:workflows:flow", "label": "Workflow: Flow"},
         {"key": "automation:workflows:cron", "label": "Workflow: Cron"},
+        {"key": "automation:ketoan", "label": "Lệnh kế toán"},
     ]},
     {"key": "personal", "label": "Cá nhân", "children": [
         {"key": "personal:expenses", "label": "Thu Chi"},

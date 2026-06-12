@@ -11,6 +11,7 @@ const Workflows = lazy(() => import('./Workflows.jsx'))
 const CronManager = lazy(() => import('./CronManager.jsx'))
 const VideoEditor = lazy(() => import('./VideoEditor.jsx'))
 const PdfTools = lazy(() => import('./PdfTools.jsx'))
+const Ketoan = lazy(() => import('./Ketoan.jsx'))
 
 function TabLoading() {
   return (
@@ -113,6 +114,16 @@ const tabs = [
       </svg>
     ),
   },
+  {
+    id: 'ketoan',
+    label: 'Lệnh kế toán',
+    icon: (
+      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18M3 18h18M9 6v14M15 6v14" />
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+      </svg>
+    ),
+  },
 ]
 
 export default function SystemHub({ token, provider, cxModel, user }) {
@@ -131,7 +142,7 @@ export default function SystemHub({ token, provider, cxModel, user }) {
     if (['files', 'backup', 'code', 'ports', 'camera', 'gphotos'].includes(t.id)) {
       return canAccess(user, `system:${t.id}`)
     }
-    if (['editor', 'pdf', 'workflows'].includes(t.id)) {
+    if (['editor', 'pdf', 'workflows', 'ketoan'].includes(t.id)) {
       return canAccess(user, `automation:${t.id}`) || canAccess(user, `system:${t.id}`)
     }
     return false
@@ -305,6 +316,12 @@ export default function SystemHub({ token, provider, cxModel, user }) {
                 {effectiveWorkflowSubTab === 'flow' && <Workflows token={token} />}
                 {effectiveWorkflowSubTab === 'cron' && <CronManager token={token} provider={provider} />}
               </div>
+            </div>
+          )}
+
+          {effectiveTab === 'ketoan' && (
+            <div className="h-full min-h-0 overflow-hidden p-4">
+              <Ketoan token={token} />
             </div>
           )}
         </Suspense>

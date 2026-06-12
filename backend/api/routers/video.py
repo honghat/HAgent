@@ -81,6 +81,7 @@ class UrlTaskBody(BaseModel):
     voice: str = "namminh"
     translate_provider: str = "groq"
     translate_model: str = "llama-3.3-70b-versatile"
+    pipeline: str = "hagent"
 
 
 @router.get("/tasks")
@@ -112,6 +113,7 @@ def _create_task_in_db(
     user_id: str = "hat",
     translate_provider: str = "groq",
     translate_model: str = "llama-3.3-70b-versatile",
+    pipeline: str = "hagent",
 ) -> int:
     """Create a task in SQLite and enqueue for pipeline processing. Returns task ID."""
     try:
@@ -121,10 +123,10 @@ def _create_task_in_db(
         cur = conn.execute(
             """INSERT INTO video_tasks
                (user_id, title, source_type, source_ref, source_lang, status, voice,
-                translate_provider, translate_model, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)""",
+                translate_provider, translate_model, pipeline, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)""",
             (user_id, title, source_type, source_ref, source_lang, voice,
-             translate_provider, translate_model, now, now),
+             translate_provider, translate_model, pipeline, now, now),
         )
         task_id = cur.lastrowid
         conn.commit()
@@ -148,6 +150,7 @@ async def create_url_task(body: UrlTaskBody, request: Request):
         user_id=uid,
         translate_provider=body.translate_provider,
         translate_model=body.translate_model,
+        pipeline=body.pipeline,
     )
     return {"id": task_id}
 
@@ -230,6 +233,7 @@ async def upload_video(
     voice: str = "namminh",
     translate_provider: str = "groq",
     translate_model: str = "llama-3.3-70b-versatile",
+    pipeline: str = "hagent",
 ):
     uid = _get_user_id(request)
     prefix = uuid.uuid4().hex[:12]
@@ -245,6 +249,7 @@ async def upload_video(
         user_id=uid,
         translate_provider=translate_provider,
         translate_model=translate_model,
+        pipeline=pipeline,
     )
     return {"id": task_id}
 

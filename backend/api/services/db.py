@@ -664,6 +664,7 @@ def init_db() -> None:
                 finally:
                     cur.close()
         _migrate_personal_notes(conn)
+        _migrate_video_tasks(conn)
 
 def _migrate_personal_notes(conn) -> None:
     """Add pinned column to personal_notes if missing."""
@@ -679,6 +680,21 @@ def _migrate_personal_notes(conn) -> None:
         cursor.close()
     except Exception as e:
         logger.info("_migrate_personal_notes: %s", e)
+
+def _migrate_video_tasks(conn) -> None:
+    """Add pipeline column to video_tasks if missing."""
+    try:
+        cursor = conn._conn.cursor()
+        cursor.execute(
+            """SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'video_tasks' AND column_name = 'pipeline'"""
+        )
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE video_tasks ADD COLUMN pipeline TEXT NOT NULL DEFAULT 'hagent'")
+            conn.commit()
+        cursor.close()
+    except Exception as e:
+        logger.info("_migrate_video_tasks: %s", e)
 
 def _ensure_column(conn, table: str, column: str, ddl: str) -> None:
     """Add column if it doesn't exist (PostgreSQL version)."""

@@ -3,6 +3,7 @@ import { FileText, Image as ImageIcon, FileType2, Combine, Languages, Loader2, U
 import { canAccess } from '../lib/permissions.js'
 
 const PdfEditor = lazy(() => import('./PdfEditor.jsx'))
+const PdfTranslator = lazy(() => import('./PdfTranslator.jsx'))
 
 function authHeaders(token) {
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -14,7 +15,7 @@ const ACTIONS = [
   { id: 'images', label: 'Images', desc: 'Ảnh thành PDF', icon: ImageIcon },
   { id: 'docx', label: 'Word', desc: 'DOCX sang PDF', icon: FileType2 },
   { id: 'merge', label: 'Merge', desc: 'Gộp tài liệu', icon: Combine },
-  { id: 'translate', label: 'Translate', desc: 'Dịch PDF', icon: Languages },
+  { id: 'translate', label: 'Dịch thuật', desc: 'Dịch PDF giữ bố cục', icon: Languages },
 ]
 
 const LANGS = [
@@ -165,6 +166,12 @@ export default function PdfTools({ token, user }) {
         <div className="min-h-0 flex-1 overflow-hidden">
           <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-gray-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tải editor...</div>}>
             <PdfEditor token={token} />
+          </Suspense>
+        </div>
+      ) : effectiveAction === 'translate' ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-gray-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tải dịch thuật...</div>}>
+            <PdfTranslator token={token} />
           </Suspense>
         </div>
       ) : (

@@ -141,6 +141,7 @@ function NewTask({ api, onCreated, onCancel }) {
   const [voice, setVoice] = useState('namminh');
   const [translateProvider, setTranslateProvider] = useState('groq');
   const [translateModel, setTranslateModel] = useState('llama-3.3-70b-versatile');
+  const [pipeline, setPipeline] = useState('hagent');
   const [busy, setBusy] = useState(false);
   const [fetchingTitle, setFetchingTitle] = useState(false);
   const ytRef = useRef(null);
@@ -170,10 +171,18 @@ function NewTask({ api, onCreated, onCancel }) {
         fd.append('voice', voice);
         fd.append('translate_provider', translateProvider);
         fd.append('translate_model', translateModel);
+        fd.append('pipeline', pipeline);
         r = await api().post('/api/video/tasks/upload', fd);
       } else {
         if (!url) { alert('Nhập URL'); setBusy(false); return; }
-        r = await api().post('/api/video/tasks/url', { url, title: title || url, voice, translate_provider: translateProvider, translate_model: translateModel });
+        r = await api().post('/api/video/tasks/url', { 
+          url, 
+          title: title || url, 
+          voice, 
+          translate_provider: translateProvider, 
+          translate_model: translateModel,
+          pipeline 
+        });
       }
       onCreated(r.data.id);
     } catch (e) { alert(e.response?.data?.detail || e.response?.data?.error || e.message); }
@@ -228,6 +237,7 @@ function NewTask({ api, onCreated, onCancel }) {
                 { provider: 'groq', model: 'gemma2-9b-it', label: 'Gemma2 9B', sub: 'Groq · Nhẹ' },
                 { provider: 'pekpik-custom', model: 'deepseek-chat', label: 'DeepSeek Chat', sub: 'Pekpik · Chất lượng cao' },
                 { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek Official', sub: 'DeepSeek · Chính thức' },
+                { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', sub: 'Google · Thông minh' },
               ].map(o => {
                 const active = translateProvider === o.provider && translateModel === o.model;
                 return (

@@ -162,8 +162,13 @@ def _translate_llm(texts: list[str], provider: str = "groq", model: str = "llama
             {"role": "user", "content": numbered},
         ],
     }).encode()
+    base_url = cfg.base_url.rstrip('/')
+    if provider == "gemini" or "generativelanguage.googleapis.com" in base_url:
+        endpoint = f"{base_url}/openai/chat/completions"
+    else:
+        endpoint = f"{base_url}/chat/completions"
     req = _req.Request(
-        f"{cfg.base_url.rstrip('/')}/chat/completions",
+        endpoint,
         data=body,
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {cfg.api_key}"},
         method="POST",
@@ -635,6 +640,12 @@ async def run_pipeline(task_id: int) -> None:
     if not task:
         return
 
+    # Route task to correct pipeline based on selection
+    pipeline_type = task.get("pipeline") or "hagent"
+    if pipeline_type == "hatai":
+        await run_hatai_pipeline_py(task_id)
+        return
+
     send = make_sender(task_id)
     conn2 = get_connection()
     conn2.execute(
@@ -881,3 +892,285 @@ async def run_pipeline(task_id: int) -> None:
         if not completed:
             _rm(final_path)
             _rm(srt_path)
+
+
+def _concatenate_videos(segment_paths: list[str], out_path: str) -> None:
+    list_path = _tmp(".txt")
+    with open(list_path, "w", encoding="utf-8") as f:
+        for p in segment_paths:
+            safe_p = p.replace("'", "'\\''")
+            f.write(f"file '{safe_p}'\n")
+    _run_ffmpeg(
+        "-y", "-f", "concat", "-safe", "0", "-i", list_path,
+        "-c", "copy", out_path
+    )
+    try:
+        os.unlink(list_path)
+    except OSError:
+        pass
+
+
+def _generate_srt_bilingual(subtitles: list[dict]) -> str:
+    def _fmt(t: float) -> str:
+        h = int(t // 3600)
+        m = int((t % 3600) // 60)
+        s = int(t % 60)
+        ms = int((t % 1) * 1000)
+        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+    lines = []
+    for i, sub in enumerate(subtitles):
+        lines.append(
+            f"{i + 1}\n{_fmt(sub['start'])} --> {_fmt(sub['end'])}\n"
+            f"[CN] {sub['chinese']}\n[VI] {sub['vietnamese']}\n"
+        )
+    return "\n".join(lines)
+
+
+async def run_hatai_pipeline_py(task_id: int) -> None:
+    """HatAI-compatible video pipeline ported to Python."""
+    conn = get_connection()
+    task = conn.execute("SELECT * FROM video_tasks WHERE id=?", (task_id,)).fetchone()
+    conn.close()
+    if not task:
+        return
+
+    send = make_sender(task_id)
+    conn2 = get_connection()
+    conn2.execute(
+        "UPDATE video_tasks SET status=?, updated_at=? WHERE id=?",
+        ("running", int(time.time() * 1000), task_id),
+    )
+    conn2.commit()
+    conn2.close()
+
+    temp_files: list[str] = []
+    def _track(f: str | None) -> str | None:
+        if f:
+            temp_files.append(f)
+        return f
+    def _rm(f: str | None) -> None:
+        if f and os.path.exists(f):
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
+
+    video_path: str | None = None
+    final_path: str | None = None
+    srt_path: str | None = None
+    completed = False
+
+    try:
+        # Step 1: Download
+        if task["source_type"] != "upload":
+            send("Đang tải từ URL...")
+            video_path = _track(_tmp(".mp4"))
+            await asyncio.get_event_loop().run_in_executor(
+                None, _download_video, task["source_ref"], video_path, send
+            )
+            size_mb = os.path.getsize(video_path) / 1024 / 1024
+            send(f"Đã tải ({size_mb:.1f} MB)")
+        else:
+            video_path = str(UPLOAD_DIR / task["source_ref"])
+
+        dur = _ffprobe_duration(video_path)
+        send(f"📹 Video: {int(dur // 60)}:{int(dur % 60):02d}")
+
+        # Step 2: Split Video into 200s segments
+        segment_duration = 200
+        send(f"⚡ Chia video thành các đoạn {segment_duration} giây...")
+        
+        prefix = f"hatai-seg-{task_id}-{int(time.time())}"
+        pattern = str(UPLOAD_DIR / f"{prefix}-%03d.mp4")
+        
+        _run_ffmpeg(
+            "-y", "-i", video_path,
+            "-c", "copy", "-map", "0",
+            "-segment_time", str(segment_duration),
+            "-f", "segment", "-reset_timestamps", "1",
+            pattern
+        )
+        
+        segments = sorted([str(p) for p in UPLOAD_DIR.glob(f"{prefix}-*.mp4")])
+        if not segments:
+            raise RuntimeError("Không thể phân đoạn video")
+        
+        send(f"✓ Đã tạo {len(segments)} đoạn")
+
+        # Step 3: Process each segment
+        processed_segments = []
+        subtitles = []
+
+        import google.generativeai as genai
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if not gemini_key:
+            raise RuntimeError("GEMINI_API_KEY chưa được cấu hình trong .env")
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        voice_map = {"hoaimy": "vi-VN-HoaiMyNeural", "namminh": "vi-VN-NamMinhNeural"}
+        voice = voice_map.get(task["voice"], "vi-VN-HoaiMyNeural")
+
+        for idx, seg in enumerate(segments):
+            seg_start = idx * segment_duration
+            seg_end = (idx + 1) * segment_duration
+            send(f"[{idx+1}/{len(segments)}] Đang xử lý đoạn...")
+
+            # Extract audio from segment
+            audio_path = _track(_tmp(".mp3"))
+            _run_ffmpeg(
+                "-y", "-i", seg,
+                "-vn", "-acodec", "libmp3lame",
+                audio_path
+            )
+
+            # Gemini STT
+            send(f"  → [{idx+1}] Gemini STT...")
+            audio_data = Path(audio_path).read_bytes()
+            
+            stt_prompt = (
+                "Transcribe the following audio into simplified Chinese text "
+                "(guqin teaching style, classical and elegant tone). "
+                "Only return the transcription, no explanations, no titles, no extra text."
+            )
+            
+            try:
+                response = await asyncio.to_thread(
+                    model.generate_content,
+                    [
+                        {"mime_type": "audio/mp3", "data": audio_data},
+                        stt_prompt
+                    ]
+                )
+                chinese_text = response.text.strip()
+            except Exception as e:
+                send(f"  ⚠️ Lỗi Gemini STT: {e}")
+                chinese_text = ""
+
+            dubbed_seg = _track(_tmp(".mp4"))
+
+            if chinese_text:
+                send(f"  → [{idx+1}] Dịch sang tiếng Việt...")
+                translate_prompt = (
+                    "Translate this Chinese text to Vietnamese. "
+                    f"Output ONLY the Vietnamese translation, nothing else:\n\n{chinese_text}"
+                )
+                try:
+                    t_resp = await asyncio.to_thread(model.generate_content, translate_prompt)
+                    vietnamese_text = t_resp.text.strip()
+                    # Clean up
+                    vietnamese_text = re.sub(r"^['\"`]+|['\"`]+$", "", vietnamese_text)
+                    vietnamese_text = re.sub(r"[\u4e00-\u9fff]+", "", vietnamese_text)
+                    vietnamese_text = re.sub(r"（[^）]*）", "", vietnamese_text)
+                    vietnamese_text = re.sub(r"【[^】]*】", "", vietnamese_text)
+                    vietnamese_text = re.sub(r"\*", "", vietnamese_text)
+                    vietnamese_text = re.sub(r"\s+", " ", vietnamese_text).strip()
+                except Exception as e:
+                    send(f"  ⚠️ Lỗi dịch: {e}")
+                    vietnamese_text = "Lỗi dịch"
+
+                subtitles.append({
+                    "start": seg_start,
+                    "end": seg_end,
+                    "chinese": chinese_text,
+                    "vietnamese": vietnamese_text
+                })
+
+                # Generate TTS
+                send(f"  → [{idx+1}] Lồng tiếng...")
+                tts_path = await _tts_vietnamese(vietnamese_text, voice)
+                if tts_path:
+                    _track(tts_path)
+                    # Mix audio: 0.2 original, 1.8 TTS
+                    has_audio = False
+                    try:
+                        probe_cmd = [
+                            FFPROBE, "-v", "error", "-select_streams", "a",
+                            "-show_entries", "stream=codec_type",
+                            "-of", "csv=p=0", seg
+                        ]
+                        probe_res = sp.run(probe_cmd, capture_output=True, text=True, timeout=15)
+                        if "audio" in probe_res.stdout:
+                            has_audio = True
+                    except Exception:
+                        pass
+
+                    if has_audio:
+                        _run_ffmpeg(
+                            "-y", "-i", seg, "-i", tts_path,
+                            "-filter_complex", "[0:a]volume=0.2[a0];[1:a]volume=1.8,apad[a1];[a0][a1]amix=inputs=2:duration=longest[out]",
+                            "-map", "0:v:0", "-map", "[out]",
+                            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                            "-shortest", dubbed_seg
+                        )
+                    else:
+                        _run_ffmpeg(
+                            "-y", "-i", seg, "-i", tts_path,
+                            "-map", "0:v:0", "-map", "1:a:0",
+                            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                            "-shortest", dubbed_seg
+                        )
+                else:
+                    _run_ffmpeg("-y", "-i", seg, "-c", "copy", dubbed_seg)
+            else:
+                send(f"  ⚠️ Không có thoại, giữ nguyên gốc")
+                _run_ffmpeg("-y", "-i", seg, "-c", "copy", dubbed_seg)
+
+            processed_segments.append(dubbed_seg)
+            _rm(seg)
+            _rm(audio_path)
+
+        # Step 4: Concatenate video segments
+        send("📦 Đang ghép video hoàn chỉnh...")
+        concat_video = _track(_tmp(".mp4"))
+        _concatenate_videos(processed_segments, concat_video)
+
+        # Step 5: Save Subtitles & Burn them
+        send("📝 Chèn phụ đề...")
+        srt_path = str(UPLOAD_DIR / f"subs-{task_id}.srt")
+        Path(srt_path).write_text(_generate_srt_bilingual(subtitles), encoding="utf-8")
+        
+        final_path = str(UPLOAD_DIR / f"final-{int(time.time()*1000)}.mp4")
+        _burn_subtitles(concat_video, srt_path, final_path)
+
+        send("✅ Hoàn tất!")
+
+        # Update DB status
+        total_duration = _ffprobe_duration(video_path)
+        yt_title = task["title"]
+        
+        conn4 = get_connection()
+        conn4.execute(
+            "UPDATE video_tasks SET status='done', video_file=?, srt_file=?, "
+            "segments_count=?, duration=?, title=?, updated_at=? WHERE id=?",
+            (
+                os.path.basename(final_path),
+                os.path.basename(srt_path),
+                len(subtitles),
+                total_duration,
+                yt_title,
+                int(time.time() * 1000),
+                task_id,
+            ),
+        )
+        conn4.commit()
+        conn4.close()
+        completed = True
+
+        if task["source_type"] != "upload":
+            _rm(video_path)
+
+    except Exception as e:
+        send(f"❌ Lỗi: {e}")
+        conn5 = get_connection()
+        conn5.execute(
+            "UPDATE video_tasks SET status='error', error=?, updated_at=? WHERE id=?",
+            (str(e), int(time.time() * 1000), task_id),
+        )
+        conn5.commit()
+        conn5.close()
+    finally:
+        for f in temp_files:
+            _rm(f)
+        _rm(str(UPLOAD_DIR / f"subs-{task_id}.ass"))

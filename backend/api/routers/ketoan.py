@@ -1,5 +1,7 @@
 import os
 import logging
+import subprocess
+import shutil
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
 from typing import Optional, List
@@ -19,25 +21,68 @@ logger = logging.getLogger(__name__)
 # --- Router ---
 router = APIRouter(prefix="", tags=["Ketoan"])
 
-# --- MS SQL Database Setup ---
+# --- MS SQL Database Setup via pyodbc for anonymity ---
 db_user = os.getenv("DB_USERNAME1", "bravoDev")
-db_password = quote_plus(os.getenv("DB_PASSWORD1", "b8@Consolidation#20II"))
+db_password = os.getenv("DB_PASSWORD1", "b8@Consolidation#20II")
 db_host = os.getenv("DB_SERVER1", "bravo8group.thaco.com.vn")
 db_port = os.getenv("DB_PORT1", "7474")
 db_database = os.getenv("DB_DATABASE1", "B8R2_THACOGroup")
 
-# Set TDSHOSTNAME environment variable to anonymize the client machine name sent to SQL Server.
-os.environ["TDSHOSTNAME"] = "WORKSTATION-SSMS"
+def get_freetds_driver_path() -> str:
+    brew_path = shutil.which("brew")
+    if brew_path:
+        try:
+            prefix = subprocess.check_output([brew_path, "--prefix", "freetds"]).decode().strip()
+            so_path = os.path.join(prefix, "lib", "libtdsodbc.so")
+            if os.path.exists(so_path):
+                return so_path
+        except Exception:
+            pass
+    for path in [
+        "/opt/homebrew/opt/freetds/lib/libtdsodbc.so",
+        "/opt/homebrew/lib/libtdsodbc.so",
+        "/usr/local/opt/freetds/lib/libtdsodbc.so",
+        "/usr/local/lib/libtdsodbc.so",
+    ]:
+        if os.path.exists(path):
+            return path
+    return "libtdsodbc.so"
 
-database_url = f"mssql+pymssql://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
+# Create a local odbcinst.ini in HAgent's data/odbc directory to register FreeTDS
+odbc_dir = "/Users/nguyenhat/HAgent/data/odbc"
+os.makedirs(odbc_dir, exist_ok=True)
+odbcinst_path = os.path.join(odbc_dir, "odbcinst.ini")
+
+driver_path = get_freetds_driver_path()
+odbcinst_content = f"""[FreeTDS]
+Description = FreeTDS ODBC Driver
+Driver = {driver_path}
+Setup = {driver_path}
+UsageCount = 1
+"""
+
+with open(odbcinst_path, "w") as f:
+    f.write(odbcinst_content)
+
+os.environ["ODBCSYSINI"] = odbc_dir
+
+# Connection parameters for pyodbc
+connection_params = (
+    f"DRIVER=FreeTDS;"
+    f"SERVER={db_host};"
+    f"PORT={db_port};"
+    f"DATABASE={db_database};"
+    f"UID={db_user};"
+    f"PWD={db_password};"
+    f"WSID=WORKSTATION-SSMS;"
+    f"APP=Microsoft SQL Server Management Studio;"
+    f"TDS_Version=7.4;"
+)
+
+database_url = f"mssql+pyodbc:///?odbc_connect={quote_plus(connection_params)}"
 
 engine = create_engine(
     database_url,
-    connect_args={
-        "appname": "Microsoft SQL Server Management Studio",
-        "login_timeout": 5,
-        "timeout": 5
-    },
     pool_pre_ping=True,
     pool_recycle=1800,
     pool_size=5,

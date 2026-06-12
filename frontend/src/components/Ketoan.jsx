@@ -426,7 +426,7 @@ export default function Ketoan({ token }) {
     <>
       <ToastStack toasts={toasts} remove={removeToast} />
 
-      <div className="flex flex-col rounded-2xl border border-gray-100 shadow-md overflow-hidden bg-white">
+      <div className="flex flex-col h-full min-h-0 rounded-2xl border border-gray-100 shadow-md overflow-hidden bg-white">
 
         {/* ── Toolbar ── */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/80 gap-3 flex-wrap">
@@ -469,9 +469,9 @@ export default function Ketoan({ token }) {
         </div>
 
         {/* ── Table ── */}
-        <div className="overflow-auto">
+        <div className="flex-1 min-h-0 overflow-auto">
           <table className="text-sm border-collapse" style={{ minWidth: "100%" }}>
-            <thead>
+            <thead className="sticky top-0 z-20 bg-white">
               {/* group headers */}
               <tr className="bg-gray-100/80">
                 <th className="w-10" />

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useState } from 'react'
-import { filterTabs } from '../lib/permissions.js'
+import { filterTabs, canAccess } from '../lib/permissions.js'
 
 const FileManager = lazy(() => import('./FileManager.jsx'))
 const CodeWorkspace = lazy(() => import('./CodeWorkspace.jsx'))
@@ -7,6 +7,10 @@ const PortManager = lazy(() => import('./PortManager.jsx'))
 const CameraPanel = lazy(() => import('./CameraPanel.jsx'))
 const GooglePhotosManager = lazy(() => import('./GooglePhotosManager.jsx'))
 const DriveSync = lazy(() => import('./DriveSync.jsx'))
+const Workflows = lazy(() => import('./Workflows.jsx'))
+const CronManager = lazy(() => import('./CronManager.jsx'))
+const VideoEditor = lazy(() => import('./VideoEditor.jsx'))
+const PdfTools = lazy(() => import('./PdfTools.jsx'))
 
 function TabLoading() {
   return (
@@ -78,18 +82,76 @@ const tabs = [
       </svg>
     ),
   },
+  {
+    id: 'editor',
+    label: 'Video',
+    icon: (
+      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="6" width="18" height="12" rx="1.5" />
+        <path d="M7 6v12M17 6v12M3 10h4M3 14h4M17 10h4M17 14h4" />
+      </svg>
+    ),
+  },
+  {
+    id: 'pdf',
+    label: 'PDF',
+    icon: (
+      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+        <path d="M14 2v6h6" />
+        <path d="M9 13h6M9 17h4" />
+      </svg>
+    ),
+  },
+  {
+    id: 'workflows',
+    label: 'Workflow',
+    icon: (
+      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path d="M6 6h5v5H6zM13 13h5v5h-5z" />
+        <path d="M11 8.5h2a3 3 0 013 3V13" />
+      </svg>
+    ),
+  },
 ]
 
-export default function SystemHub({ token, provider, user }) {
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('hagent_system_tab') || 'files')
+export default function SystemHub({ token, provider, cxModel, user }) {
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = localStorage.getItem('hagent_system_tab')
+    if (saved === 'create-video' || saved === 'video') return 'editor'
+    if (saved === 'cron') return 'workflows'
+    return saved || 'files'
+  })
+  const [workflowSubTab, setWorkflowSubTab] = useState(() => {
+    return localStorage.getItem('hagent_workflow_subtab') || 'flow'
+  })
   const [tabsHidden, setTabsHidden] = useState(() => localStorage.getItem('hagent_system_tabs_hidden') === '1')
 
-  const visibleTabs = filterTabs(user, 'system', tabs)
+  const visibleTabs = tabs.filter(t => {
+    if (['files', 'backup', 'code', 'ports', 'camera', 'gphotos'].includes(t.id)) {
+      return canAccess(user, `system:${t.id}`)
+    }
+    if (['editor', 'pdf', 'workflows'].includes(t.id)) {
+      return canAccess(user, `automation:${t.id}`) || canAccess(user, `system:${t.id}`)
+    }
+    return false
+  })
   const effectiveTab = visibleTabs.some(t => t.id === activeTab) ? activeTab : visibleTabs[0]?.id
+
+  const canAccessFlow = canAccess(user, 'system:workflows:flow') || canAccess(user, 'automation:workflows:flow')
+  const canAccessCron = canAccess(user, 'system:workflows:cron') || canAccess(user, 'automation:workflows:cron')
+  const effectiveWorkflowSubTab = canAccessFlow && workflowSubTab === 'flow'
+    ? 'flow'
+    : (canAccessCron ? 'cron' : (canAccessFlow ? 'flow' : null))
 
   function selectTab(tab) {
     setActiveTab(tab)
     localStorage.setItem('hagent_system_tab', tab)
+  }
+
+  function selectWorkflowSubTab(sub) {
+    setWorkflowSubTab(sub)
+    localStorage.setItem('hagent_workflow_subtab', sub)
   }
 
   function toggleTabsHidden() {
@@ -188,6 +250,61 @@ export default function SystemHub({ token, provider, user }) {
           {effectiveTab === 'backup' && (
             <div className="h-full min-h-0 overflow-hidden">
               <DriveSync token={token} />
+            </div>
+          )}
+
+          {effectiveTab === 'editor' && (
+            <div className="h-full min-h-0 overflow-hidden">
+              <VideoEditor token={token} />
+            </div>
+          )}
+
+          {effectiveTab === 'pdf' && (
+            <div className="h-full min-h-0 overflow-hidden">
+              <PdfTools token={token} />
+            </div>
+          )}
+
+          {effectiveTab === 'workflows' && (
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">
+              {(canAccessFlow || canAccessCron) && (
+                <div className="shrink-0 border-b border-black/[0.08] bg-white/70 px-2 py-1">
+                  <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 p-0.5">
+                    {canAccessFlow && (
+                      <button
+                        onClick={() => selectWorkflowSubTab('flow')}
+                        className={`flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-all ${
+                          effectiveWorkflowSubTab === 'flow' ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 6h5v5H6zM13 13h5v5h-5z" />
+                          <path d="M11 8.5h2a3 3 0 013 3V13" />
+                        </svg>
+                        Flow
+                      </button>
+                    )}
+                    {canAccessCron && (
+                      <button
+                        onClick={() => selectWorkflowSubTab('cron')}
+                        className={`flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-all ${
+                          effectiveWorkflowSubTab === 'cron' ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M12 7v5l3 3" />
+                        </svg>
+                        Cron
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {effectiveWorkflowSubTab === 'flow' && <Workflows token={token} />}
+                {effectiveWorkflowSubTab === 'cron' && <CronManager token={token} provider={provider} />}
+              </div>
             </div>
           )}
         </Suspense>

@@ -10,14 +10,22 @@ export function isAdmin(user) {
   return user?.role === 'admin' || userPerms(user).includes('*')
 }
 
-// Khóa cấp 1: 'chat'. Khóa cấp 2: 'chat:omni'.
+// Khóa cấp 1: 'chat'. Khóa cấp 2: 'chat:omni'. Khóa cấp 3: 'system:workflows:flow'
 export function canAccess(user, key) {
   if (!user) return false
   if (key === 'personal') return true
   const perms = userPerms(user)
-  if (perms.includes('*') || perms.includes(key)) return true
-  if (key.includes(':')) return perms.includes(key.split(':')[0]) // cấp 1 ⇒ mọi sub
-  return perms.some(p => p === key || p.startsWith(key + ':')) // cấp 1 hiện nếu có sub bất kỳ
+  if (perms.includes('*')) return true
+  
+  return perms.some(p => {
+    // Khớp chính xác
+    if (p === key) return true
+    // Quyền cha cho phép truy cập con (ví dụ: 'system' cho phép 'system:workflows:flow')
+    if (key.startsWith(p + ':')) return true
+    // Quyền con cho phép hiển thị cha để điều hướng (ví dụ: 'system:workflows:flow' cho phép hiển thị menu 'system')
+    if (p.startsWith(key + ':')) return true
+    return false
+  })
 }
 
 // Lọc danh sách tab con theo prefix (vd prefix='system', tab.id='files' ⇒ 'system:files').

@@ -87,7 +87,15 @@ def load_hagent_dotenv(hagent_home=None, project_env=None):
         if project_env.exists() and str(project_env) not in loaded:
             _ld(str(project_env), override=False)
             loaded.append(str(project_env))
+
+    try:
+        from utils import setup_unixodbc_anonymity
+        setup_unixodbc_anonymity()
+    except Exception:
+        pass
+
     return loaded
+
 
 
 _OPENAI_CLS_CACHE: Optional[type] = None

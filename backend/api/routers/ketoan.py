@@ -28,43 +28,8 @@ db_host = os.getenv("DB_SERVER1", "bravo8group.thaco.com.vn")
 db_port = os.getenv("DB_PORT1", "7474")
 db_database = os.getenv("DB_DATABASE1", "B8R2_THACOGroup")
 
-def get_freetds_driver_path() -> str:
-    brew_path = shutil.which("brew")
-    if brew_path:
-        try:
-            prefix = subprocess.check_output([brew_path, "--prefix", "freetds"]).decode().strip()
-            so_path = os.path.join(prefix, "lib", "libtdsodbc.so")
-            if os.path.exists(so_path):
-                return so_path
-        except Exception:
-            pass
-    for path in [
-        "/opt/homebrew/opt/freetds/lib/libtdsodbc.so",
-        "/opt/homebrew/lib/libtdsodbc.so",
-        "/usr/local/opt/freetds/lib/libtdsodbc.so",
-        "/usr/local/lib/libtdsodbc.so",
-    ]:
-        if os.path.exists(path):
-            return path
-    return "libtdsodbc.so"
-
-# Create a local odbcinst.ini in HAgent's data/odbc directory to register FreeTDS
-odbc_dir = "/Users/nguyenhat/HAgent/data/odbc"
-os.makedirs(odbc_dir, exist_ok=True)
-odbcinst_path = os.path.join(odbc_dir, "odbcinst.ini")
-
-driver_path = get_freetds_driver_path()
-odbcinst_content = f"""[FreeTDS]
-Description = FreeTDS ODBC Driver
-Driver = {driver_path}
-Setup = {driver_path}
-UsageCount = 1
-"""
-
-with open(odbcinst_path, "w") as f:
-    f.write(odbcinst_content)
-
-os.environ["ODBCSYSINI"] = odbc_dir
+from utils import setup_unixodbc_anonymity
+setup_unixodbc_anonymity()
 
 # Connection parameters for pyodbc
 connection_params = (

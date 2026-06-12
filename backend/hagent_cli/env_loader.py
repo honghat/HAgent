@@ -173,4 +173,11 @@ def load_hagent_dotenv(
         _load_dotenv_with_fallback(project_env_path, override=not loaded)
         loaded.append(project_env_path)
 
+    try:
+        from utils import setup_unixodbc_anonymity
+        setup_unixodbc_anonymity()
+    except Exception:
+        pass
+
     return loaded
+

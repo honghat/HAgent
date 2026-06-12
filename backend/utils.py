@@ -96,3 +96,53 @@ def safe_json_loads(value, default=None):
         return json.loads(value)
     except Exception:
         return default
+
+
+def setup_unixodbc_anonymity() -> None:
+    import subprocess
+    import shutil
+
+    # Try finding freetds path via brew
+    brew_path = shutil.which("brew")
+    driver_path = None
+    if brew_path:
+        try:
+            prefix = subprocess.check_output([brew_path, "--prefix", "freetds"], timeout=3).decode().strip()
+            so_path = os.path.join(prefix, "lib", "libtdsodbc.so")
+            if os.path.exists(so_path):
+                driver_path = so_path
+        except Exception:
+            pass
+
+    if not driver_path:
+        for path in [
+            "/opt/homebrew/opt/freetds/lib/libtdsodbc.so",
+            "/opt/homebrew/lib/libtdsodbc.so",
+            "/usr/local/opt/freetds/lib/libtdsodbc.so",
+            "/usr/local/lib/libtdsodbc.so",
+        ]:
+            if os.path.exists(path):
+                driver_path = path
+                break
+
+    if not driver_path:
+        driver_path = "libtdsodbc.so"
+
+    odbc_dir = "/Users/nguyenhat/HAgent/data/odbc"
+    try:
+        os.makedirs(odbc_dir, exist_ok=True)
+        odbcinst_path = os.path.join(odbc_dir, "odbcinst.ini")
+        odbcinst_content = f"""[FreeTDS]
+Description = FreeTDS ODBC Driver
+Driver = {driver_path}
+Setup = {driver_path}
+UsageCount = 1
+"""
+        with open(odbcinst_path, "w") as f:
+            f.write(odbcinst_content)
+    except Exception:
+        pass
+
+    os.environ["TDSHOSTNAME"] = "WORKSTATION-SSMS"
+    os.environ["ODBCSYSINI"] = odbc_dir
+

@@ -174,11 +174,12 @@ def delete_account(db: Session, account_id: int) -> bool:
 # ============ BALANCE RECORD CRUD ============
 def get_balance_records(
     db: Session, 
+    user_id: int,
     account_id: Optional[int] = None, 
     skip: int = 0, 
     limit: int = 100
 ) -> List[BalanceRecord]:
-    query = db.query(BalanceRecord)
+    query = db.query(BalanceRecord).join(Account).filter(Account.user_id == user_id)
     if account_id:
         query = query.filter(BalanceRecord.account_id == account_id)
     return query.order_by(BalanceRecord.date.desc()).offset(skip).limit(limit).all()

@@ -56,6 +56,9 @@ async def get_account_by_id(
     account = get_account(db, account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if account.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return account
 
 @router.put("/accounts/{account_id}", response_model=AccountResponse)
@@ -65,9 +68,13 @@ async def update_account_by_id(
     db: Session = Depends(get_finance_db),
     hagent_uid: str = Depends(_get_user_id)
 ):
-    updated_account = update_account(db, account_id, account)
-    if not updated_account:
+    db_account = get_account(db, account_id)
+    if not db_account:
         raise HTTPException(status_code=404, detail="Account not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if db_account.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    updated_account = update_account(db, account_id, account)
     return updated_account
 
 @router.delete("/accounts/{account_id}")
@@ -76,6 +83,12 @@ async def delete_account_by_id(
     db: Session = Depends(get_finance_db),
     hagent_uid: str = Depends(_get_user_id)
 ):
+    db_account = get_account(db, account_id)
+    if not db_account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if db_account.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
     if not delete_account(db, account_id):
         raise HTTPException(status_code=404, detail="Account not found")
     return {"message": "Account deleted successfully"}
@@ -90,7 +103,8 @@ async def get_all_balance_records(
     hagent_uid: str = Depends(_get_user_id)
 ):
     try:
-        records = get_balance_records(db, account_id=account_id, skip=skip, limit=limit)
+        psql_uid = get_psql_user_id(db, hagent_uid)
+        records = get_balance_records(db, user_id=psql_uid, account_id=account_id, skip=skip, limit=limit)
         if not records:
             return []
         return records
@@ -104,9 +118,12 @@ async def create_new_balance_record(
     hagent_uid: str = Depends(_get_user_id)
 ):
     try:
+        psql_uid = get_psql_user_id(db, hagent_uid)
         account = get_account(db, record.account_id)
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
+        if account.user_id != psql_uid:
+            raise HTTPException(status_code=403, detail="Forbidden")
         return create_balance_record(db, record)
     except HTTPException:
         raise
@@ -122,6 +139,9 @@ async def get_balance_record_by_id(
     record = get_balance_record(db, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Balance record not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if record.account.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return record
 
 @router.put("/balance-records/{record_id}", response_model=BalanceRecordResponse)
@@ -131,9 +151,17 @@ async def update_balance_record_by_id(
     db: Session = Depends(get_finance_db),
     hagent_uid: str = Depends(_get_user_id)
 ):
-    updated_record = update_balance_record(db, record_id, record)
-    if not updated_record:
+    db_record = get_balance_record(db, record_id)
+    if not db_record:
         raise HTTPException(status_code=404, detail="Balance record not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if db_record.account.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if record.account_id is not None:
+        dest_account = get_account(db, record.account_id)
+        if not dest_account or dest_account.user_id != psql_uid:
+            raise HTTPException(status_code=403, detail="Forbidden destination account")
+    updated_record = update_balance_record(db, record_id, record)
     return updated_record
 
 @router.delete("/balance-records/{record_id}")
@@ -142,6 +170,12 @@ async def delete_balance_record_by_id(
     db: Session = Depends(get_finance_db),
     hagent_uid: str = Depends(_get_user_id)
 ):
+    db_record = get_balance_record(db, record_id)
+    if not db_record:
+        raise HTTPException(status_code=404, detail="Balance record not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if db_record.account.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
     if not delete_balance_record(db, record_id):
         raise HTTPException(status_code=404, detail="Balance record not found")
     return {"message": "Balance record deleted successfully"}
@@ -185,6 +219,9 @@ async def get_savings_book_by_id(
     book = get_savings_book(db, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="Savings book not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if book.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return book
 
 @router.put("/savings-books/{book_id}", response_model=SavingsBookResponse)
@@ -194,9 +231,13 @@ async def update_savings_book_by_id(
     db: Session = Depends(get_finance_db),
     hagent_uid: str = Depends(_get_user_id)
 ):
-    updated_book = update_savings_book(db, book_id, book)
-    if not updated_book:
+    db_book = get_savings_book(db, book_id)
+    if not db_book:
         raise HTTPException(status_code=404, detail="Savings book not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if db_book.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    updated_book = update_savings_book(db, book_id, book)
     return updated_book
 
 @router.delete("/savings-books/{book_id}")
@@ -205,6 +246,12 @@ async def delete_savings_book_by_id(
     db: Session = Depends(get_finance_db),
     hagent_uid: str = Depends(_get_user_id)
 ):
+    db_book = get_savings_book(db, book_id)
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Savings book not found")
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    if db_book.user_id != psql_uid:
+        raise HTTPException(status_code=403, detail="Forbidden")
     if not delete_savings_book(db, book_id):
         raise HTTPException(status_code=404, detail="Savings book not found")
     return {"message": "Savings book deleted successfully"}

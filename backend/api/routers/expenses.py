@@ -50,9 +50,10 @@ def get_anuong(
     hagent_uid: str = Depends(_get_user_id)
 ):
     """Lấy chi tiết 1 bản ghi ăn uống"""
-    item = db.query(AnUong).filter(AnUong.id == anuong_id).first()
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    item = db.query(AnUong).filter(AnUong.id == anuong_id, AnUong.user_id == psql_uid).first()
     if not item:
-        raise HTTPException(status_code=404, detail="Ăn uống record not found")
+        raise HTTPException(status_code=404, detail="Ăn uống record not found or access denied")
     return item
 
 @router.put("/anuong/{anuong_id}", response_model=AnUongResponse)
@@ -110,9 +111,10 @@ def get_diennuoc(
     hagent_uid: str = Depends(_get_user_id)
 ):
     """Lấy chi tiết 1 bản ghi điện nước"""
-    diennuoc = db.query(DienNuoc).filter(DienNuoc.id == diennuoc_id).first()
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    diennuoc = db.query(DienNuoc).filter(DienNuoc.id == diennuoc_id, DienNuoc.user_id == psql_uid).first()
     if not diennuoc:
-        raise HTTPException(status_code=404, detail="Dien nuoc record not found")
+        raise HTTPException(status_code=404, detail="Dien nuoc record not found or access denied")
     return diennuoc
 
 @router.put("/diennuoc/{diennuoc_id}", response_model=DienNuocResponse)
@@ -124,6 +126,9 @@ def update_diennuoc_endpoint(
 ):
     """Cập nhật bản ghi điện nước"""
     psql_uid = get_psql_user_id(db, hagent_uid)
+    item = db.query(DienNuoc).filter(DienNuoc.id == diennuoc_id, DienNuoc.user_id == psql_uid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Dien nuoc record not found or access denied")
     # Exclude unset fields so we don't overwrite with default values
     return update_diennuoc(db, diennuoc_id, diennuoc_data)
 
@@ -134,6 +139,10 @@ def delete_diennuoc_endpoint(
     hagent_uid: str = Depends(_get_user_id)
 ):
     """Xóa bản ghi điện nước"""
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    item = db.query(DienNuoc).filter(DienNuoc.id == diennuoc_id, DienNuoc.user_id == psql_uid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Dien nuoc record not found or access denied")
     return delete_diennuoc(db, diennuoc_id)
 
 # ============= EXPENSES GENERAL APIs =============
@@ -242,9 +251,10 @@ def get_expense(
     db: Session = Depends(get_finance_db),
     hagent_uid: str = Depends(_get_user_id)
 ):
-    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    expense = db.query(Expense).filter(Expense.id == expense_id, Expense.userid == psql_uid).first()
     if not expense:
-        raise HTTPException(status_code=404, detail="Expense not found")
+        raise HTTPException(status_code=404, detail="Expense not found or access denied")
     return expense
 
 @router.put("/{expense_id}", response_model=ExpenseResponse)
@@ -255,6 +265,9 @@ def update_expense_endpoint(
     hagent_uid: str = Depends(_get_user_id)
 ):
     psql_uid = get_psql_user_id(db, hagent_uid)
+    item = db.query(Expense).filter(Expense.id == expense_id, Expense.userid == psql_uid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Expense not found or access denied")
     expense_data.userid = psql_uid
     return update_expense(db, expense_id, expense_data)
 
@@ -264,6 +277,10 @@ def delete_expense_endpoint(
     db: Session = Depends(get_finance_db),
     hagent_uid: str = Depends(_get_user_id)
 ):
+    psql_uid = get_psql_user_id(db, hagent_uid)
+    item = db.query(Expense).filter(Expense.id == expense_id, Expense.userid == psql_uid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Expense not found or access denied")
     return delete_expense(db, expense_id)
 
 

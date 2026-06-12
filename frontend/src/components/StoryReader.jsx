@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { ArrowLeft, Settings, Volume2, VolumeX, Play, Pause, Square, SkipBack, SkipForward, ChevronDown, BookOpen, AlertCircle, X } from 'lucide-react'
+import { saveTruyenCVHistory } from '../api.js'
 
 const BASE = window.location.origin
 
@@ -88,7 +89,7 @@ const TTS_SPEED_OPTIONS = [
   { value: 2, label: '2x' },
 ]
 
-export default function StoryReader({ story, initialChapter, sessionId, onBack }) {
+export default function StoryReader({ story, initialChapter, sessionId, token, onBack }) {
   const [currentChapter, setCurrentChapter] = useState(initialChapter)
   // Danh sách chương đã tải (≥1). Ở chế độ phân trang chỉ có 1; liên tục thì nối thêm.
   const [sections, setSections] = useState([])
@@ -280,7 +281,7 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
   }, [currentChapter, story.slug])
 
   // Save reading progress to local storage
-  const saveReadingProgress = (chapter) => {
+  const saveReadingProgress = async (chapter) => {
     try {
       const history = JSON.parse(localStorage.getItem('hagent_reading_history') || '{}')
       history[story.slug] = {
@@ -294,6 +295,14 @@ export default function StoryReader({ story, initialChapter, sessionId, onBack }
       
       // Also update the active chapter key in parent's storage context
       localStorage.setItem('hagent_entertainment_chapter', JSON.stringify(chapter))
+
+      if (token) {
+        try {
+          await saveTruyenCVHistory(history, token)
+        } catch (serverErr) {
+          console.error('Error saving history to server:', serverErr)
+        }
+      }
     } catch (e) {
       console.error(e)
     }

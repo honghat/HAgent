@@ -202,21 +202,30 @@ export default function App() {
 
   useEffect(() => {
     writeStorage('hagent_view', view)
-  }, [view])
+    if (user && view !== 'blog' && view !== 'login') {
+      writeStorage('hagent_user_view', view)
+    }
+  }, [view, user])
 
   // Ép view về tab cấp-1 được phép theo vai trò.
   useEffect(() => {
+    if (authLoading) return
+
     if (!user) {
       if (view !== 'blog' && view !== 'login') {
         setView('blog')
       }
       return
     }
-    if (!canAccess(user, view)) {
-      const next = TOP_TABS.find(t => canAccess(user, t))
-      if (next && next !== view) setView(next)
+
+    if (view === 'login' || (view !== 'blog' && !canAccess(user, view))) {
+      const savedUserView = readStorage('hagent_user_view')
+      const target = (savedUserView && (savedUserView === 'blog' || canAccess(user, savedUserView)))
+        ? savedUserView
+        : (TOP_TABS.find(t => t === 'blog' || canAccess(user, t)) || 'blog')
+      setView(target)
     }
-  }, [user, view])
+  }, [user, view, authLoading])
 
   const fetchUser = async () => {
     if (!token) return
@@ -293,7 +302,7 @@ export default function App() {
         </>
       )}
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          {view === 'login' && <Login onLogin={(t, u) => { resetMobileViewportZoom(); setSignedOut(false); setToken(t); applyUser(u); setView('blog'); }} showBackToBlog={true} onBackToBlog={() => setView('blog')} />}
+          {view === 'login' && <Login onLogin={(t, u) => { resetMobileViewportZoom(); setSignedOut(false); setToken(t); applyUser(u); const savedUserView = readStorage('hagent_user_view'); setView(savedUserView && canAccess(u, savedUserView) ? savedUserView : (canAccess(u, 'chat') ? 'chat' : (TOP_TABS.find(tab => canAccess(u, tab)) || 'chat'))); }} showBackToBlog={true} onBackToBlog={() => setView('blog')} />}
           {view === 'blog' && <BlogHub user={user} token={token} onViewChange={setView} />}
           {view === 'chat' && <ChatHub token={token} provider={provider} cxModel={cxModel} agents={agents} user={user} onProviderChange={saveProvider} onShowAgentManager={() => setView('settings')} onLogout={logout} />}
           {view === 'wiki' && <Wiki token={token} provider={provider} />}

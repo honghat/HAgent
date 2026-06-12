@@ -10,7 +10,7 @@ import time
 import json
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from urllib.parse import urlparse
 import re
@@ -368,3 +368,39 @@ async def delete_chapter(slug: str, chapter_slug: str):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         store.close()
+
+
+@router.get("/history")
+async def get_reading_history(request: Request):
+    """Lấy lịch sử đọc truyện của người dùng hiện tại"""
+    from api.routers.auth import _get_user_id
+    from api.services.db import get_connection
+    uid = _get_user_id(request)
+    key = f"story_history:{uid}"
+    with get_connection() as conn:
+        row = conn.execute("SELECT value FROM state_meta WHERE key = ?", (key,)).fetchone()
+        if row:
+            try:
+                return json.loads(row["value"])
+            except Exception:
+                return {}
+        return {}
+
+
+@router.post("/history")
+async def save_reading_history(body: dict, request: Request):
+    """Lưu lịch sử đọc truyện của người dùng hiện tại"""
+    from api.routers.auth import _get_user_id
+    from api.services.db import get_connection
+    uid = _get_user_id(request)
+    key = f"story_history:{uid}"
+    value_str = json.dumps(body)
+    with get_connection() as conn:
+        # Check if exists
+        exists = conn.execute("SELECT 1 FROM state_meta WHERE key = ?", (key,)).fetchone()
+        if exists:
+            conn.execute("UPDATE state_meta SET value = ? WHERE key = ?", (value_str, key))
+        else:
+            conn.execute("INSERT INTO state_meta (key, value) VALUES (?, ?)", (key, value_str))
+        conn.commit()
+    return {"ok": True}

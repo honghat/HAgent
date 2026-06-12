@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, BookOpen, Clock, Trash2, RefreshCw, AlertCircle } from 'lucide-react'
 import Toast, { useToast } from './Toast'
+import { getTruyenCVHistory, saveTruyenCVHistory } from '../api.js'
 
 const BASE = window.location.origin
 const STORY_SOURCE_KEY = 'hagent_story_browser_source'
@@ -32,15 +33,61 @@ export default function StoryBrowser({ token, onSelectStory, onResumeStory, onDe
     loadReadingHistory()
   }, [])
 
-  function loadReadingHistory() {
+  async function loadReadingHistory() {
     try {
-      const history = JSON.parse(localStorage.getItem('hagent_reading_history') || '{}')
-      // Convert history object to array sorted by timestamp descending
-      const historyList = Object.keys(history).map(slug => ({
-        slug,
-        ...history[slug]
-      })).sort((a, b) => b.timestamp - a.timestamp)
-      setReadingHistory(historyList)
+      let localHistory = {}
+      try {
+        localHistory = JSON.parse(localStorage.getItem('hagent_reading_history') || '{}')
+      } catch (e) {
+        console.error('Error parsing local history:', e)
+      }
+      
+      const setList = (hist) => {
+        const historyList = Object.keys(hist).map(slug => ({
+          slug,
+          ...hist[slug]
+        })).sort((a, b) => b.timestamp - a.timestamp)
+        setReadingHistory(historyList)
+      }
+      
+      setList(localHistory)
+
+      if (token) {
+        try {
+          const serverHistory = await getTruyenCVHistory(token)
+          let hasChanges = false
+          const merged = { ...localHistory }
+          
+          const allSlugs = new Set([...Object.keys(localHistory), ...Object.keys(serverHistory)])
+          for (const slug of allSlugs) {
+            const localItem = localHistory[slug]
+            const serverItem = serverHistory[slug]
+            
+            if (localItem && serverItem) {
+              if (localItem.timestamp > serverItem.timestamp) {
+                merged[slug] = localItem
+                hasChanges = true
+              } else if (serverItem.timestamp > localItem.timestamp) {
+                merged[slug] = serverItem
+                hasChanges = true
+              }
+            } else if (serverItem) {
+              merged[slug] = serverItem
+              hasChanges = true
+            } else if (localItem) {
+              hasChanges = true
+            }
+          }
+
+          if (hasChanges) {
+            localStorage.setItem('hagent_reading_history', JSON.stringify(merged))
+            setList(merged)
+            await saveTruyenCVHistory(merged, token)
+          }
+        } catch (serverErr) {
+          console.error('Error syncing history with server:', serverErr)
+        }
+      }
     } catch (e) {
       console.error('Error loading history:', e)
     }
@@ -144,13 +191,26 @@ export default function StoryBrowser({ token, onSelectStory, onResumeStory, onDe
     loadStories(nextPage, false)
   }
 
-  const handleRemoveHistory = (storySlug, e) => {
+  const handleRemoveHistory = async (storySlug, e) => {
     e.stopPropagation()
     try {
       const history = JSON.parse(localStorage.getItem('hagent_reading_history') || '{}')
       delete history[storySlug]
       localStorage.setItem('hagent_reading_history', JSON.stringify(history))
-      loadReadingHistory()
+      
+      const historyList = Object.keys(history).map(slug => ({
+        slug,
+        ...history[slug]
+      })).sort((a, b) => b.timestamp - a.timestamp)
+      setReadingHistory(historyList)
+
+      if (token) {
+        try {
+          await saveTruyenCVHistory(history, token)
+        } catch (serverErr) {
+          console.error('Error removing history from server:', serverErr)
+        }
+      }
     } catch (err) {
       console.error('Error removing history:', err)
     }

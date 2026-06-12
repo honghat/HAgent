@@ -228,6 +228,7 @@ export default function EntertainmentHub({ token, provider, cxModel, user }) {
                 story={currentStory}
                 initialChapter={currentChapter}
                 sessionId={readerSession}
+                token={token}
                 onBack={handleBackToDetail}
               />
             </div>

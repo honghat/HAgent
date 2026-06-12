@@ -224,6 +224,12 @@ def migrate():
                 )
             )
         conn.commit()
+        # Seed chèn id tường minh nên phải đồng bộ lại sequence SERIAL,
+        # nếu không INSERT mới (không kèm id) sẽ trùng khóa chính.
+        cursor.execute(
+            "SELECT setval(pg_get_serial_sequence('blog_posts', 'id'), (SELECT MAX(id) FROM blog_posts))"
+        )
+        conn.commit()
         print("Blog posts migrated successfully!")
     except Exception as e:
         conn.rollback()

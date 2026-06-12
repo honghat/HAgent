@@ -90,3 +90,52 @@ export async function updateContextCompaction(token, data) {
   });
   return res.json();
 }
+
+// --- Blog (admin) ---
+async function _blogJson(res) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `Lỗi ${res.status}`);
+  return data;
+}
+
+export async function createBlogPost(data, token) {
+  const res = await fetch(`${API}/blog/posts`, {
+    method: 'POST',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return _blogJson(res);
+}
+
+export async function updateBlogPost(id, data, token) {
+  const res = await fetch(`${API}/blog/posts/${id}`, {
+    method: 'PUT',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return _blogJson(res);
+}
+
+export async function deleteBlogPost(id, token) {
+  const res = await fetch(`${API}/blog/posts/${id}`, {
+    method: 'DELETE',
+    headers: { ...auth(token) },
+  });
+  return _blogJson(res);
+}
+
+export async function getTruyenCVHistory(token) {
+  const res = await fetch(`${API}/truyencv/history`, { headers: { ...auth(token) } });
+  if (!res.ok) return {};
+  return res.json().catch(() => ({}));
+}
+
+export async function saveTruyenCVHistory(historyData, token) {
+  const res = await fetch(`${API}/truyencv/history`, {
+    method: 'POST',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(historyData),
+  });
+  if (!res.ok) return { ok: false };
+  return res.json().catch(() => ({ ok: true }));
+}

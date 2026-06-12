@@ -9,6 +9,7 @@ const AdminAudit = lazy(() => import('./admin/AdminAudit.jsx'))
 const AdminControls = lazy(() => import('./admin/AdminControls.jsx'))
 const AdminDatabase = lazy(() => import('./admin/AdminDatabase.jsx'))
 const ServicesPanel = lazy(() => import('./ServicesPanel.jsx'))
+const BlogHub = lazy(() => import('./BlogHub.jsx'))
 
 const tabs = [
   {
@@ -38,6 +39,10 @@ const tabs = [
   {
     id: 'database', label: 'Cơ sở dữ liệu',
     icon: <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" /><path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /></svg>,
+  },
+  {
+    id: 'blog', label: 'Bài viết',
+    icon: <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 4a2 2 0 00-2-2m2 2a2 2 0 012 2v8a2 2 0 01-2 2h-2m-6-13H7m6 4H7m8 4H7" /></svg>,
   },
   {
     id: 'services', label: 'Dịch vụ',
@@ -95,6 +100,7 @@ export default function AdminHub({ token, currentUser }) {
             {activeTab === 'audit' && <AdminAudit token={token} />}
             {activeTab === 'controls' && <AdminControls token={token} />}
             {activeTab === 'database' && <AdminDatabase token={token} />}
+            {activeTab === 'blog' && <BlogHub user={currentUser} token={token} onViewChange={() => {}} />}
             {activeTab === 'services' && <ServicesPanel token={token} />}
           </Suspense>
         </div>

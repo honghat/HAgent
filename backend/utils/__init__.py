@@ -29,6 +29,7 @@ try:
         normalize_proxy_url = _utils_module.normalize_proxy_url
         normalize_proxy_env_vars = _utils_module.normalize_proxy_env_vars
         safe_json_loads = _utils_module.safe_json_loads
+        setup_unixodbc_anonymity = _utils_module.setup_unixodbc_anonymity
         
         __all__ = [
             'atomic_replace',
@@ -42,10 +43,12 @@ try:
             'normalize_proxy_url',
             'normalize_proxy_env_vars',
             'safe_json_loads',
+            'setup_unixodbc_anonymity',
         ]
 except Exception as e:
     # Fallback: if import fails, just pass
     import warnings
     warnings.warn(f"Failed to import utils.py functions: {e}")
+
 
 

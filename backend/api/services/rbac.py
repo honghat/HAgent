@@ -32,6 +32,7 @@ PERMISSION_CATALOG = [
         {"key": "system:camera", "label": "Camera"},
         {"key": "system:gphotos", "label": "Photos"},
         {"key": "system:backup", "label": "Sao lưu"},
+        {"key": "system:devices", "label": "Thiết bị"},
     ]},
     {"key": "automation", "label": "Công cụ", "children": [
         {"key": "automation:editor", "label": "Video"},

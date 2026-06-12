@@ -2,6 +2,7 @@ import { Suspense, lazy, useState } from 'react'
 import { filterTabs, canAccess } from '../lib/permissions.js'
 
 const FileManager = lazy(() => import('./FileManager.jsx'))
+const SmartHome = lazy(() => import('./SmartHome.jsx'))
 const CodeWorkspace = lazy(() => import('./CodeWorkspace.jsx'))
 const PortManager = lazy(() => import('./PortManager.jsx'))
 const CameraPanel = lazy(() => import('./CameraPanel.jsx'))
@@ -73,6 +74,16 @@ const tabs = [
     ),
   },
   {
+    id: 'devices',
+    label: 'Thiết bị',
+    icon: (
+      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path d="M12 3v2M12 12l4-2M12 12l-3 2.5M12 12a2 2 0 100-4 2 2 0 000 4z" />
+        <path d="M5 7a8 8 0 0114 0M7.5 9.5a5 5 0 019 0" />
+      </svg>
+    ),
+  },
+  {
     id: 'gphotos',
     label: 'Photos',
     icon: (
@@ -139,7 +150,7 @@ export default function SystemHub({ token, provider, cxModel, user }) {
   const [tabsHidden, setTabsHidden] = useState(() => localStorage.getItem('hagent_system_tabs_hidden') === '1')
 
   const visibleTabs = tabs.filter(t => {
-    if (['files', 'backup', 'code', 'ports', 'camera', 'gphotos'].includes(t.id)) {
+    if (['files', 'backup', 'code', 'ports', 'camera', 'gphotos', 'devices'].includes(t.id)) {
       return canAccess(user, `system:${t.id}`)
     }
     if (['editor', 'pdf', 'workflows', 'ketoan'].includes(t.id)) {
@@ -249,6 +260,12 @@ export default function SystemHub({ token, provider, cxModel, user }) {
           {effectiveTab === 'camera' && (
             <div className="h-full min-h-0 overflow-hidden">
               <CameraPanel token={token} />
+            </div>
+          )}
+
+          {effectiveTab === 'devices' && (
+            <div className="h-full min-h-0 overflow-y-auto">
+              <SmartHome token={token} />
             </div>
           )}
 

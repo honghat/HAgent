@@ -12,6 +12,7 @@ from api.routers import agent_stream, agents, app_tools, auth, auto_fetch, brows
 from api.routers import blog
 from api.routers import ketoan
 from api.routers import pdf_translate
+from api.routers import iot
 
 from api.services.db import DATA_DIR, init_db
 from api.services.workflow_scheduler import start_workflow_scheduler
@@ -111,6 +112,7 @@ def create_app() -> FastAPI:
     app.include_router(drive.router)
     app.include_router(pdf_tools.router)
     app.include_router(pdf_translate.router)
+    app.include_router(iot.router)
     app.include_router(cv.router)
     app.include_router(cv_generate.router)
     job_hunter = _optional_router("job_hunter")

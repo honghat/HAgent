@@ -37,7 +37,7 @@ const proxy = {
 export default defineConfig({
   build: {
     sourcemap: true,
-    emptyOutDir: false,
+    emptyOutDir: true,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),

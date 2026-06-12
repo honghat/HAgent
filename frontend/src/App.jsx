@@ -16,7 +16,7 @@ import { GlobalToastViewport } from './components/Toast.jsx'
 import { getDeviceCredentials, isSignedOut, saveDeviceCredentials, setSignedOut } from './lib/deviceAuth.js'
 import { canAccess } from './lib/permissions.js'
 
-const TOP_TABS = ['blog', 'chat', 'system', 'automation', 'learning', 'personal', 'entertainment', 'settings', 'admin']
+const TOP_TABS = ['chat', 'system', 'automation', 'learning', 'personal', 'entertainment', 'settings', 'admin']
 
 function readStorage(key, fallback = '') {
   try {
@@ -218,11 +218,11 @@ export default function App() {
       return
     }
 
-    if (view === 'login' || (view !== 'blog' && !canAccess(user, view))) {
+    if (view === 'blog' || view === 'login' || !canAccess(user, view)) {
       const savedUserView = readStorage('hagent_user_view')
-      const target = (savedUserView && (savedUserView === 'blog' || canAccess(user, savedUserView)))
+      const target = (savedUserView && canAccess(user, savedUserView))
         ? savedUserView
-        : (TOP_TABS.find(t => t === 'blog' || canAccess(user, t)) || 'blog')
+        : (TOP_TABS.find(t => canAccess(user, t)) || 'chat')
       setView(target)
     }
   }, [user, view, authLoading])

@@ -23,7 +23,7 @@ router = APIRouter(prefix="", tags=["Ketoan"])
 db_user = os.getenv("DB_USERNAME1", "bravoDev")
 db_password = quote_plus(os.getenv("DB_PASSWORD1", "b8@Consolidation#20II"))
 db_host = os.getenv("DB_SERVER1", "bravo8group.thaco.com.vn")
-db_port = os.getenv("DB_PORT1", "1433")
+db_port = os.getenv("DB_PORT1", "7474")
 db_database = os.getenv("DB_DATABASE1", "B8R2_THACOGroup")
 
 # Set TDSHOSTNAME environment variable to anonymize the client machine name sent to SQL Server.

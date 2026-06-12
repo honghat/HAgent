@@ -38,6 +38,14 @@ PERMISSION_CATALOG = [
         {"key": "automation:pdf", "label": "PDF"},
         {"key": "automation:workflows", "label": "Workflow"},
     ]},
+    {"key": "personal", "label": "Cá nhân", "children": [
+        {"key": "personal:expenses", "label": "Thu Chi"},
+        {"key": "personal:balance", "label": "Tài khoản"},
+        {"key": "personal:food", "label": "Ăn uống"},
+        {"key": "personal:diennuoc", "label": "Tiền nhà"},
+        {"key": "personal:notes", "label": "Ghi chú"},
+        {"key": "personal:tasks", "label": "Công việc"},
+    ]},
     {"key": "learning", "label": "Học tập", "children": [
         {"key": "learning:review", "label": "Cần ôn"},
         {"key": "learning:learn", "label": "Learn Code"},
@@ -62,7 +70,16 @@ PERMISSION_CATALOG = [
     ]},
 ]
 
-DEFAULT_USER_PERMS = ["chat:chat", "settings:user"]
+DEFAULT_USER_PERMS = [
+    "chat:chat",
+    "settings:user",
+    "personal:expenses",
+    "personal:balance",
+    "personal:food",
+    "personal:diennuoc",
+    "personal:notes",
+    "personal:tasks",
+]
 SLUG_OK = set("abcdefghijklmnopqrstuvwxyz0123456789_-")
 
 

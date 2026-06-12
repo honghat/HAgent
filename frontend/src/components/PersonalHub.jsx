@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useState } from "react";
 import { Wallet, DollarSign, StickyNote, CheckSquare, Utensils, Zap, Home } from "lucide-react";
+import { filterTabs } from "../lib/permissions.js";
 
 const ExpenseTracker = lazy(() => import("./ExpenseTracker"));
 const FoodTracker = lazy(() => import("./FoodTracker"));
@@ -34,6 +35,9 @@ const PersonalHub = ({ user, token }) => {
         () => localStorage.getItem("hagent_personal_tab") || "expenses"
     );
 
+    const visibleTabs = filterTabs(user, "personal", TABS);
+    const effectiveTab = visibleTabs.some(t => t.id === activeTab) ? activeTab : visibleTabs[0]?.id;
+
     const selectTab = (tabId) => {
         setActiveTab(tabId);
         localStorage.setItem("hagent_personal_tab", tabId);
@@ -44,9 +48,9 @@ const PersonalHub = ({ user, token }) => {
             {/* Tab Bar - glassmorphism */}
             <div className="sticky top-0 z-20 shrink-0 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl px-4 py-3 sm:px-6">
                 <div className="inline-flex p-1 bg-slate-100/80 backdrop-blur rounded-2xl select-none overflow-x-auto no-scrollbar gap-1 ring-1 ring-slate-200/40">
-                    {TABS.map((tab) => {
+                    {visibleTabs.map((tab) => {
                         const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
+                        const isActive = effectiveTab === tab.id;
                         return (
                             <button
                                 key={tab.id}
@@ -71,12 +75,12 @@ const PersonalHub = ({ user, token }) => {
             {/* Tab Content */}
             <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
                 <Suspense fallback={<TabLoading />}>
-                    {activeTab === "expenses" && <ExpenseTracker user={user} token={token} />}
-                    {activeTab === "balance" && <AccountBalance user={user} token={token} />}
-                    {activeTab === "food" && <FoodTracker token={token} />}
-                    {activeTab === "diennuoc" && <ExpenseDienNuoc user={user} token={token} />}
-                    {activeTab === "notes" && <PersonalNotes token={token} />}
-                    {activeTab === "tasks" && <PersonalTasks token={token} />}
+                    {effectiveTab === "expenses" && <ExpenseTracker user={user} token={token} />}
+                    {effectiveTab === "balance" && <AccountBalance user={user} token={token} />}
+                    {effectiveTab === "food" && <FoodTracker token={token} />}
+                    {effectiveTab === "diennuoc" && <ExpenseDienNuoc user={user} token={token} />}
+                    {effectiveTab === "notes" && <PersonalNotes token={token} />}
+                    {effectiveTab === "tasks" && <PersonalTasks token={token} />}
                 </Suspense>
             </div>
         </div>

@@ -13,7 +13,6 @@ export function isAdmin(user) {
 // Khóa cấp 1: 'chat'. Khóa cấp 2: 'chat:omni'. Khóa cấp 3: 'system:workflows:flow'
 export function canAccess(user, key) {
   if (!user) return false
-  if (key === 'personal') return true
   const perms = userPerms(user)
   if (perms.includes('*')) return true
   

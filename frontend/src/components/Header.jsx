@@ -14,7 +14,6 @@ export default function Header({ user, view, collapsed = false, onViewChange, on
 
   const tabs = allTabs.filter(tab => {
     if (!user) return false
-    if (tab.id === 'personal') return true
     return tab.id === 'admin' ? isAdmin(user) : canAccess(user, tab.id)
   })
 

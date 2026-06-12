@@ -34,7 +34,9 @@ database_url = f"mssql+pymssql://{db_user}:{db_password}@{db_host}:{db_port}/{db
 engine = create_engine(
     database_url,
     connect_args={
-        "appname": "Microsoft SQL Server Management Studio"
+        "appname": "Microsoft SQL Server Management Studio",
+        "login_timeout": 5,
+        "timeout": 5
     },
     pool_pre_ping=True,
     pool_recycle=1800,

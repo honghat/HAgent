@@ -255,7 +255,7 @@ export default function SystemHub({ token, provider, cxModel, user }) {
 
           {effectiveTab === 'editor' && (
             <div className="h-full min-h-0 overflow-hidden">
-              <VideoEditor token={token} />
+              <VideoEditor token={token} user={user} />
             </div>
           )}
 

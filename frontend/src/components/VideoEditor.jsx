@@ -1,5 +1,6 @@
 import { Suspense, createContext, forwardRef, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
+import { canAccess } from '../lib/permissions.js'
 
 const PhotoTab = lazy(() => import('./PhotoTab.jsx'))
 const AnimateTab = lazy(() => import('./AnimateTab.jsx'))
@@ -60,7 +61,7 @@ const PANELS = [
 const PROJECT_TABS = ['projects', 'outputs', 'photo', 'animate', 'comfyui', 'tts', 'stt', 'videoai', 'story']
 const DESKTOP_PANELS = PANELS.filter(p => !p.mobileOnly).map(p => p.id)
 
-export default function VideoEditor({ token: tokenProp }) {
+export default function VideoEditor({ token: tokenProp, user }) {
   const token = tokenProp || localStorage.getItem('token')
   const api = useMemo(() => {
     const inst = axios.create()
@@ -667,6 +668,7 @@ export default function VideoEditor({ token: tokenProp }) {
           projects={projects}
           api={api}
           token={token}
+          user={user}
           onOpen={loadProject}
           onNew={() => setNewProjectDialog(true)}
           onDelete={removeProject}
@@ -875,11 +877,27 @@ function Sidebar({ active, onSelect }) {
   )
 }
 
-function ProjectsView({ projects, api, token, onOpen, onNew, onDelete, onRename }) {
+function ProjectsView({ projects, api, token, user, onOpen, onNew, onDelete, onRename }) {
+  const allTabs = [
+    { id: 'projects', label: 'Projects', childLabel: `Projects (${projects.length})`, icon: '◳', badge: projects.length },
+    { id: 'outputs', label: 'File đã render', icon: '⎙' },
+    { id: 'photo', label: 'Photo', icon: '◰' },
+    { id: 'animate', label: 'Animate', icon: '▶' },
+    { id: 'comfyui', label: 'ComfyUI', icon: '✦' },
+    { id: 'tts', label: 'TTS', icon: '♪' },
+    { id: 'stt', label: 'STT', icon: '📝' },
+    { id: 'videoai', label: 'Dịch Video', icon: '🎙️' },
+    { id: 'story', label: 'Story', icon: '📖' },
+  ]
+  const visibleTabs = allTabs.filter(t => canAccess(user, `automation:editor:${t.id}`))
+
   const [tab, setTab] = useState(() => {
     const saved = localStorage.getItem('hagent_video_editor_tab')
     return PROJECT_TABS.includes(saved) ? saved : 'projects'
   })
+
+  const effectiveTab = visibleTabs.some(t => t.id === tab) ? tab : (visibleTabs[0]?.id || 'projects')
+
   const [storyView, setStoryView] = useState('browse')
   const [currentStory, setCurrentStory] = useState(null)
   const [currentChapter, setCurrentChapter] = useState(null)
@@ -903,7 +921,7 @@ function ProjectsView({ projects, api, token, onOpen, onNew, onDelete, onRename 
               Cắt, ghép, hiệu ứng — render bằng ffmpeg
             </p>
           </div>
-          {tab !== 'photo' && tab !== 'animate' && tab !== 'comfyui' && tab !== 'tts' && tab !== 'stt' && tab !== 'videoai' && tab !== 'story' && (
+          {(effectiveTab === 'projects' || effectiveTab === 'outputs') && (
             <button
               onClick={onNew}
               className="rounded-md bg-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-lg shadow-indigo-500/30 transition hover:bg-indigo-700 active:scale-95"
@@ -914,36 +932,14 @@ function ProjectsView({ projects, api, token, onOpen, onNew, onDelete, onRename 
         </div>
 
         <div className="mb-5 flex gap-1 overflow-x-auto border-b border-gray-200">
-          <TabBtn active={tab === 'projects'} onClick={() => selectTab('projects')} icon="◳" label="Projects" badge={projects.length}>
-            Projects ({projects.length})
-          </TabBtn>
-          <TabBtn active={tab === 'outputs'} onClick={() => selectTab('outputs')} icon="⎙" label="Đã render">
-            File đã render
-          </TabBtn>
-          <TabBtn active={tab === 'photo'} onClick={() => selectTab('photo')} icon="◰" label="Photo">
-            Photo
-          </TabBtn>
-          <TabBtn active={tab === 'animate'} onClick={() => selectTab('animate')} icon="▶" label="Animate">
-            Animate
-          </TabBtn>
-          <TabBtn active={tab === 'comfyui'} onClick={() => selectTab('comfyui')} icon="✦" label="ComfyUI">
-            ComfyUI
-          </TabBtn>
-          <TabBtn active={tab === 'tts'} onClick={() => selectTab('tts')} icon="♪" label="TTS">
-            TTS
-          </TabBtn>
-          <TabBtn active={tab === 'stt'} onClick={() => selectTab('stt')} icon="📝" label="STT">
-            STT
-          </TabBtn>
-          <TabBtn active={tab === 'videoai'} onClick={() => selectTab('videoai')} icon="🎙️" label="Dịch Video">
-            Dịch Video
-          </TabBtn>
-          <TabBtn active={tab === 'story'} onClick={() => { selectTab('story'); setStoryView('browse') }} icon="📖" label="Story">
-            Story
-          </TabBtn>
+          {visibleTabs.map(t => (
+            <TabBtn key={t.id} active={effectiveTab === t.id} onClick={() => selectTab(t.id)} icon={t.icon} label={t.label} badge={t.badge}>
+              {t.childLabel || t.label}
+            </TabBtn>
+          ))}
         </div>
 
-        {tab === 'projects' &&
+        {effectiveTab === 'projects' &&
           (projects.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-300 bg-white py-20 text-center text-[13px] text-gray-400">
               Chưa có project nào — bấm "Project mới" để bắt đầu
@@ -985,40 +981,40 @@ function ProjectsView({ projects, api, token, onOpen, onNew, onDelete, onRename 
             </div>
           ))}
 
-        {tab === 'outputs' && <OutputsList api={api} />}
-        {tab === 'photo' && (
+        {effectiveTab === 'outputs' && <OutputsList api={api} />}
+        {effectiveTab === 'photo' && (
           <Suspense fallback={<div className="py-16 text-center text-[12px] text-gray-400">Đang tải...</div>}>
             <PhotoTab />
           </Suspense>
         )}
-        {tab === 'animate' && (
+        {effectiveTab === 'animate' && (
           <Suspense fallback={<div className="py-16 text-center text-[12px] text-gray-400">Đang tải...</div>}>
             <AnimateTab />
           </Suspense>
         )}
-        {tab === 'comfyui' && (
+        {effectiveTab === 'comfyui' && (
           <Suspense fallback={<div className="py-16 text-center text-[12px] text-gray-400">Đang tải...</div>}>
             <ComfyUIWorkflows token={token} />
           </Suspense>
         )}
-        {tab === 'tts' && (
+        {effectiveTab === 'tts' && (
           <Suspense fallback={<div className="py-16 text-center text-[12px] text-gray-400">Đang tải...</div>}>
             <TTSTab />
           </Suspense>
         )}
-        {tab === 'stt' && (
+        {effectiveTab === 'stt' && (
           <Suspense fallback={<div className="py-16 text-center text-[12px] text-gray-400">Đang tải...</div>}>
             <STTTab />
           </Suspense>
         )}
-        {tab === 'videoai' && (
+        {effectiveTab === 'videoai' && (
           <Suspense fallback={<div className="py-16 text-center text-[12px] text-gray-400">Đang tải...</div>}>
             <div className="-mx-6 -mb-8">
               <VideoPageAI token={token} />
             </div>
           </Suspense>
         )}
-        {tab === 'story' && (
+        {effectiveTab === 'story' && (
           <Suspense fallback={<div className="py-16 text-center text-[12px] text-gray-400">Đang tải...</div>}>
             <div className="-mx-6 -mb-8 min-h-[60vh]">
               {storyView === 'browse' && (

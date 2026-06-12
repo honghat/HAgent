@@ -1,5 +1,6 @@
 import { lazy, Suspense, useRef, useState } from 'react'
 import { FileText, Image as ImageIcon, FileType2, Combine, Languages, Loader2, Upload, Download, Eye, CheckCircle2, Pencil } from 'lucide-react'
+import { canAccess } from '../lib/permissions.js'
 
 const PdfEditor = lazy(() => import('./PdfEditor.jsx'))
 
@@ -29,8 +30,16 @@ const LANGS = [
   { value: 'ru', label: 'Русский' },
 ]
 
-export default function PdfTools({ token }) {
-  const [action, setAction] = useState('edit')
+export default function PdfTools({ token, user }) {
+  const visibleActions = ACTIONS.filter(a => canAccess(user, `automation:pdf:${a.id}`))
+  const [action, setAction] = useState(() => {
+    const saved = localStorage.getItem('hagent_pdf_action')
+    const allowedIds = visibleActions.map(x => x.id)
+    if (allowedIds.includes(saved)) return saved
+    return allowedIds[0] || 'edit'
+  })
+  const effectiveAction = visibleActions.some(a => a.id === action) ? action : (visibleActions[0]?.id || 'edit')
+
   const [text, setText] = useState('')
   const [title, setTitle] = useState('')
   const [files, setFiles] = useState([])
@@ -54,6 +63,7 @@ export default function PdfTools({ token }) {
   function pickAction(id) {
     if (id === action) return
     setAction(id)
+    localStorage.setItem('hagent_pdf_action', id)
     reset()
   }
 
@@ -125,9 +135,9 @@ export default function PdfTools({ token }) {
           </div>
         </div>
         <div className="-mx-2 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-2 no-scrollbar sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-6">
-        {ACTIONS.map(a => {
+        {visibleActions.map(a => {
           const Icon = a.icon
-          const active = action === a.id
+          const active = effectiveAction === a.id
           return (
             <button
               key={a.id}
@@ -151,7 +161,7 @@ export default function PdfTools({ token }) {
         </div>
       </div>
 
-      {action === 'edit' ? (
+      {effectiveAction === 'edit' ? (
         <div className="min-h-0 flex-1 overflow-hidden">
           <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-gray-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tải editor...</div>}>
             <PdfEditor token={token} />
@@ -161,11 +171,11 @@ export default function PdfTools({ token }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
         <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-200 px-5 py-4">
-            <div className="text-[15px] font-semibold text-gray-950">{ACTIONS.find(a => a.id === action)?.label}</div>
-            <div className="mt-1 text-[12px] text-gray-500">{ACTIONS.find(a => a.id === action)?.desc}</div>
+            <div className="text-[15px] font-semibold text-gray-950">{ACTIONS.find(a => a.id === effectiveAction)?.label}</div>
+            <div className="mt-1 text-[12px] text-gray-500">{ACTIONS.find(a => a.id === effectiveAction)?.desc}</div>
           </div>
           <div className="space-y-4 p-5">
-          {action === 'text' && (
+          {effectiveAction === 'text' && (
             <>
               <label className="block">
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Tiêu đề</span>
@@ -189,12 +199,12 @@ export default function PdfTools({ token }) {
             </>
           )}
 
-          {(action === 'images' || action === 'docx' || action === 'merge' || action === 'translate') && (
+          {(effectiveAction === 'images' || effectiveAction === 'docx' || effectiveAction === 'merge' || effectiveAction === 'translate') && (
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                {action === 'images' ? 'Chọn nhiều ảnh' :
-                 action === 'docx' ? 'Chọn file .docx' :
-                 action === 'merge' ? 'Chọn nhiều PDF (≥ 2)' :
+                {effectiveAction === 'images' ? 'Chọn nhiều ảnh' :
+                 effectiveAction === 'docx' ? 'Chọn file .docx' :
+                 effectiveAction === 'merge' ? 'Chọn nhiều PDF (≥ 2)' :
                  'Chọn 1 PDF cần dịch'}
               </span>
               <div className="rounded border border-dashed border-gray-300 bg-gray-50 p-5 text-center">
@@ -207,10 +217,10 @@ export default function PdfTools({ token }) {
                   <input
                     ref={inputRef}
                     type="file"
-                    multiple={action === 'images' || action === 'merge'}
+                    multiple={effectiveAction === 'images' || effectiveAction === 'merge'}
                     accept={
-                      action === 'images' ? 'image/*' :
-                      action === 'docx' ? '.doc,.docx' :
+                      effectiveAction === 'images' ? 'image/*' :
+                      effectiveAction === 'docx' ? '.doc,.docx' :
                       'application/pdf'
                     }
                     onChange={onFilesChange}
@@ -232,7 +242,7 @@ export default function PdfTools({ token }) {
             </label>
           )}
 
-          {action === 'translate' && (
+          {effectiveAction === 'translate' && (
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Dịch sang</span>
               <select

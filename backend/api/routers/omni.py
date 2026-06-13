@@ -454,9 +454,8 @@ def _send_omni_text(
             if not cookie:
                 raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
 
-            # Bỏ qua E2EE listener (Go bridge trả OK nhưng tin nhắn không đến).
-            # Dùng cookie bridge (Playwright) — chậm hơn nhưng đáng tin cậy.
-            bridge = FACEBOOK_SEND_BRIDGE_LEGACY if FACEBOOK_SEND_BRIDGE_LEGACY.exists() else FACEBOOK_SEND_BRIDGE
+            # Ưu tiên API Bridge (nhanh), chỉ dùng Playwright làm fallback
+            bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
             send_meta = _run_facebook_bridge(
                 bridge,
                 {
@@ -1022,7 +1021,7 @@ async def send_media_to_conversation(
             result = await _send_facebook_live_message(uid, external_id, payload.caption, paths_to_send)
         except Exception as live_exc:
             logging.warning("Facebook live media send failed, falling back to cookie bridge: %s", live_exc)
-            bridge = FACEBOOK_SEND_BRIDGE_LEGACY if FACEBOOK_SEND_BRIDGE_LEGACY.exists() else FACEBOOK_SEND_BRIDGE
+            bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
             result = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: _run_facebook_bridge(
@@ -2007,11 +2006,11 @@ async def _send_facebook_live_message(
     text: str = "",
     image_paths: list[str] | None = None,
 ) -> dict:
-    """Send via legacy Playwright bridge (always works; HTTP path is disabled pending debug)."""
+    """Send via fast HTTP/Go bridge API (falls back to Playwright legacy if needed)."""
     cookie = _load_facebook_channel(user_id)
     if not cookie:
         raise RuntimeError("Chưa có phiên Facebook.")
-    bridge = FACEBOOK_SEND_BRIDGE_LEGACY if FACEBOOK_SEND_BRIDGE_LEGACY.exists() else FACEBOOK_SEND_BRIDGE
+    bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
     logging.info("Facebook sending via bridge %s (target=%s)", bridge.name, target)
     return await asyncio.get_running_loop().run_in_executor(
         None,

@@ -2259,38 +2259,30 @@ async def _sync_facebook_exact_thread_cookie(
             f"https://www.facebook.com/messages/e2ee/t/{thread_id}",
         ):
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                await page.wait_for_timeout(6500 if "/messages/e2ee/t/" in url else 4500)
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(3000)
                 body = await page.locator("body").inner_text(timeout=5000)
                 if "login" in page.url.lower() or "Đăng nhập" in body or "Log in" in body:
                     continue
-                for _attempt in range(6):
+                for _attempt in range(3):
                     try:
-                        await page.evaluate(
-                            """() => {
-                                for (const el of document.querySelectorAll('div')) {
-                                    if (el.scrollHeight > el.clientHeight + 120) el.scrollTop = el.scrollHeight;
-                                }
-                            }"""
-                        )
+                        await page.evaluate("document.querySelector('div[role=main]')?.scrollTo(0, 999999)")
                     except Exception:
                         pass
-                    await page.wait_for_timeout(1200)
+                    await page.wait_for_timeout(800)
                     items = await page.locator('div[dir="auto"]').evaluate_all(
                         """nodes => nodes.map(node => {
-                            const rect = node.getBoundingClientRect();
                             const text = (node.innerText || '').trim();
+                            if (!text) return null;
+                            const rect = node.getBoundingClientRect();
                             let align = '';
-                            let messageLabel = '';
                             let el = node;
-                            for (let depth = 0; el && depth < 14; depth += 1, el = el.parentElement) {
-                                const currentAlign = getComputedStyle(el).alignItems;
-                                if (currentAlign === 'flex-start' || currentAlign === 'flex-end') align = currentAlign;
-                                const aria = el.getAttribute('aria-label') || '';
-                                if (!messageLabel && /^Lúc \d{1,2}:\d{2}, /.test(aria)) messageLabel = aria;
+                            for (let d = 0; el && d < 10; d++, el = el.parentElement) {
+                                const a = getComputedStyle(el).alignItems;
+                                if (a === 'flex-start' || a === 'flex-end') align = a;
                             }
-                            return {text, align, messageLabel, x: rect.x, y: rect.y, width: rect.width, height: rect.height};
-                        }).filter(item => item.text && item.x > 250 && item.y > 100 && item.width > 10 && item.width < 760 && item.height > 10 && item.height < 260)"""
+                            return {text, align, x: rect.x, y: rect.y};
+                        }).filter(Boolean)"""
                     )
                     if items:
                         break

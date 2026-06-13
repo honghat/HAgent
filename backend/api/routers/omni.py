@@ -1578,7 +1578,7 @@ _facebook_sync_tasks: dict[str, asyncio.Task] = {}
 _facebook_sync_locks: dict[str, asyncio.Lock] = {}
 _facebook_listeners: dict[str, dict] = {}
 _facebook_listeners_lock = threading.Lock()
-_fb_mqtt_send_api_cache: dict[str, FbSendAPI] = {}
+_fb_mqtt_send_api_cache: dict[str, object] = {}
 _omni_browser_sessions: dict[str, dict] = {}
 FACEBOOK_PROFILE_ROOT = BACKEND_ROOT / "data" / "facebook_profiles"
 OMNI_BROWSER_PROFILE_ROOT = BACKEND_ROOT / "data" / "omni_browser_profiles"
@@ -2287,7 +2287,8 @@ async def _send_facebook_http(
         raise RuntimeError("Phiên Facebook đã hết hạn. Cần kết nối lại.")
 
     if user_id not in _fb_mqtt_send_api_cache:
-        _fb_mqtt_send_api_cache[user_id] = FbSendAPI()
+        from fbchat_v2._messaging._send import api as _FbSendApi
+        _fb_mqtt_send_api_cache[user_id] = _FbSendApi()
     sender = _fb_mqtt_send_api_cache[user_id]
 
     # Determine type of conversation: user vs thread

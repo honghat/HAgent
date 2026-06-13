@@ -252,10 +252,12 @@ def main():
             try:
                 from fbchat_v2._messaging._unsend import func as unsend_func
                 res = unsend_func(messageID=message_id, dataFB=dataFB)
-                if res.get("success"):
+                if isinstance(res, Exception):
+                    raise RuntimeError(str(res))
+                if (res or {}).get("success"):
                     result = res
                 else:
-                    raise RuntimeError(res.get("payload", {}).get("error-decription", "Native unsend failed"))
+                    raise RuntimeError((res or {}).get("payload", {}).get("error-decription", "Native unsend failed"))
             except Exception as exc:
                 result = {
                     "error": 1,

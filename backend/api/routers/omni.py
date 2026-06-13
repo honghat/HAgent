@@ -43,7 +43,6 @@ from api.schemas import (
 )
 from fbchat_v2 import dataGetHome as fbDataGetHome
 from fbchat_v2 import listeningE2EEEvent as FbListeningEvent
-from fbchat_v2 import sendingE2EEEvent as FbSendingE2EEEvent
 
 def fbValidateCookie(cookie: str) -> tuple[bool, str, dict]:
     try:
@@ -463,33 +462,66 @@ def _facebook_send_via_listener(
     with _facebook_listeners_lock:
         state = _facebook_listeners.get(user_id)
     listener = state.get("listener") if state else None
+    data_fb = state.get("dataFB") if state else None
     if not listener or getattr(listener, "_bridge", None) is None:
         return None
 
-    # Chỉ reply E2EE khi có message ID thật (mid.$...); ID ảo fb_<hash> sẽ bị từ chối.
     reply_msg = reply_to_id if (reply_to_id and not reply_to_id.startswith("fb_")) else ""
     reply_sender = f"{reply_to_author_id}@s.whatsapp.net" if (reply_msg and reply_to_author_id) else ""
 
-    sender = FbSendingE2EEEvent(listener=listener)
-    res = sender.send(
-        chat_jid=f"{target}@s.whatsapp.net",
-        contentSend=text,
-        replyMessage=reply_msg,
-        replySenderJid=reply_sender,
-    )
-    if not res.get("success"):
-        err = (res.get("payload") or {}).get("error-decription", "E2EE send failed")
-        raise RuntimeError(err)
-    payload = res.get("payload") or {}
-    msg_id = str(payload.get("messageID") or "")
-    return {
-        "ok": True,
-        "target": target,
-        "msg_id": msg_id,
-        "cli_msg_id": f"fb_{msg_id[:12]}" if msg_id else "",
-        "msg_type": "message",
-        "timestamp": payload.get("timestamp") or 0,
-    }
+    try:
+        # Gọi thẳng bridge của listener (reuse — không spawn process mới, không xung đột device).
+        # timeout=15s: lần đầu thiết lập phiên Signal có thể chậm; nếu quá 15s coi như
+        # contact chưa bật E2EE → fallback non-E2EE in-process (không đụng bridge).
+        data = listener._bridge.call(
+            "sendE2EEMessage",
+            {
+                "chatJid": f"{target}@s.whatsapp.net",
+                "text": text,
+                "replyToId": reply_msg,
+                "replyToSenderJid": reply_sender,
+            },
+            timeout=15.0,
+        )
+        msg_id = str(data.get("messageId") or data.get("id") or "")
+        return {
+            "ok": True,
+            "target": target,
+            "msg_id": msg_id,
+            "cli_msg_id": f"fb_{msg_id[:12]}" if msg_id else "",
+            "msg_type": "message",
+            "timestamp": data.get("timestampMs") or data.get("timestamp") or 0,
+        }
+    except Exception as exc:
+        err = str(exc).lower()
+        logging.warning("Facebook E2EE send via listener failed (%s): %s", target, exc)
+        # Nếu không lấy được device list / usync timeout → contact chưa bật E2EE.
+        # Thử gửi non-E2EE in-process (dùng dataFB của listener, không spawn subprocess).
+        e2ee_unavailable = any(k in err for k in ("device list", "usync", "prekey", "not e2ee", "e2ee not", "bridge exited", "closed"))
+        if e2ee_unavailable and data_fb:
+            try:
+                from fbchat_v2._messaging._send import api as _SendApi
+                _api = _SendApi()
+                type_chat = "user" if thread_type == "user" else None
+                res = _api.send(dataFB=data_fb, contentSend=text, threadID=target, typeChat=type_chat)
+                if isinstance(res, Exception):
+                    raise RuntimeError(str(res))
+                if not (res or {}).get("success"):
+                    raise RuntimeError(((res or {}).get("payload") or {}).get("error-decription", "Non-E2EE send failed"))
+                payload = (res or {}).get("payload") or {}
+                msg_id = str(payload.get("messageID") or "")
+                logging.info("Facebook non-E2EE fallback delivered to %s", target)
+                return {
+                    "ok": True,
+                    "target": target,
+                    "msg_id": msg_id,
+                    "cli_msg_id": f"fb_{msg_id[:12]}" if msg_id else "",
+                    "msg_type": "message",
+                    "timestamp": payload.get("timestamp") or 0,
+                }
+            except Exception as ne2ee_exc:
+                logging.warning("Facebook non-E2EE fallback also failed (%s): %s", target, ne2ee_exc)
+        return None  # caller dùng subprocess bridge làm phương án cuối
 
 
 def _send_omni_text(
@@ -2655,6 +2687,7 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
             enable_e2ee=True,
             device_path=device_path,
             e2ee_memory_only=False,
+            log_level="warn",
         )
 
         @listener.on_message
@@ -2897,10 +2930,18 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
             except Exception as exc:  # vd cookie hết hạn ("xs cookie was deleted")
                 logging.warning("Facebook MQTT connect failed for %s: %s", user_id, exc)
             finally:
-                # Dọn entry chết để lần kết nối lại (sau khi làm mới cookie) khởi động được.
+                # Dọn entry chết để lần kết nối lại khởi động được.
                 with _facebook_listeners_lock:
                     if _facebook_listeners.get(user_id, {}).get("thread") is t:
                         _facebook_listeners.pop(user_id, None)
+                # Tự khởi động lại sau 25s nếu cookie vẫn còn (bridge chết do usync timeout, v.v.)
+                def _auto_restart():
+                    time.sleep(25)
+                    ck = _load_facebook_channel(user_id)
+                    if ck:
+                        logging.info("Facebook MQTT auto-restart for user %s", user_id[:8])
+                        _start_facebook_mqtt_listener(user_id, ck)
+                t_mod.Thread(target=_auto_restart, daemon=True).start()
 
         t = t_mod.Thread(target=_run_listener, daemon=True)
         with _facebook_listeners_lock:

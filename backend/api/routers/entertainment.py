@@ -549,7 +549,7 @@ def list_video_categories(request: Request):
             SELECT id, label, sort_order, created_at, updated_at
             FROM entertainment_video_categories
             WHERE user_id=?
-            ORDER BY sort_order ASC, label COLLATE NOCASE ASC
+            ORDER BY sort_order ASC, LOWER(label) ASC
             """,
             (user_id,),
         ).fetchall()

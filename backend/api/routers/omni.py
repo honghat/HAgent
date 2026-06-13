@@ -2408,12 +2408,13 @@ async def _sync_facebook_exact_thread_cookie(
                                 return {text, align, messageLabel, x: rect.x, y: rect.y, width: rect.width, height: rect.height};
                             }).filter(item =>
                                 item.text &&
+                                item.x > 300 &&
                                 item.y > 80 &&
                                 item.width > 10 &&
-                                item.width < 900 &&
+                                item.width < 700 &&
                                 item.height > 8 &&
                                 item.height < 320 &&
-                                !['Meta AI', 'Messenger', 'Search', 'Tìm kiếm', 'Đoạn chat', 'Chats'].includes(item.text)
+                                !['Meta AI', 'Messenger', 'Search', 'Tìm kiếm', 'Đoạn chat', 'Chats', 'Quyền riêng tư và hỗ trợ', 'Privacy & support', 'Xem trang cá nhân', 'View profile', 'Chặn', 'Block', 'Tìm kiếm trong cuộc trò chuyện', 'Search in conversation', 'Xem ảnh & file', 'View photos & files', 'Tên biệt danh', 'Nicknames', 'Thay đổi chủ đề', 'Change theme', 'Thay đổi biểu tượng cảm xúc', 'Change emoji', 'Tắt thông báo', 'Mute notifications', 'Thành viên trong đoạn chat', 'Chat members', 'File phương tiện, file và liên kết', 'Media, files and links', 'Thông tin về đoạn chat', 'Chat information'].includes(item.text)
                             )"""
                         )
                         if items:
@@ -2533,12 +2534,13 @@ async def _sync_facebook_exact_thread_live(
                             return {text, align, messageLabel, x: rect.x, y: rect.y, width: rect.width, height: rect.height};
                         }).filter(item =>
                             item.text &&
+                            item.x > 300 &&
                             item.y > 80 &&
                             item.width > 10 &&
-                            item.width < 900 &&
+                            item.width < 700 &&
                             item.height > 8 &&
                             item.height < 320 &&
-                            !['Meta AI', 'Messenger', 'Search', 'Tìm kiếm', 'Đoạn chat', 'Chats'].includes(item.text)
+                            !['Meta AI', 'Messenger', 'Search', 'Tìm kiếm', 'Đoạn chat', 'Chats', 'Quyền riêng tư và hỗ trợ', 'Privacy & support', 'Xem trang cá nhân', 'View profile', 'Chặn', 'Block', 'Tìm kiếm trong cuộc trò chuyện', 'Search in conversation', 'Xem ảnh & file', 'View photos & files', 'Tên biệt danh', 'Nicknames', 'Thay đổi chủ đề', 'Change theme', 'Thay đổi biểu tượng cảm xúc', 'Change emoji', 'Tắt thông báo', 'Mute notifications', 'Thành viên trong đoạn chat', 'Chat members', 'File phương tiện, file và liên kết', 'Media, files and links', 'Thông tin về đoạn chat', 'Chat information'].includes(item.text)
                         )"""
                     )
                     if items:
@@ -2721,7 +2723,7 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
         listener = FbListeningEvent(
             data,
             binary_path=fbchat_bridge_bin,
-            enable_e2ee=False,
+            enable_e2ee=True,
             device_path=device_path,
             e2ee_memory_only=False,
         )
@@ -2733,6 +2735,7 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
                 # 1. Xử lý tin nhắn text thông thường / E2EE
                 if etype in {"message", "e2eeMessage"}:
                     msg = listener.bodyResults
+                    raw = evt.get("data") or {}
                     external_id = str(msg.get("replyToID", 0))
                     body = str(msg.get("body", "") or "")
                     sender_id = str(msg.get("userID", 0))
@@ -2741,7 +2744,22 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
                     if external_id in {"0", "None"}:
                         external_id = ""
 
-                    if not body or sender_id == str(data.get("FacebookID", "")):
+                    if not body:
+                        return
+
+                    # Lọc tin của chính mình bị Meta echo lại (multi-device). Với E2EE,
+                    # senderId là JID whatsmeow ("<id>@s.whatsapp.net" hoặc "@lid") nên so
+                    # khớp FacebookID thuần số sẽ trượt → dùng cờ fromMe + phần số của JID.
+                    own_id = str(data.get("FacebookID", ""))
+                    if raw.get("fromMe") is True:
+                        return
+                    sender_jid = str(
+                        raw.get("senderJid")
+                        or (listener.e2eeBodyResults or {}).get("senderJid")
+                        or ""
+                    )
+                    jid_user = sender_jid.split("@", 1)[0].split(":", 1)[0].split(".", 1)[0]
+                    if own_id and own_id in {sender_id, jid_user}:
                         return
 
                     conv = ensure_conversation(
@@ -2921,11 +2939,22 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
                 logging.exception("Facebook MQTT handler error: %s", exc)
 
         import threading as t_mod
-        t = t_mod.Thread(target=listener.connect_mqtt, daemon=True)
-        t.start()
 
+        def _run_listener():
+            try:
+                listener.connect_mqtt()
+            except Exception as exc:  # vd cookie hết hạn ("xs cookie was deleted")
+                logging.warning("Facebook MQTT connect failed for %s: %s", user_id, exc)
+            finally:
+                # Dọn entry chết để lần kết nối lại (sau khi làm mới cookie) khởi động được.
+                with _facebook_listeners_lock:
+                    if _facebook_listeners.get(user_id, {}).get("thread") is t:
+                        _facebook_listeners.pop(user_id, None)
+
+        t = t_mod.Thread(target=_run_listener, daemon=True)
         with _facebook_listeners_lock:
             _facebook_listeners[user_id] = {"listener": listener, "thread": t, "dataFB": data}
+        t.start()
     except Exception as exc:
         logging.warning("Facebook MQTT listener start failed for %s: %s", user_id, exc)
 

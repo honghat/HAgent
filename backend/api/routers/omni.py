@@ -615,6 +615,13 @@ def _send_omni_text(
 
             # Ưu tiên gửi E2EE qua listener đang chạy (reuse) để vào được đoạn chat
             # bảo mật; nếu không reuse được hoặc lỗi thì fallback bridge subprocess.
+            with _facebook_listeners_lock:
+                _fb_state = _facebook_listeners.get(uid)
+            _listener_bridge_active = bool(
+                _fb_state and _fb_state.get("listener")
+                and getattr(_fb_state.get("listener"), "_bridge", None) is not None
+            )
+
             send_meta = None
             try:
                 send_meta = _facebook_send_via_listener(
@@ -631,8 +638,8 @@ def _send_omni_text(
 
             if not send_meta:
                 # Bridge subprocess làm phương án dự phòng.
-                # Truyền force_non_e2ee=True để subprocess bỏ qua E2EE (tránh xung đột
-                # device store với listener đang chạy), gửi thẳng qua API non-E2EE.
+                # force_non_e2ee=True chỉ khi listener đang chạy (tránh xung đột device store).
+                # Nếu không có listener, cho phép subprocess thử E2EE (không xung đột).
                 bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
                 send_meta = _run_facebook_bridge(
                     bridge,
@@ -645,7 +652,7 @@ def _send_omni_text(
                         "thread_type": conv.get("thread_type") or "user",
                         "reply_to_id": reply_to_external_id,
                         "reply_to_author_id": reply_to_author_id,
-                        "force_non_e2ee": True,
+                        "force_non_e2ee": _listener_bridge_active,
                     },
                     timeout=45,
                 )
@@ -2758,6 +2765,18 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
                     jid_user = sender_jid.split("@", 1)[0].split(":", 1)[0].split(".", 1)[0]
                     if own_id and own_id in {sender_id, jid_user}:
                         return
+
+                    # Với E2EE: bodyResults["userID"] và replyToID đều = 0 vì bridge dùng JID.
+                    # Lấy ID số từ chatJid (= người giao tiếp trong DM) để tạo đúng conversation.
+                    if etype == "e2eeMessage" and (not sender_id or sender_id == "0"):
+                        _chat_jid = str(raw.get("chatJid") or (listener.e2eeBodyResults or {}).get("chatJid") or "")
+                        _chat_num = _chat_jid.split("@", 1)[0].split(":", 1)[0].split(".", 1)[0] if "@" in _chat_jid else ""
+                        if _chat_num and _chat_num.lstrip("-").isdigit():
+                            sender_id = _chat_num
+                            external_id = ""
+                        elif jid_user and jid_user.lstrip("-").isdigit():
+                            sender_id = jid_user
+                            external_id = ""
 
                     conv = ensure_conversation(
                         user_id,

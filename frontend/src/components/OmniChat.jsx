@@ -1746,6 +1746,7 @@ export default function OmniChat({ token, provider }) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold text-gray-900">Facebook</p>
+                      <p className="truncate text-[10px] text-gray-400">{conversations.some(c => c.channel === 'facebook') ? 'Đã kết nối' : ''}</p>
                     </div>
                     <button
                       type="button"

@@ -32,9 +32,15 @@ def main():
 
     thread_type = str(payload.get("thread_type") or "user").lower()
 
+    # New parameters
+    reply_to_id = str(payload.get("reply_to_id") or "").strip()
+    reply_to_author_id = str(payload.get("reply_to_author_id") or "").strip()
+    message_id = str(payload.get("message_id") or "").strip()
+    emoji = str(payload.get("emoji") or "").strip()
+
     if not cookie:
         raise RuntimeError("Missing Facebook cookie")
-    if not target:
+    if action in {"send", "reply", "send_group"} and not target:
         raise RuntimeError("Missing Facebook target")
 
     dataFB = fbDataGetHome(cookie)
@@ -62,8 +68,8 @@ def main():
                     data = e2ee_sender.bridge.call("sendE2EEMessage", {
                         "chatJid": chat_jid,
                         "text": text,
-                        "replyToId": "",
-                        "replyToSenderJid": "",
+                        "replyToId": reply_to_id,
+                        "replyToSenderJid": f"{reply_to_author_id}@s.whatsapp.net" if reply_to_author_id else "",
                     }, timeout=8.0)
                     result = {
                         "success": 1,
@@ -80,27 +86,89 @@ def main():
         # 2. Fallback sang gửi non-E2EE nếu E2EE thất bại (như Meta AI hoặc Page/Group)
         if not success:
             try:
-                e2ee_sender = sendingE2EEEvent(dataFB=dataFB, binary_path=binary_path, device_path=device_path, e2ee_memory_only=False)
+                from fbchat_v2._messaging._send import api as SendApi
+                send_api = SendApi()
+                type_chat = "user" if thread_type == "user" else None
+                res = send_api.send(
+                    dataFB=dataFB,
+                    contentSend=text,
+                    threadID=target,
+                    typeChat=type_chat,
+                    messageID=reply_to_id or None
+                )
+                if res.get("success"):
+                    result = res
+                    success = True
+                else:
+                    raise RuntimeError(res.get("payload", {}).get("error-decription", "Native send failed"))
+            except Exception as non_e2ee_exc:
+                sys.stderr.write(f"Native send failed: {non_e2ee_exc}. Trying Go bridge sendMessage fallback...\n")
                 try:
-                    e2ee_sender.connect(enable_e2ee=False)
-                    data = e2ee_sender.bridge.call("sendMessage", {"threadId": int(target), "text": text}, timeout=15.0)
+                    e2ee_sender = sendingE2EEEvent(dataFB=dataFB, binary_path=binary_path, device_path=device_path, e2ee_memory_only=False)
+                    try:
+                        e2ee_sender.connect(enable_e2ee=False)
+                        data = e2ee_sender.bridge.call("sendMessage", {"threadId": int(target), "text": text}, timeout=15.0)
+                        result = {
+                            "success": 1,
+                            "payload": {
+                                "messageID": data.get("messageId") or data.get("id"),
+                                "timestamp": data.get("timestampMs") or data.get("timestamp") or 0,
+                            }
+                        }
+                        success = True
+                    finally:
+                        e2ee_sender.close()
+                    success = True
+                except Exception as final_exc:
                     result = {
-                        "success": 1,
+                        "error": 1,
                         "payload": {
-                            "messageID": data.get("messageId") or data.get("id"),
-                            "timestamp": data.get("timestampMs") or data.get("timestamp") or 0,
+                            "error-decription": f"Native failed: {non_e2ee_exc}. Go fallback failed: {final_exc}",
+                            "error-code": "both_failed",
                         }
                     }
-                finally:
-                    e2ee_sender.close()
-            except Exception as non_e2ee_exc:
+    elif action == "react":
+        if not message_id or not emoji:
+            raise RuntimeError("Missing message_id or emoji for react action")
+        try:
+            from fbchat_v2._messaging._reactions import func as react_func
+            res_req = react_func(dataFB=dataFB, typeAdded="add", messageID=message_id, emojiChoice=emoji)
+            if res_req.status_code == 200:
                 result = {
-                    "error": 1,
+                    "success": 1,
                     "payload": {
-                        "error-decription": f"E2EE failed: {e2ee_exc}. Non-E2EE fallback failed: {non_e2ee_exc}",
-                        "error-code": "both_failed",
+                        "messageID": message_id,
+                        "emoji": emoji,
                     }
                 }
+            else:
+                raise RuntimeError(f"GraphQL react mutation returned status {res_req.status_code}")
+        except Exception as exc:
+            result = {
+                "error": 1,
+                "payload": {
+                    "error-decription": str(exc),
+                    "error-code": "react_failed",
+                }
+            }
+    elif action == "unsend":
+        if not message_id:
+            raise RuntimeError("Missing message_id for unsend action")
+        try:
+            from fbchat_v2._messaging._unsend import func as unsend_func
+            res = unsend_func(messageID=message_id, dataFB=dataFB)
+            if res.get("success"):
+                result = res
+            else:
+                raise RuntimeError(res.get("payload", {}).get("error-decription", "Native unsend failed"))
+        except Exception as exc:
+            result = {
+                "error": 1,
+                "payload": {
+                    "error-decription": str(exc),
+                    "error-code": "unsend_failed",
+                }
+            }
     elif action == "send_group":
         from fbchat_v2 import sendingE2EEEvent
         with sendingE2EEEvent(dataFB=dataFB, binary_path=binary_path, device_path=device_path, e2ee_memory_only=False, enable_e2ee=False) as e2ee_sender:
@@ -126,6 +194,8 @@ def main():
 
     if result.get("success"):
         msg_id = result.get("payload", {}).get("messageID", "")
+        if not msg_id and action in {"react", "unsend"}:
+            msg_id = message_id
         timestamp = result.get("payload", {}).get("timestamp", 0)
         print(
             json.dumps(
@@ -134,14 +204,14 @@ def main():
                     "target": target,
                     "msg_id": msg_id,
                     "cli_msg_id": f"fb_{msg_id[:12]}" if msg_id else "",
-                    "msg_type": "message",
+                    "msg_type": action,
                     "timestamp": timestamp,
                 },
                 ensure_ascii=False,
             )
         )
     else:
-        error = result.get("payload", {}).get("error-decription", "Send failed")
+        error = result.get("payload", {}).get("error-decription", "Action failed")
         print(json.dumps({"ok": False, "error": error}, ensure_ascii=False))
         sys.exit(1)
 
@@ -152,3 +222,4 @@ if __name__ == "__main__":
     except Exception as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         sys.exit(1)
+

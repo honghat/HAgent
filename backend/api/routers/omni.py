@@ -454,6 +454,18 @@ def _send_omni_text(
             if not cookie:
                 raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
 
+            reply_to_external_id = ""
+            reply_to_author_id = ""
+            if reply_to_id:
+                with get_connection() as conn:
+                    rep_row = conn.execute(
+                        "SELECT external_id, external_author_id FROM omni_messages WHERE id = ? AND user_id = ?",
+                        (reply_to_id, uid),
+                    ).fetchone()
+                    if rep_row:
+                        reply_to_external_id = rep_row["external_id"] or ""
+                        reply_to_author_id = rep_row["external_author_id"] or ""
+
             # Ưu tiên API Bridge (nhanh), chỉ dùng Playwright làm fallback
             bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
             send_meta = _run_facebook_bridge(
@@ -462,9 +474,11 @@ def _send_omni_text(
                     "cookie": cookie,
                     "target": external_id,
                     "text": content,
-                    "action": "send",
+                    "action": "reply" if reply_to_id else "send",
                     "user_id": uid,
                     "thread_type": conv.get("thread_type") or "user",
+                    "reply_to_id": reply_to_external_id,
+                    "reply_to_author_id": reply_to_author_id,
                 },
                 timeout=90,
             )
@@ -677,6 +691,21 @@ def delete_message_endpoint(id: str, request: Request):
             },
             timeout=45,
         )
+    elif row.get("platform") == "facebook" and row.get("external_id") and row.get("role") == "user":
+        cookie = _load_facebook_channel(uid)
+        if not cookie:
+            raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
+        bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
+        _run_facebook_bridge(
+            bridge,
+            {
+                "cookie": cookie,
+                "action": "unsend",
+                "message_id": row.get("external_id"),
+                "user_id": uid,
+            },
+            timeout=45,
+        )
     elif row.get("platform") == "telegram" and row.get("external_id"):
         from api.routers.telegram import delete_real_message
 
@@ -710,6 +739,22 @@ def react_to_message(id: str, payload: OmniReactionRequest, request: Request):
                 "thread_type": meta["thread_type"],
                 "message": meta["message"],
                 "emoji": payload.emoji,
+            },
+            timeout=45,
+        )
+    elif row.get("platform") == "facebook" and row.get("external_id"):
+        cookie = _load_facebook_channel(uid)
+        if not cookie:
+            raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
+        bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
+        _run_facebook_bridge(
+            bridge,
+            {
+                "cookie": cookie,
+                "action": "react",
+                "message_id": row.get("external_id"),
+                "emoji": payload.emoji,
+                "user_id": uid,
             },
             timeout=45,
         )

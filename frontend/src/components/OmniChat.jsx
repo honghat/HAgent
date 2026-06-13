@@ -477,6 +477,7 @@ export default function OmniChat({ token, provider }) {
   const [filter, setFilter] = useState('zalo')
   const [status, setStatus] = useState('')
   const [channelStatus, setChannelStatus] = useState('')
+  const [zaloConnected, setZaloConnected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const sendingRef = useRef(false)
@@ -889,6 +890,7 @@ export default function OmniChat({ token, provider }) {
         if (data.status === 'connected') {
           setQr(null)
           setQrSession('')
+          setZaloConnected(true)
           setChannelStatus('Zalo đã kết nối.')
           await Promise.all([loadConversations({ quiet: true }), loadContacts()])
         } else if (data.status === 'unavailable') {
@@ -1709,7 +1711,7 @@ export default function OmniChat({ token, provider }) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-gray-900">Zalo</p>
-                      <p className="truncate text-[10px] text-gray-400">Chưa bật QR</p>
+                      <p className="truncate text-[10px] text-gray-400">{zaloConnected || conversations.some(c => c.channel === 'zalo') ? 'Đã kết nối' : 'Chưa bật QR'}</p>
                     </div>
                     <button
                       type="button"

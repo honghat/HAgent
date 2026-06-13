@@ -1433,7 +1433,7 @@ async def _save_omni_browser_channels(user_id: str) -> dict:
         if zalo_page:
             imei = await _read_zalo_imei(zalo_page)
         if zalo_cookie and not imei:
-            imei = str(uuid.uuid4())
+            imei = str(uuid.uuid5(uuid.NAMESPACE_OID, f"zalo-{user_id}"))
         if zalo_cookie and imei:
             _save_zalo_channel(user_id, zalo_cookie, imei)
             _ensure_zalo_listener(user_id, zalo_cookie, imei)
@@ -1547,68 +1547,131 @@ def _active_zalo_qr_session_for_user(user_id: str) -> tuple[str, dict] | None:
     return None
 
 
+async def _wait_zalo_login_and_save(session_id: str, user_id: str, sess: dict) -> None:
+    deadline = time.monotonic() + 300
+    while time.monotonic() < deadline:
+        if session_id not in _zalo_qr_sessions:
+            return
+        try:
+            ctx = sess.get("context")
+            if not ctx:
+                await asyncio.sleep(2)
+                continue
+            cookies = await ctx.cookies()
+            cookie = "; ".join(f"{c['name']}={c['value']}" for c in cookies if c.get("name"))
+        except Exception:
+            await asyncio.sleep(2)
+            continue
+        if "zpsid" not in cookie and "zpw_sek" not in cookie:
+            await asyncio.sleep(2)
+            continue
+        try:
+            imei = sess.get("imei") or await _read_zalo_imei(sess.get("page"))
+        except Exception:
+            imei = ""
+        if not imei:
+            imei = str(uuid.uuid5(uuid.NAMESPACE_OID, f"zalo-{user_id}"))
+        try:
+            valid, reason = _validate_zalo_session(cookie, imei)
+        except Exception:
+            valid, reason = False, "validate error"
+        if valid:
+            _save_zalo_channel(user_id, cookie, imei)
+            logging.info("Zalo auto-saved token for user %s (background)", user_id[:8])
+            _ensure_zalo_listener(user_id, cookie, imei)
+            sess["_saved"] = True
+            try:
+                await sess.get("browser").close()
+            except Exception:
+                pass
+            try:
+                await sess.get("playwright").stop()
+            except Exception:
+                pass
+            return
+        await asyncio.sleep(2)
+
+
 async def _expire_zalo_qr_session(session_id: str, seconds: int = 300) -> None:
     await asyncio.sleep(seconds)
     await _close_zalo_qr_session(session_id)
 
 
 def _capture_zalo_imei_from_url(sess: dict, url: str) -> None:
-    if sess.get("imei") or "imei=" not in url:
+    if sess.get("imei"):
         return
+    imei_params = ("imei", "z_uuid", "zpw_imei", "z_device_id", "device_id")
     try:
         from urllib.parse import parse_qs, urlparse
 
-        imei = (parse_qs(urlparse(url).query).get("imei") or [""])[0]
-        if imei:
-            sess["imei"] = imei
+        params = parse_qs(urlparse(url).query)
+        for key in imei_params:
+            values = params.get(key)
+            if values and values[0]:
+                sess["imei"] = values[0]
+                return
     except Exception:
         pass
 
 
 async def _find_zalo_qr_data(page) -> str:
-    selector = (
-        '.login-qr canvas, .qr-container canvas, '
-        '[class*="qr" i] canvas, [class*="login" i] canvas, '
-        'img[alt="QR"], img[alt*="QR" i], '
-        '[class*="qr" i] img[src^="data:image"], [class*="login" i] img[src^="data:image"]'
-    )
-    candidates = await page.query_selector_all(selector)
-    best_data = ""
-    best_score = 0
-    for handle in candidates:
-        try:
-            if not await handle.is_visible():
-                continue
-            tag_name = await handle.evaluate("el => el.tagName.toLowerCase()")
-            box = await handle.bounding_box()
-            width = int(box["width"]) if box else 0
-            height = int(box["height"]) if box else 0
-            if width < 120 or height < 120:
-                continue
-            ratio = width / height if height else 0
-            if ratio < 0.75 or ratio > 1.35:
-                continue
-            context_text = await handle.evaluate(
-                """el => {
-                  const host = el.closest('[class*="qr" i], [class*="login" i], form, section, div');
-                  return `${host?.innerText || ''} ${document.body?.innerText || ''}`.toLowerCase();
-                }"""
-            )
-            if "qr" not in context_text and "mã qr" not in context_text:
-                continue
-            if tag_name == "canvas":
-                data = await handle.evaluate("el => el.toDataURL('image/png')")
-            else:
-                data = await handle.get_attribute("src") or ""
-            if not data.startswith("data:image/"):
-                continue
-            score = width * height + len(data)
-            if data and score > best_score:
-                best_data = data
-                best_score = score
-        except Exception:
-            continue
-    return best_data
+    script = """
+    () => {
+      let best = '';
+      let bestScore = 0;
+      const score = (w, h, len) => w * h + len;
+      const tryEl = (el) => {
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'canvas') {
+          try {
+            const data = el.toDataURL('image/png');
+            if (data && data.startsWith('data:image/') && data.length > 500) {
+              const r = el.width / el.height;
+              if (r < 0.7 || r > 1.4) return;
+              const s = score(el.width, el.height, data.length);
+              if (s > bestScore) { best = data; bestScore = s; }
+            }
+          } catch(e) {}
+        } else if (tag === 'img') {
+          let src = el.getAttribute('src') || '';
+          if (src.startsWith('data:') && src.length > 500) {
+            const r = el.naturalWidth / el.naturalHeight;
+            if (r < 0.7 || r > 1.4) return;
+            const s = score(el.naturalWidth, el.naturalHeight, src.length);
+            if (s > bestScore) { best = src; bestScore = s; }
+          }
+        }
+      };
+      const scan = (root) => {
+        root.querySelectorAll('canvas, img').forEach(tryEl);
+        if (root.shadowRoot) scan(root.shadowRoot);
+      };
+      scan(document);
+      return best;
+    }
+    """
+    try:
+        result = await page.evaluate(script)
+        if result:
+            return result
+    except Exception:
+        pass
+
+    debug_html = ""
+    try:
+        debug_html = await page.evaluate("document.body?.innerHTML?.substring(0, 3000) || ''")
+    except Exception:
+        pass
+    if debug_html:
+        lines = [l.strip() for l in debug_html.split("\n") if l.strip()[:50]]
+        logging.warning("Zalo QR page HTML (first 50 lines): %s", lines[:50])
+    try:
+        title = await page.title()
+        url = page.url
+        logging.warning("Zalo QR page: title=%s url=%s", title, url)
+    except Exception:
+        pass
+    return ""
 
 
 def _normalize_qr_data_uri(data_uri: str) -> str:
@@ -1635,12 +1698,17 @@ async def _get_zalo_cookie_header(context) -> str:
 async def _read_zalo_imei(page) -> str:
     script = """
     () => {
-      const keys = ['z_uuid', 'imei', 'zpw_imei', 'z_device_id', 'deviceId'];
+      const keys = ['z_uuid', 'imei', 'zpw_imei', 'z_device_id', 'deviceId', 'z_imei', 'device_id'];
       for (const store of [window.localStorage, window.sessionStorage]) {
         for (const key of keys) {
           const value = store.getItem(key);
           if (value) return value;
         }
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      for (const k of keys) {
+        const v = urlParams.get(k);
+        if (v) return v;
       }
       return '';
     }
@@ -2688,7 +2756,7 @@ def _validate_zalo_session(cookie: str, imei: str) -> tuple[bool, str]:
         data = _run_zalo_bridge(
             ZALO_SYNC_BRIDGE,
             {"cookie": cookie, "imei": imei},
-            timeout=45,
+            timeout=90,
         )
     except HTTPException as exc:
         return False, str(exc.detail)
@@ -2701,8 +2769,7 @@ def _run_zalo_bridge(script: Path, payload: dict, timeout: int = 90) -> dict:
     if not script.exists():
         raise HTTPException(status_code=500, detail=f"Không tìm thấy Python Zalo bridge: {script.name}")
     
-    # Reduce timeout for faster response
-    actual_timeout = min(timeout, 30)
+    actual_timeout = timeout
     
     proc = subprocess.run(
         [sys.executable, str(script)],
@@ -3361,10 +3428,10 @@ async def start_zalo_qr(request: Request):
             await page.goto("https://chat.zalo.me/", wait_until="domcontentloaded", timeout=60000)
             await page.wait_for_timeout(1500)
             try:
-                qr_tab = page.get_by_text(re.compile(r"VỚI MÃ QR", re.I)).first
-                if await qr_tab.count() and await qr_tab.is_visible(timeout=5000):
+                qr_tab = page.get_by_text(re.compile(r"(với mã qr|qr code|đăng nhập.*qr|mã qr)", re.I)).first
+                if await qr_tab.is_visible(timeout=3000):
                     await qr_tab.click()
-                    await page.wait_for_timeout(1000)
+                    await page.wait_for_timeout(1500)
             except Exception as exc:
                 logging.debug("Zalo QR tab click skipped: %s", exc)
 
@@ -3377,11 +3444,14 @@ async def start_zalo_qr(request: Request):
                 await page.wait_for_timeout(1000)
 
             if not qr_data or len(qr_data) < 100:
+                logging.warning("Zalo QR data not found (len=%s)", len(qr_data or ""))
                 raise RuntimeError("Không tìm thấy mã QR Zalo hợp lệ.")
             qr_data = _normalize_qr_data_uri(qr_data)
+            logging.info("Zalo QR created: len=%s, session=%s", len(qr_data), session_id[:8])
             sess["qr"] = qr_data
             sess["expires_at"] = time.monotonic() + 300
 
+            asyncio.create_task(_wait_zalo_login_and_save(session_id, user_id, sess))
             asyncio.create_task(_expire_zalo_qr_session(session_id))
             return {
                 "session": session_id,
@@ -3407,6 +3477,7 @@ async def check_zalo_qr_status(session: str, request: Request):
     user_id = _get_user_id(request)
     sess = _zalo_qr_sessions.get(session)
     if not sess or sess.get("user_id") != user_id:
+        logging.warning("Zalo QR session not found for user %s", user_id[:8])
         return OmniQRStatusResponse(
             session=session,
             status="expired",
@@ -3416,6 +3487,7 @@ async def check_zalo_qr_status(session: str, request: Request):
     now = time.monotonic()
     expires_at = sess.get("expires_at", 0)
     if expires_at and now > expires_at:
+        logging.warning("Zalo QR session expired for user %s", user_id[:8])
         await _close_zalo_qr_session(session)
         return OmniQRStatusResponse(
             session=session,
@@ -3425,9 +3497,18 @@ async def check_zalo_qr_status(session: str, request: Request):
 
     try:
         cookie = await _get_zalo_cookie_header(sess["context"])
-    except Exception:
+    except Exception as exc:
+        logging.warning("Zalo QR get cookie error: %s", exc)
         cookie = ""
+    if sess.get("_saved"):
+        return OmniQRStatusResponse(
+            session=session, status="connected",
+            detail="Zalo đã kết nối và lưu phiên đăng nhập.",
+        )
+
     logged_in = "zpsid" in cookie or "zpw_sek" in cookie
+    logging.info("Zalo QR status check: session=%s, cookie_len=%s, zpsid=%s, zpw_sek=%s, saved=%s",
+                 session[:8], len(cookie), "zpsid" in cookie, "zpw_sek" in cookie, sess.get("_saved"))
     if not logged_in:
         return OmniQRStatusResponse(
             session=session,
@@ -3440,16 +3521,27 @@ async def check_zalo_qr_status(session: str, request: Request):
     except Exception:
         imei = ""
     if not imei:
-        imei = str(uuid.uuid4())
+        imei = str(uuid.uuid5(uuid.NAMESPACE_OID, f"zalo-{user_id}"))
+    attempts = sess.setdefault("validate_attempts", 0) + 1
+    sess["validate_attempts"] = attempts
     valid, reason = _validate_zalo_session(cookie, imei)
     if not valid:
+        if attempts >= 3:
+            await _close_zalo_qr_session(session)
+            return OmniQRStatusResponse(
+                session=session,
+                status="unavailable",
+                detail=f"Phiên Zalo không hợp lệ sau {attempts} lần thử: {reason}. Hãy tạo mã QR mới.",
+            )
         return OmniQRStatusResponse(
             session=session,
             status="pending",
             detail=f"Zalo đã quét QR nhưng backend chưa dùng được phiên này: {reason}. Đang chờ Zalo hoàn tất đăng nhập...",
         )
     _save_zalo_channel(user_id, cookie, imei)
+    logging.info("Zalo token saved for user %s (imei=%s...)", user_id[:8], imei[:12])
     _ensure_zalo_listener(user_id, cookie, imei)
+    sess["_saved"] = True
     await _close_zalo_qr_session(session)
     return OmniQRStatusResponse(
         session=session,

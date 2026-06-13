@@ -304,5 +304,8 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+        err_msg = str(exc)
+        if "'NoneType' object is not subscriptable" in err_msg:
+            err_msg = "Phiên Zalo hết hạn hoặc Cookie/IMEI không hợp lệ. Hãy quét QR lại."
+        print(json.dumps({"ok": False, "error": err_msg}, ensure_ascii=False))
         sys.exit(1)

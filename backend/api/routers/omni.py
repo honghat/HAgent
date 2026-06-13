@@ -470,9 +470,6 @@ def _facebook_send_via_listener(
     reply_sender = f"{reply_to_author_id}@s.whatsapp.net" if (reply_msg and reply_to_author_id) else ""
 
     try:
-        # Gọi thẳng bridge của listener (reuse — không spawn process mới, không xung đột device).
-        # timeout=15s: lần đầu thiết lập phiên Signal có thể chậm; nếu quá 15s coi như
-        # contact chưa bật E2EE → fallback non-E2EE in-process (không đụng bridge).
         data = listener._bridge.call(
             "sendE2EEMessage",
             {
@@ -495,11 +492,14 @@ def _facebook_send_via_listener(
     except Exception as exc:
         err = str(exc).lower()
         logging.warning("Facebook E2EE send via listener failed (%s): %s", target, exc)
-        # Nếu không lấy được device list / usync timeout → contact chưa bật E2EE.
-        # Thử gửi non-E2EE in-process (dùng dataFB của listener, không spawn subprocess).
-        e2ee_unavailable = any(k in err for k in ("device list", "usync", "prekey", "not e2ee", "e2ee not", "bridge exited", "closed"))
+        # Nếu không lấy được device list / usync / bridge chết → thử non-E2EE in-process
+        # (dùng dataFB của listener, không spawn subprocess xung đột device store).
+        e2ee_unavailable = any(k in err for k in (
+            "device list", "usync", "prekey", "not e2ee", "e2ee not",
+            "bridge exited", "closed", "websocket", "disconnected",
+        ))
         if e2ee_unavailable and data_fb:
-            try:
+            def _try_non_e2ee():
                 from fbchat_v2._messaging._send import api as _SendApi
                 _api = _SendApi()
                 type_chat = "user" if thread_type == "user" else None
@@ -510,7 +510,6 @@ def _facebook_send_via_listener(
                     raise RuntimeError(((res or {}).get("payload") or {}).get("error-decription", "Non-E2EE send failed"))
                 payload = (res or {}).get("payload") or {}
                 msg_id = str(payload.get("messageID") or "")
-                logging.info("Facebook non-E2EE fallback delivered to %s", target)
                 return {
                     "ok": True,
                     "target": target,
@@ -519,9 +518,21 @@ def _facebook_send_via_listener(
                     "msg_type": "message",
                     "timestamp": payload.get("timestamp") or 0,
                 }
-            except Exception as ne2ee_exc:
-                logging.warning("Facebook non-E2EE fallback also failed (%s): %s", target, ne2ee_exc)
-        return None  # caller dùng subprocess bridge làm phương án cuối
+
+            for attempt in range(2):
+                try:
+                    result = _try_non_e2ee()
+                    logging.info("Facebook non-E2EE delivered to %s (attempt %s)", target, attempt + 1)
+                    return result
+                except Exception as ne2ee_exc:
+                    ne_err = str(ne2ee_exc).lower()
+                    logging.warning("Facebook non-E2EE attempt %s failed (%s): %s", attempt + 1, target, ne2ee_exc)
+                    # Lỗi tạm thời (Đã xảy ra lỗi tạm thời) → retry sau 3s
+                    if attempt == 0 and ("tạm thời" in ne_err or "temporary" in ne_err or "try again" in ne_err):
+                        time.sleep(3)
+                    else:
+                        break
+        return None  # caller dùng subprocess bridge (skip E2EE) làm phương án cuối
 
 
 def _send_omni_text(
@@ -605,7 +616,9 @@ def _send_omni_text(
                 send_meta = None
 
             if not send_meta:
-                # Bridge subprocess (E2EE standalone → non-E2EE) làm phương án dự phòng.
+                # Bridge subprocess làm phương án dự phòng.
+                # Truyền force_non_e2ee=True để subprocess bỏ qua E2EE (tránh xung đột
+                # device store với listener đang chạy), gửi thẳng qua API non-E2EE.
                 bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
                 send_meta = _run_facebook_bridge(
                     bridge,
@@ -618,8 +631,9 @@ def _send_omni_text(
                         "thread_type": conv.get("thread_type") or "user",
                         "reply_to_id": reply_to_external_id,
                         "reply_to_author_id": reply_to_author_id,
+                        "force_non_e2ee": True,
                     },
-                    timeout=90,
+                    timeout=45,
                 )
     except Exception as e:
         delete_message(msg_id)

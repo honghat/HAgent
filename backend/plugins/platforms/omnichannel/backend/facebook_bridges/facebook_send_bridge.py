@@ -59,6 +59,7 @@ def main():
     message_id = str(payload.get("message_id") or "").strip()
     emoji = str(payload.get("emoji") or "").strip()
     type_added = str(payload.get("type_added") or "add").strip().lower()
+    force_non_e2ee = bool(payload.get("force_non_e2ee"))
 
     # Phân giải ID ảo thành ID thật từ database nếu có thể
     if message_id.startswith("fb_"):
@@ -90,9 +91,9 @@ def main():
     if action in {"send", "reply"}:
         from fbchat_v2 import sendingE2EEEvent
         chat_jid = f"{target}@s.whatsapp.net"
-        
+
         is_e2ee = True
-        if target == "156025504001094" or thread_type in {"group", "thread"}:
+        if force_non_e2ee or target == "156025504001094" or thread_type in {"group", "thread"}:
             is_e2ee = False
 
         # 1. Thử gửi E2EE trước

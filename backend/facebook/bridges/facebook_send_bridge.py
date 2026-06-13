@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HTTP-based Facebook Messenger send bridge (E2EE/fbchat-v2).
+HTTP-based Facebook Messenger send bridge.
 
 Reads JSON payload from stdin, sends message via Go bridge.
 """
@@ -14,7 +14,7 @@ def find_backend_root() -> Path:
         if (curr / "requirements.txt").exists():
             return curr
         curr = curr.parent
-    return Path(__file__).resolve().parents[5]
+    return Path(__file__).resolve().parents[3]
 
 backend_root = find_backend_root()
 sys.path.insert(0, str(backend_root))

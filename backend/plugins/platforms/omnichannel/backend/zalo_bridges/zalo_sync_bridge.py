@@ -343,21 +343,9 @@ def enrich_user_profiles(bot, threads, friends):
 
 
 def fetch_group_profiles(bot):
-    profiles = {}
-    try:
-        groups_raw = plain(bot.fetchAllGroups())
-    except Exception as exc:
-        return profiles, str(exc)
-    for group_id in collect_group_ids(groups_raw)[:80]:
-        group = None
-        try:
-            group = group_from_group_info(plain(bot.fetchGroupInfo(group_id)), group_id)
-        except Exception:
-            group = None
-        if not group:
-            group = {"group_id": group_id, "name": group_id, "avatar": ""}
-        profiles[group_id] = group
-    return profiles, ""
+    # Performance optimization: Do not fetch all group infos sequentially at startup.
+    # Group profiles will be dynamically resolved only for groups present in recent threads inside enrich_group_profiles.
+    return {}, ""
 
 
 def enrich_group_profiles(bot, threads, group_profiles):

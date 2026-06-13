@@ -40,6 +40,17 @@ from api.schemas import (
     OmniConnectFacebookRequest,
     OmniQRStatusResponse,
 )
+from fbchat_v2 import dataGetHome as fbDataGetHome
+from fbchat_v2 import listeningE2EEEvent as FbListeningEvent
+
+def fbValidateCookie(cookie: str) -> tuple[bool, str, dict]:
+    try:
+        data = fbDataGetHome(cookie)
+        if not data.get("FacebookID") or not data.get("fb_dtsg"):
+            return False, "Cookie không hợp lệ hoặc đã hết hạn", {}
+        return True, "", data
+    except Exception as exc:
+        return False, f"Lỗi xác thực Facebook: {exc}", {}
 from api.services.omni_store import (
     list_conversations,
     get_conversation,
@@ -69,8 +80,10 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 ZALO_SYNC_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_sync_bridge.py"
 ZALO_SEND_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_send_bridge.py"
 ZALO_LISTEN_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/zalo_bridges/zalo_listen_bridge.py"
-FACEBOOK_SEND_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/facebook_bridges/facebook_send_bridge.py"
-FACEBOOK_SYNC_BRIDGE = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/facebook_bridges/facebook_sync_bridge.py"
+FACEBOOK_SEND_BRIDGE = BACKEND_ROOT / "facebook/bridges/facebook_send_bridge.py"
+FACEBOOK_SEND_BRIDGE_LEGACY = BACKEND_ROOT / "facebook/bridges/facebook_send_bridge_playwright.py"
+FACEBOOK_SYNC_BRIDGE = BACKEND_ROOT / "facebook/bridges/facebook_sync_bridge.py"
+FACEBOOK_SYNC_BRIDGE_LEGACY = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/facebook_bridges/facebook_sync_bridge.py"
 
 
 class OmniAgentReplyRequest(BaseModel):
@@ -439,20 +452,22 @@ def _send_omni_text(
             cookie = _load_facebook_channel(uid)
             if not cookie:
                 raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
-            try:
-                send_meta = _run_facebook_live_message_threadsafe(uid, external_id, content, timeout=60)
-            except Exception as live_exc:
-                logging.warning("Facebook live send failed, falling back to cookie bridge: %s", live_exc)
-                send_meta = _run_facebook_bridge(
-                    FACEBOOK_SEND_BRIDGE,
-                    {
-                        "cookie": cookie,
-                        "target": external_id,
-                        "text": content,
-                        "action": "send",
-                    },
-                    timeout=60,
-                )
+
+            # Bỏ qua E2EE listener (Go bridge trả OK nhưng tin nhắn không đến).
+            # Dùng cookie bridge (Playwright) — chậm hơn nhưng đáng tin cậy.
+            bridge = FACEBOOK_SEND_BRIDGE_LEGACY if FACEBOOK_SEND_BRIDGE_LEGACY.exists() else FACEBOOK_SEND_BRIDGE
+            send_meta = _run_facebook_bridge(
+                bridge,
+                {
+                    "cookie": cookie,
+                    "target": external_id,
+                    "text": content,
+                    "action": "send",
+                    "user_id": uid,
+                    "thread_type": conv.get("thread_type") or "user",
+                },
+                timeout=90,
+            )
     except Exception as e:
         delete_message(msg_id)
         logging.error("Failed to send message to %s: %s", platform, e)
@@ -1006,17 +1021,21 @@ async def send_media_to_conversation(
             result = await _send_facebook_live_message(uid, external_id, payload.caption, paths_to_send)
         except Exception as live_exc:
             logging.warning("Facebook live media send failed, falling back to cookie bridge: %s", live_exc)
-            result = _run_facebook_bridge(
-                FACEBOOK_SEND_BRIDGE,
-                {
-                    "cookie": cookie,
-                    "action": "send_images" if len(paths_to_send) > 1 else "send_image",
-                    "target": external_id,
-                    "image_path": paths_to_send[0] if len(paths_to_send) == 1 else "",
-                    "image_paths": paths_to_send if len(paths_to_send) > 1 else [],
-                    "text": payload.caption,
-                },
-                timeout=90,
+            bridge = FACEBOOK_SEND_BRIDGE_LEGACY if FACEBOOK_SEND_BRIDGE_LEGACY.exists() else FACEBOOK_SEND_BRIDGE
+            result = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: _run_facebook_bridge(
+                    bridge,
+                    {
+                        "cookie": cookie,
+                        "action": "send_images" if len(paths_to_send) > 1 else "send_image",
+                        "target": external_id,
+                        "image_path": paths_to_send[0] if len(paths_to_send) == 1 else "",
+                        "image_paths": paths_to_send if len(paths_to_send) > 1 else [],
+                        "text": payload.caption,
+                    },
+                    timeout=90,
+                ),
             )
         if not result.get("ok"):
             raise HTTPException(status_code=500, detail=result.get("error", "Lỗi gửi media qua Facebook."))
@@ -1309,6 +1328,9 @@ _facebook_browser_sessions: dict[str, dict] = {}
 _facebook_live_sessions: dict[str, dict] = {}
 _facebook_sync_tasks: dict[str, asyncio.Task] = {}
 _facebook_sync_locks: dict[str, asyncio.Lock] = {}
+_facebook_listeners: dict[str, dict] = {}
+_facebook_listeners_lock = threading.Lock()
+_fb_mqtt_send_api_cache: dict[str, FbSendAPI] = {}
 _omni_browser_sessions: dict[str, dict] = {}
 FACEBOOK_PROFILE_ROOT = BACKEND_ROOT / "data" / "facebook_profiles"
 OMNI_BROWSER_PROFILE_ROOT = BACKEND_ROOT / "data" / "omni_browser_profiles"
@@ -1418,6 +1440,7 @@ async def _save_omni_browser_channels(user_id: str) -> dict:
         fb_cookie = await _get_facebook_cookie_header(context)
         if "c_user=" in fb_cookie and "xs=" in fb_cookie:
             _save_facebook_channel(user_id, fb_cookie)
+            _start_facebook_mqtt_listener(user_id, fb_cookie)
             saved["facebook"] = True
     except Exception:
         pass
@@ -1939,76 +1962,70 @@ async def _facebook_prepare_thread_page(page, target: str) -> None:
         raise last_exc
 
 
+async def _send_facebook_http(
+    user_id: str,
+    target: str,
+    text: str = "",
+    image_paths: list[str] | None = None,
+) -> dict:
+    """Send a Facebook message via HTTP POST instead of Playwright."""
+    cookie = _load_facebook_channel(user_id)
+    if not cookie:
+        raise RuntimeError("Chưa có phiên Facebook. Hãy kết nối trước.")
+
+    dataFB = fbDataGetHome(cookie)
+    if not dataFB.get("FacebookID"):
+        raise RuntimeError("Phiên Facebook đã hết hạn. Cần kết nối lại.")
+
+    if user_id not in _fb_mqtt_send_api_cache:
+        _fb_mqtt_send_api_cache[user_id] = FbSendAPI()
+    sender = _fb_mqtt_send_api_cache[user_id]
+
+    # Determine type of conversation: user vs thread
+    type_chat = "user" if (target.isdigit() or target.isdecimal()) else None
+
+    result = sender.send(dataFB, text, target, typeChat=type_chat)
+    if result.get("success"):
+        msg_id = result["payload"].get("messageID", "")
+        timestamp = result["payload"].get("timestamp", 0)
+        return {
+            "ok": True,
+            "target": target,
+            "msg_id": msg_id,
+            "cli_msg_id": f"fb_{msg_id[:12] if msg_id else uuid.uuid4().hex}",
+            "msg_type": "message",
+            "timestamp": timestamp,
+        }
+    error = result.get("payload", {}).get("error-decription", "Send failed")
+    raise RuntimeError(f"Facebook send error: {error}")
+
+
 async def _send_facebook_live_message(
     user_id: str,
     target: str,
     text: str = "",
     image_paths: list[str] | None = None,
 ) -> dict:
-    lock = _facebook_sync_locks.setdefault(user_id, asyncio.Lock())
-    async with lock:
-        sess = _facebook_live_sessions.get(user_id) or await restore_facebook_live_session(user_id)
-        if not sess:
-            raise RuntimeError("Chưa có live session Facebook. Hãy mở Browser và đăng nhập lại.")
-        base_page = sess["page"]
-        if not await _facebook_page_is_connected(base_page, sess["context"]):
-            raise RuntimeError("Phiên Facebook live đã hết hạn. Hãy đăng nhập lại.")
-        page = await sess["context"].new_page()
-        try:
-            await _facebook_prepare_thread_page(page, target)
-
-            textbox = await _first_visible_locator(
-                page,
-                [
-                    'div[role="textbox"][contenteditable="true"]',
-                    'div[contenteditable="true"][data-lexical-editor="true"]',
-                    'div[contenteditable="true"]',
-                    '[aria-label="Message"][contenteditable="true"]',
-                    '[aria-label="Tin nhắn"][contenteditable="true"]',
-                ],
-                timeout=4000,
-            )
-            if not textbox:
-                raise RuntimeError(f"Không tìm thấy ô nhập Messenger cho thread {target}.")
-
-            files = [str(p).strip() for p in (image_paths or []) if str(p).strip()]
-            if files:
-                file_input = await _first_visible_locator(page, ['input[type="file"]'], timeout=1000)
-                if not file_input:
-                    file_input = page.locator('input[type="file"]').first
-                await file_input.set_input_files(files)
-                await page.wait_for_timeout(2500)
-
-            if text:
-                await textbox.click(timeout=5000)
-                try:
-                    await textbox.fill(text)
-                except Exception:
-                    await page.keyboard.insert_text(text)
-                await page.wait_for_timeout(350)
-
-            send_button = await _first_visible_locator(
-                page,
-                [
-                    'div[aria-label="Send"]',
-                    'button[aria-label="Send"]',
-                    'div[aria-label="Gửi"]',
-                    'button[aria-label="Gửi"]',
-                    '[data-testid="send"]',
-                ],
-                timeout=1500,
-            )
-            if send_button:
-                await send_button.click(timeout=5000)
-            else:
-                await textbox.press("Enter")
-            await page.wait_for_timeout(1800)
-            return {"ok": True, "target": target, "cli_msg_id": f"fb_live_{uuid.uuid4().hex}", "msg_type": "webchat"}
-        finally:
-            try:
-                await page.close()
-            except Exception:
-                pass
+    """Send via legacy Playwright bridge (always works; HTTP path is disabled pending debug)."""
+    cookie = _load_facebook_channel(user_id)
+    if not cookie:
+        raise RuntimeError("Chưa có phiên Facebook.")
+    bridge = FACEBOOK_SEND_BRIDGE_LEGACY if FACEBOOK_SEND_BRIDGE_LEGACY.exists() else FACEBOOK_SEND_BRIDGE
+    logging.info("Facebook sending via bridge %s (target=%s)", bridge.name, target)
+    return await asyncio.get_running_loop().run_in_executor(
+        None,
+        lambda: _run_facebook_bridge(
+            bridge,
+            {
+                "cookie": cookie,
+                "target": target,
+                "text": text,
+                "image_paths": image_paths or [],
+                "action": "send",
+            },
+            timeout=90,
+        ),
+    )
 
 
 def _run_facebook_live_message_threadsafe(
@@ -2026,6 +2043,7 @@ def _run_facebook_live_message_threadsafe(
             loop,
         )
         return future.result(timeout=timeout)
+    # No live session loop — run bridge synchronously (it's just a subprocess call)
     return asyncio.run(_send_facebook_live_message(user_id, target, text, image_paths))
 
 
@@ -2540,7 +2558,263 @@ def _ensure_facebook_sync_task(user_id: str) -> None:
     _facebook_sync_tasks[user_id] = asyncio.create_task(_facebook_sync_loop(user_id))
 
 
+def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
+    with _facebook_listeners_lock:
+        if user_id in _facebook_listeners:
+            return
+
+    try:
+        data = fbDataGetHome(cookie)
+        if not data.get("FacebookID"):
+            return
+
+        fbchat_bridge_bin = str(BACKEND_ROOT / "bin/fbchat-bridge-e2ee")
+        device_path = str(BACKEND_ROOT / f"data/fb_e2ee_device_{user_id}.json")
+        listener = FbListeningEvent(
+            data,
+            binary_path=fbchat_bridge_bin,
+            enable_e2ee=True,
+            device_path=device_path,
+            e2ee_memory_only=False,
+        )
+
+        @listener.on_message
+        def on_fb_message(evt: dict):
+            try:
+                etype = evt.get("type")
+                # 1. Xử lý tin nhắn text thông thường / E2EE
+                if etype in {"message", "e2eeMessage"}:
+                    msg = listener.bodyResults
+                    external_id = str(msg.get("replyToID", 0))
+                    body = str(msg.get("body", "") or "")
+                    sender_id = str(msg.get("userID", 0))
+                    msg_type = msg.get("type", "user")
+
+                    if external_id in {"0", "None"}:
+                        external_id = ""
+
+                    if not body or sender_id == str(data.get("FacebookID", "")):
+                        return
+
+                    conv = ensure_conversation(
+                        user_id,
+                        "facebook",
+                        external_id or sender_id,
+                        external_id or sender_id,
+                        msg_type,
+                        "",
+                    )
+
+                    role = "assistant"
+                    message_id = _insert_facebook_message_once(
+                        user_id, conv["id"], external_id or sender_id, role, body,
+                    )
+                    if message_id:
+                        _broadcast({
+                            "type": "message",
+                            "conversationId": conv["id"],
+                            "message": {
+                                "id": message_id,
+                                "sender_type": role,
+                                "content": body,
+                                "status": "received",
+                            },
+                        })
+
+                # 2. Xử lý tin nhắn từ Meta AI / Bot qua Lightspeed raw event (XMA attachments)
+                elif etype == "raw":
+                    raw_data = evt.get("data") or {}
+                    if raw_data.get("from") == "lightspeed" and raw_data.get("type") == "Event_PublishResponse":
+                        inner_data = raw_data.get("data") or raw_data.get("Data") or {}
+                        payload_data = inner_data.get("Data") or inner_data.get("data") or inner_data
+                        payload_str = ""
+                        if isinstance(payload_data, dict):
+                            payload_str = payload_data.get("payload") or payload_data.get("Payload") or ""
+                        if not payload_str and isinstance(inner_data, dict):
+                            payload_str = inner_data.get("payload") or inner_data.get("Payload") or ""
+                        
+                        if payload_str:
+                            try:
+                                ls_data = json.loads(payload_str)
+                            except Exception:
+                                return
+
+                            # Tìm tất cả calls trong payload
+                            def find_ls_calls(obj):
+                                calls = []
+                                if isinstance(obj, list):
+                                    if len(obj) >= 2 and obj[0] == 5 and isinstance(obj[1], str):
+                                        calls.append(obj)
+                                    else:
+                                        for item in obj:
+                                            calls.extend(find_ls_calls(item))
+                                elif isinstance(obj, dict):
+                                    for val in obj.values():
+                                        calls.extend(find_ls_calls(val))
+                                return calls
+
+                            def resolve_ls_val(val):
+                                if isinstance(val, list):
+                                    if not val:
+                                        return None
+                                    if len(val) == 1 and val[0] == 9:
+                                        return None
+                                    if len(val) == 2 and isinstance(val[0], int):
+                                        return val[1]
+                                    if len(val) == 1:
+                                        return val[0]
+                                return val
+
+                            def stringify_text(val) -> str:
+                                if val is None:
+                                    return ""
+                                if isinstance(val, str):
+                                    return val
+                                if isinstance(val, (int, float, bool)):
+                                    return str(val)
+                                if isinstance(val, list):
+                                    if len(val) == 2 and isinstance(val[0], int):
+                                        return stringify_text(val[1])
+                                    if len(val) == 1 and val[0] == 9:
+                                        return ""
+                                    return " ".join(stringify_text(x) for x in val if x is not None).strip()
+                                if isinstance(val, dict):
+                                    for k in ["text", "body", "title", "description", "content"]:
+                                        if k in val and val[k]:
+                                            t = stringify_text(val[k])
+                                            if t:
+                                                return t
+                                    return json.dumps(val, ensure_ascii=False)
+                                return str(val)
+
+                            calls = find_ls_calls(ls_data)
+
+                            # Trích xuất message ID, thread ID, sender ID, và text
+                            msg_id = None
+                            thread_id = None
+                            sender_id = None
+                            text = None
+
+                            for call in calls:
+                                fn = call[1]
+                                if fn == "insertMessage" and len(call) > 11:
+                                    m_id = resolve_ls_val(call[10])
+                                    if m_id:
+                                        msg_id = m_id
+                                    t_id = resolve_ls_val(call[5])
+                                    if t_id:
+                                        thread_id = t_id
+                                    s_id = resolve_ls_val(call[11])
+                                    if s_id:
+                                        sender_id = s_id
+                                elif fn == "updateThreadSnippet" and len(call) > 5:
+                                    t_id = resolve_ls_val(call[2])
+                                    if t_id:
+                                        thread_id = t_id
+                                    raw_text = call[3]
+                                    s_id = resolve_ls_val(call[5])
+                                    if s_id:
+                                        sender_id = s_id
+                                    if raw_text:
+                                        text = stringify_text(raw_text)
+                                elif fn == "insertXmaAttachment" and len(call) > 37:
+                                    t_id = resolve_ls_val(call[26])
+                                    if t_id:
+                                        thread_id = t_id
+                                    m_id = resolve_ls_val(call[31])
+                                    if m_id:
+                                        msg_id = m_id
+                                    # Lấy text mô tả/xma body
+                                    xma_text = call[57] or call[37] or ""
+                                    if xma_text and not text:
+                                        text = stringify_text(xma_text)
+
+                            my_fb_id = str(data.get("FacebookID", "")).strip()
+                            if msg_id and thread_id and text:
+                                thread_id = str(thread_id).strip()
+                                sender_id = str(sender_id).strip() if sender_id is not None else ""
+
+                                if thread_id in {"0", "None", ""}:
+                                    return
+
+                                if text.startswith("Bạn: "):
+                                    # Lọc bỏ thread snippet của chính mình gửi
+                                    return
+
+                                if sender_id and my_fb_id and sender_id == my_fb_id:
+                                    # Tin nhắn do chính mình gửi
+                                    return
+
+                                conv = ensure_conversation(
+                                    user_id,
+                                    "facebook",
+                                    thread_id or sender_id,
+                                    thread_id or sender_id,
+                                    "user",
+                                    "",
+                                )
+
+                                role = "assistant"
+                                message_id = _insert_facebook_message_once(
+                                    user_id, conv["id"], thread_id or sender_id, role, text,
+                                )
+                                if message_id:
+                                    _broadcast({
+                                        "type": "message",
+                                        "conversationId": conv["id"],
+                                        "message": {
+                                            "id": message_id,
+                                            "sender_type": role,
+                                            "content": text,
+                                            "status": "received",
+                                        },
+                                    })
+            except Exception as exc:
+                logging.exception("Facebook MQTT handler error: %s", exc)
+
+        import threading as t_mod
+        t = t_mod.Thread(target=listener.connect_mqtt, daemon=True)
+        t.start()
+
+        with _facebook_listeners_lock:
+            _facebook_listeners[user_id] = {"listener": listener, "thread": t, "dataFB": data}
+    except Exception as exc:
+        logging.warning("Facebook MQTT listener start failed for %s: %s", user_id, exc)
+
+
+def _stop_facebook_mqtt_listener(user_id: str) -> None:
+    with _facebook_listeners_lock:
+        state = _facebook_listeners.pop(user_id, None)
+    if state:
+        try:
+            listener = state.get("listener")
+            if listener:
+                if hasattr(listener, "stop"):
+                    listener.stop()
+                elif hasattr(listener, "mqtt") and listener.mqtt:
+                    listener.mqtt.disconnect()
+        except Exception:
+            pass
+
+
+def restore_active_facebook_listeners() -> None:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT user_id, access_token
+               FROM omni_channels
+               WHERE platform = 'facebook' AND is_active = 1 AND access_token != ''"""
+        ).fetchall()
+    for row in rows:
+        try:
+            cookie = str(row["access_token"] or "")
+            if cookie:
+                _start_facebook_mqtt_listener(str(row["user_id"]), cookie)
+        except Exception as exc:
+            logging.warning("Facebook listener restore skipped for user %s: %s", row["user_id"], exc)
+
+
 def restore_active_facebook_sync_tasks() -> None:
+    restore_active_facebook_listeners()
     with get_connection() as conn:
         rows = conn.execute(
             """SELECT user_id
@@ -3682,6 +3956,8 @@ async def logout_omni_channel(platform: str, request: Request):
         return {"ok": True, "status": "Đã logout Zalo."}
 
     if platform == "facebook":
+        _stop_facebook_mqtt_listener(user_id)
+        _fb_mqtt_send_api_cache.pop(user_id, None)
         _mark_omni_channel_inactive(user_id, "facebook")
         task = _facebook_sync_tasks.pop(user_id, None)
         if task:
@@ -3711,13 +3987,12 @@ async def logout_omni_channel(platform: str, request: Request):
 @router.post("/connect/facebook")
 def connect_facebook(payload: OmniConnectFacebookRequest, request: Request):
     user_id = _get_user_id(request)
-    _run_facebook_bridge(
-        FACEBOOK_SYNC_BRIDGE,
-        {"cookie": payload.cookie, "max_threads": 1},
-        timeout=90,
-    )
+    valid, msg, data = fbValidateCookie(payload.cookie)
+    if not valid:
+        raise HTTPException(status_code=400, detail=msg)
     _save_facebook_channel(user_id, payload.cookie)
-    return {"connected": True, "status": "Đã lưu phiên Facebook."}
+    _start_facebook_mqtt_listener(user_id, payload.cookie)
+    return {"connected": True, "status": "Đã lưu phiên Facebook và kết nối MQTT listener."}
 
 
 @router.post("/connect/omni-browser/start")
@@ -3790,6 +4065,7 @@ async def facebook_browser_login_status(session_id: str, request: Request):
         _facebook_live_sessions[user_id] = sess
         _ensure_facebook_sync_task(user_id)
         _facebook_browser_sessions.pop(session_id, None)
+        _start_facebook_mqtt_listener(user_id, cookie)
         return {"session_id": session_id, "status": "connected", "detail": "Facebook đã kết nối."}
     if await _facebook_page_needs_security_unlock(page):
         return {
@@ -3833,10 +4109,10 @@ async def hide_facebook_browser(request: Request):
         await _close_facebook_playwright_session(live)
         converted = True
 
-    if saved_cookie or _load_facebook_channel(user_id):
-        restored = await restore_facebook_live_session(user_id)
-        if restored:
-            return {"ok": True, "hidden": True, "status": "Đã ngắt điều khiển Facebook; tab/browser của anh vẫn giữ nguyên."}
+    final_cookie = saved_cookie or _load_facebook_channel(user_id)
+    if final_cookie:
+        _start_facebook_mqtt_listener(user_id, final_cookie)
+        return {"ok": True, "hidden": True, "status": "Đã ngắt điều khiển Facebook; MQTT listener đã chạy nền."}
 
     return {
         "ok": converted,

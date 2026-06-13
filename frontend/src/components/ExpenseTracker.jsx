@@ -5,98 +5,10 @@ import { Edit2, Trash2, Calendar, CreditCard, Tag, Check, X, Loader, Plus, Uploa
 
 
 
+import ConfirmationModal from "./ConfirmationModal";
+import ExpenseCard from "./ExpenseCard";
+
 const API_URL = "/api/expenses";
-
-// Custom Modal Component
-const ConfirmationModal = ({ isOpen, message, onConfirm, onCancel }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-xl p-6 m-4 max-w-sm w-full shadow-2xl">
-                <h3 className="text-xl font-bold mb-4 text-red-600">Xác nhận</h3>
-                <p className="text-gray-700 mb-6">{message}</p>
-                <div className="flex justify-end space-x-3">
-                    <button
-                        onClick={onCancel}
-                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
-                    >
-                        Hủy
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                    >
-                        Xác nhận Xóa
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// Mobile Expense Card
-const ExpenseCard = ({ expense, handleEdit, openDeleteModal, categoryColors }) => {
-    const isIncome = expense.expense_type === "Thu";
-    const amountColor = isIncome ? "text-emerald-600" : "text-rose-600";
-    const iconBg = isIncome ? "bg-emerald-50" : "bg-rose-50";
-    const iconColor = isIncome ? "text-emerald-600" : "text-rose-600";
-
-    return (
-        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col space-y-2.5 hover:shadow-md transition duration-200">
-            <div className="flex items-start justify-between">
-                <div className="flex items-center">
-                    <div className={`p-2 rounded-full mr-3 ${iconBg}`}>
-                        <DollarSign className={`w-4 h-4 ${iconColor}`} />
-                    </div>
-                    <p className={`text-base font-extrabold tracking-tight whitespace-nowrap ${amountColor}`}>
-                        {isIncome ? "+" : "-"}{expense.amount.toLocaleString()}&nbsp;₫
-                    </p>
-                </div>
-                <div className="flex space-x-1">
-                    <button
-                        onClick={() => handleEdit(expense)}
-                        className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition"
-                        title="Sửa"
-                    >
-                        <Edit2 size={14} />
-                    </button>
-                    <button
-                        onClick={() => openDeleteModal(expense.id)}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
-                        title="Xóa"
-                    >
-                        <Trash2 size={14} />
-                    </button>
-                </div>
-            </div>
-
-            <p className="text-sm text-slate-800 font-semibold">{expense.description}</p>
-
-            <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-1 pt-2 border-t border-slate-100 text-xs text-slate-500">
-                <div className="flex items-center gap-1">
-                    <Calendar size={13} className="text-blue-500 shrink-0" />
-                    <span>{new Date(expense.date).toLocaleDateString("vi-VN")}</span>
-                </div>
-                <div className="flex items-center gap-1 max-w-[120px] overflow-hidden">
-                    <Tag size={13} className="text-indigo-500 shrink-0" />
-                    <span 
-                        className="truncate px-1.5 py-0.5 rounded font-bold text-[10px]"
-                        style={{
-                            backgroundColor: `${categoryColors?.[expense.category] || "#6b7280"}15`,
-                            color: categoryColors?.[expense.category] || "#6b7280"
-                        }}
-                    >
-                        {expense.category}
-                    </span>
-                </div>
-                <div className="flex items-center gap-1">
-                    <CreditCard size={13} className="text-violet-500 shrink-0" />
-                    <span>{expense.payment_method === "TM" ? "Tiền mặt" : "CK"}</span>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const ExpenseTracker = ({ user, token }) => {
     const [expenses, setExpenses] = useState([]);
@@ -642,6 +554,34 @@ const ExpenseTracker = ({ user, token }) => {
     const chartIncomeData = Object.values(monthlyIncomeCategoryData).sort((a, b) => b.monthYear.localeCompare(a.monthYear));
     const chartCompareData = Object.values(monthlyCompareData).sort((a, b) => b.monthYear.localeCompare(a.monthYear));
 
+    const monthlyBreakdownYear = parseInt(selectedYear) || new Date().getFullYear();
+    const monthlySums = { Thu: {}, Chi: {} };
+    const monthlyTypeSums = { Thu: {}, Chi: {} };
+
+    expenses.forEach(e => {
+        const dObj = new Date(e.date);
+        if (dObj.getFullYear() === monthlyBreakdownYear) {
+            const m = dObj.getMonth() + 1;
+            const cat = e.category;
+            const type = e.expense_type;
+
+            if (type === "Thu" || type === "Chi") {
+                if (!monthlySums[type][cat]) monthlySums[type][cat] = {};
+                monthlySums[type][cat][m] = (monthlySums[type][cat][m] || 0) + e.amount;
+            }
+
+            if (!["Tiết kiệm", "XL", "Rút tiền", "Đầu tư"].includes(cat)) {
+                monthlyTypeSums[type][m] = (monthlyTypeSums[type][m] || 0) + e.amount;
+            }
+        }
+    });
+
+    const uniqueYearsForDropdown = Array.from(new Set(expenses.map(e => new Date(e.date).getFullYear()))).filter(Boolean);
+    if (uniqueYearsForDropdown.length === 0) {
+        uniqueYearsForDropdown.push(new Date().getFullYear());
+    }
+    uniqueYearsForDropdown.sort((a, b) => b - a);
+
     const renderLegend = (props) => {
         const { payload } = props;
         const priority = ["Tổng thu", "Tổng chi", "Ăn uống", "Tiền nhà", "Đi lại", "Mua sắm", "Vệ sinh-Sức khỏe", "Tiền internet", "Sinh nhật", "Đám cưới", "Biếu tặng", "Hớt tóc", "Lương", "Lãi", "Khác"];
@@ -774,6 +714,7 @@ const ExpenseTracker = ({ user, token }) => {
                 {[
                     { id: "expenses", label: "Chi tiêu" },
                     { id: "dashboard", label: "Biểu đồ" },
+                    { id: "monthly", label: "Hàng tháng" },
                     { id: "yearly", label: "Hàng năm" },
                     { id: "categories", label: "Danh mục" }
                 ].map((t) => (
@@ -1659,6 +1600,169 @@ const ExpenseTracker = ({ user, token }) => {
                     </div>
                 </div>
             ) }
+
+            {/* Monthly breakdown Tab */}
+            {activeTab === "monthly" && (
+                <div className="bg-white p-6 rounded-2xl border border-black/[0.08] shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pb-2 border-b border-black/[0.04]">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-800">Thống Kê Hàng Tháng</h2>
+                            <p className="text-xs text-gray-500 font-medium italic">Đơn vị tính: Triệu đồng (M)</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-semibold text-gray-500">Chọn Năm:</label>
+                            <select
+                                value={monthlyBreakdownYear}
+                                onChange={(e) => setSelectedYear(e.target.value)}
+                                className="p-2 border border-gray-300 rounded-lg text-sm bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                            >
+                                {uniqueYearsForDropdown.map((y) => (
+                                    <option key={y} value={y}>{y}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto border border-black/[0.08] rounded-xl">
+                        <table className="w-full min-w-[760px] md:min-w-full text-xs sm:text-sm text-left bg-white">
+                            <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-black/[0.08]">
+                                <tr>
+                                    <th className="px-2 py-3 sticky left-0 bg-gray-50 border-r border-black/[0.08] w-28">Danh mục</th>
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                        <th key={m} className="px-1 py-3 text-center font-bold w-10 sm:w-12">T{m}</th>
+                                    ))}
+                                    <th className="px-1.5 py-3 text-center font-bold w-16 sm:w-20 bg-gray-100 border-l border-black/[0.08]">Lũy kế</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-black/[0.08] text-gray-700">
+                                {/* Chi tiêu rows */}
+                                {chiCats.map((cat, idx) => (
+                                    <tr key={cat} className={`${idx % 2 === 0 ? "bg-gray-50/20" : "bg-white"} hover:bg-rose-50/20 transition`}>
+                                        <td className="px-2 py-2.5 font-semibold text-gray-800 sticky left-0 bg-inherit border-r border-black/[0.08]">{cat}</td>
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                                            const amt = monthlySums["Chi"]?.[cat]?.[m] || 0;
+                                            return (
+                                                <td key={m} className="px-1 py-2.5 text-right text-red-600 font-semibold">
+                                                    {amt > 0 ? `-${(amt / 1e6).toFixed(2)}M` : "—"}
+                                                </td>
+                                            );
+                                        })}
+                                        {/* Cumulative column */}
+                                        {(() => {
+                                            const total = Array.from({ length: 12 }, (_, i) => i + 1)
+                                                .reduce((sum, m) => sum + (monthlySums["Chi"]?.[cat]?.[m] || 0), 0);
+                                            return (
+                                                <td className="px-1.5 py-2.5 text-right text-red-600 font-bold bg-slate-50/50 border-l border-black/[0.08]">
+                                                    {total > 0 ? `-${(total / 1e6).toFixed(2)}M` : "—"}
+                                                </td>
+                                            );
+                                        })()}
+                                    </tr>
+                                ))}
+
+                                {/* TỔNG CHI row */}
+                                <tr className="bg-red-50/30 font-bold border-t-2 border-red-200">
+                                    <td className="px-2 py-3 sticky left-0 bg-inherit border-r border-black/[0.08] text-red-700">TỔNG CHI</td>
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                                        const total = monthlyTypeSums["Chi"]?.[m] || 0;
+                                        return (
+                                            <td key={m} className="px-1 py-3 text-right text-red-700 font-extrabold">
+                                                {total > 0 ? `${(total / 1e6).toFixed(2)}M` : "—"}
+                                            </td>
+                                        );
+                                    })}
+                                    {/* Cumulative column */}
+                                    {(() => {
+                                        const total = Array.from({ length: 12 }, (_, i) => i + 1)
+                                            .reduce((sum, m) => sum + (monthlyTypeSums["Chi"]?.[m] || 0), 0);
+                                        return (
+                                            <td className="px-1.5 py-3 text-right text-red-700 font-extrabold bg-red-100/50 border-l border-black/[0.08]">
+                                                {total > 0 ? `${(total / 1e6).toFixed(2)}M` : "—"}
+                                            </td>
+                                        );
+                                    })()}
+                                </tr>
+
+                                {/* Thu nhập rows */}
+                                {thuCats.map((cat, idx) => (
+                                    <tr key={cat} className={`${idx % 2 === 0 ? "bg-gray-50/20" : "bg-white"} hover:bg-green-50/20 transition`}>
+                                        <td className="px-2 py-2.5 font-semibold text-gray-800 sticky left-0 bg-inherit border-r border-black/[0.08]">{cat}</td>
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                                            const amt = monthlySums["Thu"]?.[cat]?.[m] || 0;
+                                            return (
+                                                <td key={m} className="px-1 py-2.5 text-right text-green-600 font-semibold">
+                                                    {amt > 0 ? `+${(amt / 1e6).toFixed(2)}M` : "—"}
+                                                </td>
+                                            );
+                                        })}
+                                        {/* Cumulative column */}
+                                        {(() => {
+                                            const total = Array.from({ length: 12 }, (_, i) => i + 1)
+                                                .reduce((sum, m) => sum + (monthlySums["Thu"]?.[cat]?.[m] || 0), 0);
+                                            return (
+                                                <td className="px-1.5 py-2.5 text-right text-green-600 font-bold bg-slate-50/50 border-l border-black/[0.08]">
+                                                    {total > 0 ? `+${(total / 1e6).toFixed(2)}M` : "—"}
+                                                </td>
+                                            );
+                                        })()}
+                                    </tr>
+                                ))}
+
+                                {/* TỔNG THU row */}
+                                <tr className="bg-green-50/30 font-bold border-t-2 border-green-200">
+                                    <td className="px-2 py-3 sticky left-0 bg-inherit border-r border-black/[0.08] text-green-700">TỔNG THU</td>
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                                        const total = monthlyTypeSums["Thu"]?.[m] || 0;
+                                        return (
+                                            <td key={m} className="px-1 py-3 text-right text-green-700 font-extrabold">
+                                                {total > 0 ? `${(total / 1e6).toFixed(2)}M` : "—"}
+                                            </td>
+                                        );
+                                    })}
+                                    {/* Cumulative column */}
+                                    {(() => {
+                                        const total = Array.from({ length: 12 }, (_, i) => i + 1)
+                                            .reduce((sum, m) => sum + (monthlyTypeSums["Thu"]?.[m] || 0), 0);
+                                        return (
+                                            <td className="px-1.5 py-3 text-right text-green-700 font-extrabold bg-green-100/50 border-l border-black/[0.08]">
+                                                {total > 0 ? `${(total / 1e6).toFixed(2)}M` : "—"}
+                                            </td>
+                                        );
+                                    })()}
+                                </tr>
+
+                                {/* CÒN LẠI row */}
+                                <tr className="bg-indigo-600 text-white font-extrabold">
+                                    <td className="px-2 py-3 sticky left-0 bg-inherit border-r border-black/[0.12]">CÒN LẠI</td>
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                                        const thu = monthlyTypeSums["Thu"]?.[m] || 0;
+                                        const chi = monthlyTypeSums["Chi"]?.[m] || 0;
+                                        const diff = thu - chi;
+                                        return (
+                                            <td key={m} className="px-1 py-3 text-center font-black">
+                                                {diff !== 0 ? (diff >= 0 ? `+${(diff / 1e6).toFixed(2)}M` : `${(diff / 1e6).toFixed(2)}M`) : "—"}
+                                            </td>
+                                        );
+                                    })}
+                                    {/* Cumulative column */}
+                                    {(() => {
+                                        const thuTotal = Array.from({ length: 12 }, (_, i) => i + 1)
+                                            .reduce((sum, m) => sum + (monthlyTypeSums["Thu"]?.[m] || 0), 0);
+                                        const chiTotal = Array.from({ length: 12 }, (_, i) => i + 1)
+                                            .reduce((sum, m) => sum + (monthlyTypeSums["Chi"]?.[m] || 0), 0);
+                                        const diffTotal = thuTotal - chiTotal;
+                                        return (
+                                            <td className="px-1.5 py-3 text-center font-black bg-indigo-700 border-l border-black/[0.16]">
+                                                {diffTotal !== 0 ? (diffTotal >= 0 ? `+${(diffTotal / 1e6).toFixed(2)}M` : `${(diffTotal / 1e6).toFixed(2)}M`) : "—"}
+                                            </td>
+                                        );
+                                    })()}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* Yearly breakdown Tab */}
             {activeTab === "yearly" && (

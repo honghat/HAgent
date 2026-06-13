@@ -51,6 +51,8 @@ dependencies = [
   "psutil>=5.9.0,<8",
   # PDF text extraction for Chat.jsx file uploads.
   "pypdf>=6.4.0,<7",
+  "paho-mqtt>=1.6.1,<3",
+  "attrs>=23.2.0,<27",
 ]
 
 [project.optional-dependencies]

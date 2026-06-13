@@ -2573,7 +2573,7 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
         listener = FbListeningEvent(
             data,
             binary_path=fbchat_bridge_bin,
-            enable_e2ee=True,
+            enable_e2ee=False,
             device_path=device_path,
             e2ee_memory_only=False,
         )

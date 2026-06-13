@@ -1676,7 +1676,7 @@ export default function OmniChat({ token, provider }) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-gray-900">Telegram</p>
-                      <p className="truncate text-[10px] text-gray-400">Dùng bot token</p>
+                      <p className="truncate text-[10px] text-gray-400">{conversations.some(c => c.channel === 'telegram') ? 'Đã kết nối' : 'Dùng bot token'}</p>
                     </div>
                     <button
                       type="button"

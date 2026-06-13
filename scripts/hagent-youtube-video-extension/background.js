@@ -238,17 +238,56 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.sync.set({ ...DEFAULTS, ...stored, appUrl: normalizeAppUrl(stored.appUrl) });
 });
 
-function showNotification(title, message) {
-  chrome.notifications.create({
-    type: 'basic',
-    iconUrl: 'icon-128.png',
-    title: title,
-    message: message,
-    priority: 2
-  });
+async function showTabMessage(tabId, title, message, isError = false) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (t, m, err) => {
+        const toastId = 'hagent-extension-toast';
+        let toast = document.getElementById(toastId);
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = toastId;
+          toast.style.position = 'fixed';
+          toast.style.top = '20px';
+          toast.style.right = '20px';
+          toast.style.zIndex = '9999999';
+          toast.style.padding = '12px 20px';
+          toast.style.borderRadius = '8px';
+          toast.style.color = '#ffffff';
+          toast.style.fontFamily = '-apple-system, BlinkMacSystemFont, Arial, sans-serif';
+          toast.style.fontSize = '14px';
+          toast.style.fontWeight = 'bold';
+          toast.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+          toast.style.transition = 'all 0.3s ease';
+          document.body.appendChild(toast);
+        }
+        toast.style.backgroundColor = err ? '#ef4444' : '#22c55e';
+        toast.innerHTML = `<div style="margin-bottom: 4px;">${t}</div><div style="font-size: 12px; font-weight: normal; opacity: 0.9;">${m}</div>`;
+        toast.style.opacity = '1';
+        
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          setTimeout(() => {
+            if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+          }, 300);
+        }, 4000);
+      },
+      args: [title, message, isError]
+    });
+  } catch (err) {
+    console.warn('Không thể chèn Toast vào trang, dùng chrome.notifications làm fallback:', err);
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icon-128.png',
+      title: title,
+      message: message,
+      priority: 2
+    });
+  }
 }
 
-async function syncPlatformCookie(platform) {
+async function syncPlatformCookie(platform, tabId) {
   try {
     const settings = await getSettings();
     const targetUrl = platform === 'facebook' ? 'https://www.facebook.com' : 'https://chat.zalo.me';
@@ -261,7 +300,7 @@ async function syncPlatformCookie(platform) {
     });
 
     if (!cookies || cookies.length === 0) {
-      throw new Error(`Không tìm thấy cookie nào của ${platform === 'facebook' ? 'Facebook' : 'Zalo'}. Hãy mở tab đăng nhập trước.`);
+      throw new Error(`Không tìm thấy cookie nào của ${platform === 'facebook' ? 'Facebook' : 'Zalo'}. Hãy đăng nhập trước.`);
     }
 
     // Check required cookies
@@ -300,7 +339,7 @@ async function syncPlatformCookie(platform) {
     }
 
     if (!jwtToken) {
-      throw new Error('Không tìm thấy token HAgent. Hãy đăng nhập vào HAgent Web trước hoặc cấu hình trong Settings của extension.');
+      throw new Error('Không tìm thấy token HAgent. Hãy mở HAgent Web trước hoặc dán token vào Settings của tiện ích.');
     }
 
     // 3. Send to API
@@ -318,14 +357,17 @@ async function syncPlatformCookie(platform) {
       throw new Error(data.detail || data.message || `Lỗi API HTTP ${response.status}`);
     }
 
-    showNotification(
+    await showTabMessage(
+      tabId,
       `HAgent - Đồng bộ ${platform === 'facebook' ? 'Facebook' : 'Zalo'}`,
       `Đồng bộ Cookie ${platform === 'facebook' ? 'Facebook' : 'Zalo'} thành công! Listener đã khởi chạy.`
     );
   } catch (err) {
-    showNotification(
+    await showTabMessage(
+      tabId,
       'HAgent - Lỗi đồng bộ',
-      `Lỗi: ${err.message}`
+      `Lỗi: ${err.message}`,
+      true
     );
   }
 }
@@ -334,7 +376,13 @@ chrome.action.onClicked.addListener(async () => {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.url) {
-      showNotification('HAgent', 'Không đọc được thông tin tab hiện tại.');
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'icon-128.png',
+        title: 'HAgent',
+        message: 'Không đọc được thông tin tab hiện tại.',
+        priority: 2
+      });
       return;
     }
 
@@ -343,23 +391,22 @@ chrome.action.onClicked.addListener(async () => {
     if (host.includes('youtube.com') || host.includes('youtu.be')) {
       saveActiveTab().then(result => {
         if (result.ok && !result.skipped) {
-          showNotification('HAgent YouTube', `Đã gửi video: ${result.title}`);
+          showTabMessage(tab.id, 'HAgent YouTube', `Đã gửi video: ${result.title}`);
         }
       }).catch(err => {
-        showNotification('HAgent YouTube', `Lỗi: ${err.message}`);
+        showTabMessage(tab.id, 'HAgent YouTube', `Lỗi: ${err.message}`, true);
       });
     } else if (host.includes('facebook.com') || host.includes('messenger.com')) {
-      await syncPlatformCookie('facebook');
+      await syncPlatformCookie('facebook', tab.id);
     } else if (host.includes('zalo.me')) {
-      await syncPlatformCookie('zalo');
+      await syncPlatformCookie('zalo', tab.id);
     } else {
-      showNotification('HAgent', 'Tiện ích chỉ hỗ trợ gửi video YouTube hoặc đồng bộ Cookie trên trang Facebook/Messenger và Zalo.');
+      showTabMessage(tab.id, 'HAgent', 'Tiện ích chỉ hỗ trợ gửi video YouTube hoặc đồng bộ Cookie trên trang Facebook/Messenger và Zalo.', true);
     }
   } catch (err) {
-    showNotification('HAgent Error', err.message);
+    console.error(err);
   }
 });
-
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {

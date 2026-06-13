@@ -498,40 +498,54 @@ def _facebook_send_via_listener(
             "device list", "usync", "prekey", "not e2ee", "e2ee not",
             "bridge exited", "closed", "websocket", "disconnected", "timed out",
         ))
-        if e2ee_unavailable and data_fb:
-            def _try_non_e2ee():
-                from fbchat_v2._messaging._send import api as _SendApi
-                _api = _SendApi()
-                type_chat = "user" if thread_type == "user" else None
-                res = _api.send(dataFB=data_fb, contentSend=text, threadID=target, typeChat=type_chat)
-                if isinstance(res, Exception):
-                    raise RuntimeError(str(res))
-                if not (res or {}).get("success"):
-                    raise RuntimeError(((res or {}).get("payload") or {}).get("error-decription", "Non-E2EE send failed"))
-                payload = (res or {}).get("payload") or {}
-                msg_id = str(payload.get("messageID") or "")
-                return {
-                    "ok": True,
-                    "target": target,
-                    "msg_id": msg_id,
-                    "cli_msg_id": f"fb_{msg_id[:12]}" if msg_id else "",
-                    "msg_type": "message",
-                    "timestamp": payload.get("timestamp") or 0,
-                }
-
-            for attempt in range(2):
+        if e2ee_unavailable:
+            # Fetch dataFB tươi từ cookie — data_fb cũ của listener có fb_dtsg stale
+            # sau crash/reconnect → "Đã xảy ra lỗi tạm thời".
+            cookie = _load_facebook_channel(user_id)
+            fresh_data_fb = None
+            if cookie:
                 try:
-                    result = _try_non_e2ee()
-                    logging.info("Facebook non-E2EE delivered to %s (attempt %s)", target, attempt + 1)
-                    return result
-                except Exception as ne2ee_exc:
-                    ne_err = str(ne2ee_exc).lower()
-                    logging.warning("Facebook non-E2EE attempt %s failed (%s): %s", attempt + 1, target, ne2ee_exc)
-                    # Lỗi tạm thời (Đã xảy ra lỗi tạm thời) → retry sau 3s
-                    if attempt == 0 and ("tạm thời" in ne_err or "temporary" in ne_err or "try again" in ne_err):
-                        time.sleep(3)
-                    else:
-                        break
+                    fresh_data_fb = fbDataGetHome(cookie)
+                    if not (fresh_data_fb or {}).get("FacebookID"):
+                        fresh_data_fb = data_fb
+                except Exception:
+                    fresh_data_fb = data_fb
+            else:
+                fresh_data_fb = data_fb
+
+            if fresh_data_fb:
+                def _try_non_e2ee():
+                    from fbchat_v2._messaging._send import api as _SendApi
+                    _api = _SendApi()
+                    type_chat = "user" if thread_type == "user" else None
+                    res = _api.send(dataFB=fresh_data_fb, contentSend=text, threadID=target, typeChat=type_chat)
+                    if isinstance(res, Exception):
+                        raise RuntimeError(str(res))
+                    if not (res or {}).get("success"):
+                        raise RuntimeError(((res or {}).get("payload") or {}).get("error-decription", "Non-E2EE send failed"))
+                    payload = (res or {}).get("payload") or {}
+                    msg_id = str(payload.get("messageID") or "")
+                    return {
+                        "ok": True,
+                        "target": target,
+                        "msg_id": msg_id,
+                        "cli_msg_id": f"fb_{msg_id[:12]}" if msg_id else "",
+                        "msg_type": "message",
+                        "timestamp": payload.get("timestamp") or 0,
+                    }
+
+                for attempt in range(2):
+                    try:
+                        result = _try_non_e2ee()
+                        logging.info("Facebook non-E2EE delivered to %s (attempt %s)", target, attempt + 1)
+                        return result
+                    except Exception as ne2ee_exc:
+                        ne_err = str(ne2ee_exc).lower()
+                        logging.warning("Facebook non-E2EE attempt %s failed (%s): %s", attempt + 1, target, ne2ee_exc)
+                        if attempt == 0 and ("tạm thời" in ne_err or "temporary" in ne_err or "try again" in ne_err):
+                            time.sleep(1)
+                        else:
+                            break
         return None  # caller dùng subprocess bridge (skip E2EE) làm phương án cuối
 
 

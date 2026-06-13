@@ -284,7 +284,9 @@ async def _get_gold_price() -> str:
                 b = _re.sub(r"<[^>]*>", "", cols[1]).strip()
                 s = _re.sub(r"<[^>]*>", "", cols[2]).strip()
                 if t and b.replace(",", "").replace(".", "").isdigit():
-                    rows.append(f"- {t}: Mua {b} | Ban {s}")
+                    b_val = float(b.replace(",", ""))
+                    s_val = float(s.replace(",", ""))
+                    rows.append(f"- {t}: Mua {b_val:,.0f} nghìn đồng/chỉ".replace(",", ".") + f" | Bán {s_val:,.0f} nghìn đồng/chỉ".replace(",", "."))
         if not rows:
             return "Khong tim thay bang gia tren DOJI."
         tm = _re.search(r"Cap nhat luc:?\s*([^<]+)", html, _re.I)

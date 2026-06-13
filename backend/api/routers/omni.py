@@ -21,7 +21,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request, Query, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, Query, UploadFile, File, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List
@@ -375,10 +375,22 @@ def search_conversation_messages_endpoint(
     ]
 
 
+async def _bg_sync_facebook_thread(user_id: str, thread_id: str, title: str):
+    try:
+        await _sync_facebook_exact_thread_live(user_id, thread_id, title, max_messages=50)
+    except Exception as exc:
+        logging.warning("Background live E2EE sync failed for thread %s: %s", thread_id, exc)
+        try:
+            await _sync_facebook_exact_thread_cookie(user_id, thread_id, title, max_messages=50)
+        except Exception as cookie_exc:
+            logging.warning("Background cookie E2EE sync failed for thread %s: %s", thread_id, cookie_exc)
+
+
 @router.get("/conversations/{id}/messages", response_model=list[OmniMessage])
-def get_conversation_messages_endpoint(
+async def get_conversation_messages_endpoint(
     id: str,
     request: Request,
+    background_tasks: BackgroundTasks,
     limit: int = Query(100, le=500),
     before: str | None = Query(None),
 ):
@@ -386,6 +398,17 @@ def get_conversation_messages_endpoint(
     conv = _resolve_omni_conversation(id, uid)
     if not conv:
         raise HTTPException(status_code=404, detail="Không tìm thấy hội thoại.")
+    
+    platform = conv.get("platform") or conv.get("channel")
+    external_id = conv.get("external_id")
+    if platform == "facebook" and external_id:
+        background_tasks.add_task(
+            _bg_sync_facebook_thread,
+            uid,
+            external_id,
+            conv.get("sender") or conv.get("title") or ""
+        )
+
     msgs = get_conversation_messages(conv["id"], limit=limit, before_id=before)
     return [
         OmniMessage(
@@ -1827,6 +1850,56 @@ async def _facebook_page_needs_security_unlock(page) -> bool:
     return any(marker in body for marker in markers)
 
 
+async def _try_autofill_facebook_pin(page, pin: str) -> bool:
+    try:
+        if not await _facebook_page_needs_security_unlock(page):
+            return False
+
+        logging.info("Facebook E2EE PIN prompt detected. Attempting autofill...")
+        inputs = await page.locator("input").all()
+        visible_inputs = []
+        for inp in inputs:
+            if await inp.is_visible():
+                visible_inputs.append(inp)
+
+        if len(visible_inputs) == 6:
+            for i, char in enumerate(pin[:6]):
+                await visible_inputs[i].fill(char)
+                await page.wait_for_timeout(100)
+            logging.info("Filled 6-digit PIN inputs.")
+        elif len(visible_inputs) == 1:
+            await visible_inputs[0].fill(pin)
+            logging.info("Filled single PIN input.")
+        else:
+            for inp in visible_inputs:
+                attr_type = await inp.get_attribute("type")
+                if attr_type in {"password", "text", "tel", "number"}:
+                    await inp.fill(pin)
+                    logging.info("Filled fallback input.")
+                    break
+
+        await page.wait_for_timeout(1000)
+        await page.keyboard.press("Enter")
+        await page.wait_for_timeout(2000)
+
+        for selector in [
+            'button:has-text("Tiếp tục")',
+            'button:has-text("Continue")',
+            'button:has-text("Xác nhận")',
+            'button:has-text("Confirm")',
+            'button[type="submit"]',
+        ]:
+            btn = page.locator(selector).first
+            if await btn.is_visible():
+                await btn.click()
+                await page.wait_for_timeout(2000)
+                break
+        return True
+    except Exception as e:
+        logging.warning("Failed to autofill Facebook PIN: %s", e)
+        return False
+
+
 async def _close_facebook_playwright_session(sess: dict | None) -> None:
     if not sess:
         return
@@ -1961,6 +2034,10 @@ async def restore_facebook_live_session(user_id: str) -> dict | None:
     page = sess["page"]
     await page.goto("https://www.facebook.com/messages/", wait_until="domcontentloaded", timeout=60000)
     await page.wait_for_timeout(2500)
+    if await _facebook_page_needs_security_unlock(page):
+        pin = os.getenv("FACEBOOK_E2EE_PIN", "111111")
+        await _try_autofill_facebook_pin(page, pin)
+        await page.wait_for_timeout(2500)
     if await _facebook_page_is_connected(page, sess["context"]):
         _facebook_live_sessions[user_id] = sess
         _ensure_facebook_sync_task(user_id)
@@ -2255,6 +2332,41 @@ async def _sync_facebook_live_session(user_id: str, max_threads: int) -> dict | 
     return {"ok": True, "threads": threads, "thread_messages": thread_messages}
 
 
+def _is_facebook_status_junk(content: str) -> bool:
+    content_lower = content.lower().strip()
+    
+    # 1. Exact status matches
+    exact_junk = {
+        "đã gửi", "đã chuyển", "đang gửi...", "đã xem", "seen", "delivered", "sending...",
+        "tùy chỉnh đoạn chat", "file phương tiện và file", "thành viên trong đoạn chat",
+        "tắt thông báo", "thay đổi biểu tượng cảm xúc", "tên biệt danh", "xem trang cá nhân",
+        "tìm kiếm trong cuộc trò chuyện", "xem ảnh & file", "thay đổi chủ đề",
+        "quyền riêng tư & hỗ trợ", "quyền riêng tư và hỗ trợ", "chặn", "vừa xong"
+    }
+    if content_lower in exact_junk:
+        return True
+        
+    # 2. Regex checks for relative time
+    junk_patterns = [
+        r"^đã\s+gửi\s+\d+\s+(phút|giờ|ngày)\s+trước$",
+        r"^đã\s+nhận\s+\d+\s+(phút|giờ|ngày)\s+trước$",
+        r"^đã\s+xem\s+lúc\s+\d{1,2}:\d{2}$",
+        r"^đã\s+gửi\s+lúc\s+\d{1,2}:\d{2}$",
+        r"^sent\s+\d+\s+(min|hr|hour|day)s?\s+ago$",
+        r"^received\s+\d+\s+(min|hr|hour|day)s?\s+ago$",
+        r"^active\s+\d+\s+(min|hr|hour|day)s?\s+ago$",
+        r"^seen\s+at\s+\d{1,2}:\d{2}$",
+        r"^\d{1,2}:\d{2}$",  # Matches standalone times like "11:55" or "20:48"
+        r"^\d{1,2}:\d{2}\s+(am|pm)$",
+        r"^\d{1,2}:\d{2}\s+(thứ\s+[2-7]|chủ\s+nhật)$",
+    ]
+    for pattern in junk_patterns:
+        if re.match(pattern, content_lower):
+            return True
+            
+    return False
+
+
 def _insert_facebook_message_once(
     user_id: str,
     conversation_id: str,
@@ -2262,14 +2374,16 @@ def _insert_facebook_message_once(
     role: str,
     content: str,
     created_at: str | None = None,
+    external_id: str | None = None,
 ) -> str:
     normalized = content.strip()
-    if not normalized:
+    if not normalized or _is_facebook_status_junk(normalized):
         return ""
-    fingerprint = hashlib.sha1(
-        f"facebook:{external_thread_id}:{role}:{normalized}".encode("utf-8")
-    ).hexdigest()
-    external_id = f"fb_{fingerprint}"
+    if not external_id:
+        fingerprint = hashlib.sha1(
+            f"facebook:{external_thread_id}:{role}:{normalized}".encode("utf-8")
+        ).hexdigest()
+        external_id = f"fb_{fingerprint}"
     with get_connection() as conn:
         exists = conn.execute(
             """SELECT 1 FROM omni_messages
@@ -2304,166 +2418,9 @@ async def _sync_facebook_exact_thread_cookie(
     title: str = "",
     max_messages: int = 30,
 ) -> dict:
-    cookie = _load_facebook_channel(user_id)
-    if not cookie or not thread_id:
-        return {"synced_conversations": 0, "synced_messages": 0}
+    # No longer using Playwright for Facebook sync
+    return {"synced_conversations": 0, "synced_messages": 0}
 
-    # 1. Thử tái sử dụng live session (CDP/browser đang mở của Omni Browser) để tránh xung đột lock profile
-    sess = _facebook_live_sessions.get(user_id)
-    if not sess:
-        for candidate in _facebook_browser_sessions.values():
-            if candidate.get("user_id") == user_id:
-                sess = candidate
-                break
-    if not sess:
-        sess = _omni_browser_sessions.get(user_id)
-    if not sess:
-        try:
-            sess = await restore_facebook_live_session(user_id)
-        except Exception:
-            sess = None
-
-    if sess:
-        logging.info("Facebook sync: Reusing live session for thread %s", thread_id)
-        return await _sync_facebook_exact_thread_live(user_id, thread_id, title, max_messages)
-
-    # 2. Nếu không có live session, khởi động persistent context độc lập để giải mã tin nhắn E2EE
-    from playwright.async_api import async_playwright
-    profile_dir = OMNI_BROWSER_PROFILE_ROOT / user_id
-    if not profile_dir.exists():
-        profile_dir = FACEBOOK_PROFILE_ROOT / user_id
-    profile_dir.mkdir(parents=True, exist_ok=True)
-    
-    items = []
-    async with async_playwright() as playwright:
-        context = None
-        browser = None
-        try:
-            context = await playwright.chromium.launch_persistent_context(
-                str(profile_dir),
-                headless=True,
-                args=["--disable-blink-features=AutomationControlled"],
-                viewport={"width": 1280, "height": 900},
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                ),
-            )
-        except Exception as launch_exc:
-            logging.warning("Failed to launch persistent context for sync: %s. Falling back to clean context.", launch_exc)
-            try:
-                browser = await playwright.chromium.launch(
-                    headless=True,
-                    args=["--disable-blink-features=AutomationControlled"],
-                )
-                context = await browser.new_context(
-                    user_agent=(
-                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                    ),
-                    viewport={"width": 1440, "height": 900},
-                )
-                await context.add_cookies(_cookie_header_to_playwright(cookie, ".facebook.com"))
-            except Exception as clean_exc:
-                logging.error("Failed to launch fallback clean context: %s", clean_exc)
-                return {"synced_conversations": 0, "synced_messages": 0}
-
-        try:
-            page = context.pages[0] if context.pages else await context.new_page()
-            for url in (
-                f"https://www.facebook.com/messages/t/{thread_id}",
-                f"https://www.facebook.com/messages/e2ee/t/{thread_id}",
-            ):
-                try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                    await page.wait_for_timeout(5000)
-                    body = await page.locator("body").inner_text(timeout=7000)
-                    if "login" in page.url.lower() or "Đăng nhập" in body or "Log in" in body:
-                        continue
-                    for _attempt in range(5):
-                        try:
-                            await page.evaluate(
-                                """() => {
-                                    for (const el of document.querySelectorAll('div')) {
-                                        if (el.scrollHeight > el.clientHeight + 120) el.scrollTop = el.scrollHeight;
-                                    }
-                                }"""
-                            )
-                        except Exception:
-                            pass
-                        await page.wait_for_timeout(1000)
-                        items = await page.locator('div[dir="auto"], span[dir="auto"]').evaluate_all(
-                            """nodes => nodes.map(node => {
-                                const rect = node.getBoundingClientRect();
-                                const text = (node.innerText || node.textContent || '').trim();
-                                let align = '';
-                                let messageLabel = '';
-                                let el = node;
-                                for (let depth = 0; el && depth < 16; depth += 1, el = el.parentElement) {
-                                    const style = getComputedStyle(el);
-                                    if (style.alignItems === 'flex-start' || style.alignItems === 'flex-end') align = style.alignItems;
-                                    const aria = el.getAttribute('aria-label') || '';
-                                    if (!messageLabel && (/^Lúc \\d{1,2}:\\d{2}, /.test(aria) || aria.includes('Bạn đã gửi'))) messageLabel = aria;
-                                }
-                                return {text, align, messageLabel, x: rect.x, y: rect.y, width: rect.width, height: rect.height};
-                            }).filter(item =>
-                                item.text &&
-                                item.x > 300 &&
-                                item.y > 80 &&
-                                item.width > 10 &&
-                                item.width < 700 &&
-                                item.height > 8 &&
-                                item.height < 320 &&
-                                !['Meta AI', 'Messenger', 'Search', 'Tìm kiếm', 'Đoạn chat', 'Chats', 'Quyền riêng tư và hỗ trợ', 'Privacy & support', 'Xem trang cá nhân', 'View profile', 'Chặn', 'Block', 'Tìm kiếm trong cuộc trò chuyện', 'Search in conversation', 'Xem ảnh & file', 'View photos & files', 'Tên biệt danh', 'Nicknames', 'Thay đổi chủ đề', 'Change theme', 'Thay đổi biểu tượng cảm xúc', 'Change emoji', 'Tắt thông báo', 'Mute notifications', 'Thành viên trong đoạn chat', 'Chat members', 'File phương tiện, file và liên kết', 'Media, files and links', 'Thông tin về đoạn chat', 'Chat information'].includes(item.text)
-                            )"""
-                        )
-                        if items:
-                            break
-                    if items:
-                        break
-                except Exception as page_exc:
-                    logging.warning("Facebook sync thread navigation failed on %s: %s", url, page_exc)
-                    continue
-        finally:
-            try:
-                if context:
-                    await context.close()
-                if browser:
-                    await browser.close()
-            except Exception:
-                pass
-
-    conv = ensure_conversation(user_id, "facebook", title or thread_id, thread_id, "user", "")
-    synced = 0
-    touched = False
-    seen_messages = set()
-    for item in items[-max_messages:]:
-        text = str(item.get("text") or "").strip()
-        if not text or text in seen_messages:
-            continue
-        seen_messages.add(text)
-        label = str(item.get("messageLabel") or "")
-        role = "user" if ", Bạn" in label or "Bạn đã gửi" in label or str(item.get("align") or "") == "flex-end" else "assistant"
-        message_id = _insert_facebook_message_once(
-            user_id,
-            conv["id"],
-            thread_id,
-            role,
-            text,
-            _facebook_created_at_from_label(label),
-        )
-        if message_id:
-            synced += 1
-            touched = True
-            if role != "user":
-                _broadcast({
-                    "type": "message",
-                    "conversationId": conv["id"],
-                    "message": {"id": message_id, "sender_type": "assistant", "content": text, "status": "received"},
-                })
-    if touched:
-        _broadcast({"type": "sync", "platform": "facebook", "conversationIds": [conv["id"]], "messages": synced})
-    return {"synced_conversations": 1, "synced_messages": synced}
 
 
 async def _sync_facebook_exact_thread_live(
@@ -2472,120 +2429,9 @@ async def _sync_facebook_exact_thread_live(
     title: str = "",
     max_messages: int = 30,
 ) -> dict:
-    """Read a specific Messenger thread from the logged-in Playwright profile.
+    # No longer using Playwright for Facebook sync
+    return {"synced_conversations": 0, "synced_messages": 0}
 
-    Meta AI often renders differently or fails in a fresh cookie-only headless
-    context. This uses the persistent Playwright Facebook context that the user
-    logged into, but opens a temporary page so it does not disturb the visible
-    Facebook page.
-    """
-    sess = _facebook_live_sessions.get(user_id)
-    if not sess:
-        for candidate in _facebook_browser_sessions.values():
-            if candidate.get("user_id") == user_id:
-                sess = candidate
-                break
-    if not sess:
-        sess = _omni_browser_sessions.get(user_id)
-    if not sess:
-        sess = await restore_facebook_live_session(user_id)
-    if not sess or not thread_id:
-        return {"synced_conversations": 0, "synced_messages": 0}
-
-    context = sess["context"]
-    page = await context.new_page()
-    items = []
-    try:
-        for url in (
-            f"https://www.facebook.com/messages/t/{thread_id}",
-            f"https://www.facebook.com/messages/e2ee/t/{thread_id}",
-        ):
-            try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                await page.wait_for_timeout(7000)
-                body = await page.locator("body").inner_text(timeout=7000)
-                if "login" in page.url.lower() or "Đăng nhập" in body or "Log in" in body:
-                    continue
-                for _attempt in range(8):
-                    try:
-                        await page.evaluate(
-                            """() => {
-                                for (const el of document.querySelectorAll('div')) {
-                                    if (el.scrollHeight > el.clientHeight + 120) el.scrollTop = el.scrollHeight;
-                                }
-                            }"""
-                        )
-                    except Exception:
-                        pass
-                    await page.wait_for_timeout(1200)
-                    items = await page.locator('div[dir="auto"], span[dir="auto"]').evaluate_all(
-                        """nodes => nodes.map(node => {
-                            const rect = node.getBoundingClientRect();
-                            const text = (node.innerText || node.textContent || '').trim();
-                            let align = '';
-                            let messageLabel = '';
-                            let el = node;
-                            for (let depth = 0; el && depth < 16; depth += 1, el = el.parentElement) {
-                                const style = getComputedStyle(el);
-                                if (style.alignItems === 'flex-start' || style.alignItems === 'flex-end') align = style.alignItems;
-                                const aria = el.getAttribute('aria-label') || '';
-                                if (!messageLabel && (/^Lúc \\d{1,2}:\\d{2}, /.test(aria) || aria.includes('Bạn đã gửi'))) messageLabel = aria;
-                            }
-                            return {text, align, messageLabel, x: rect.x, y: rect.y, width: rect.width, height: rect.height};
-                        }).filter(item =>
-                            item.text &&
-                            item.x > 300 &&
-                            item.y > 80 &&
-                            item.width > 10 &&
-                            item.width < 700 &&
-                            item.height > 8 &&
-                            item.height < 320 &&
-                            !['Meta AI', 'Messenger', 'Search', 'Tìm kiếm', 'Đoạn chat', 'Chats', 'Quyền riêng tư và hỗ trợ', 'Privacy & support', 'Xem trang cá nhân', 'View profile', 'Chặn', 'Block', 'Tìm kiếm trong cuộc trò chuyện', 'Search in conversation', 'Xem ảnh & file', 'View photos & files', 'Tên biệt danh', 'Nicknames', 'Thay đổi chủ đề', 'Change theme', 'Thay đổi biểu tượng cảm xúc', 'Change emoji', 'Tắt thông báo', 'Mute notifications', 'Thành viên trong đoạn chat', 'Chat members', 'File phương tiện, file và liên kết', 'Media, files and links', 'Thông tin về đoạn chat', 'Chat information'].includes(item.text)
-                        )"""
-                    )
-                    if items:
-                        break
-                if items:
-                    break
-            except Exception:
-                continue
-    finally:
-        try:
-            await page.close()
-        except Exception:
-            pass
-
-    conv = ensure_conversation(user_id, "facebook", title or thread_id, thread_id, "user", "")
-    synced = 0
-    touched = False
-    seen_messages = set()
-    for item in items[-max_messages:]:
-        text = str(item.get("text") or "").strip()
-        if not text or text in seen_messages:
-            continue
-        seen_messages.add(text)
-        label = str(item.get("messageLabel") or "")
-        role = "user" if ", Bạn" in label or "Bạn đã gửi" in label or str(item.get("align") or "") == "flex-end" else "assistant"
-        message_id = _insert_facebook_message_once(
-            user_id,
-            conv["id"],
-            thread_id,
-            role,
-            text,
-            _facebook_created_at_from_label(label),
-        )
-        if message_id:
-            synced += 1
-            touched = True
-            if role != "user":
-                _broadcast({
-                    "type": "message",
-                    "conversationId": conv["id"],
-                    "message": {"id": message_id, "sender_type": "assistant", "content": text, "status": "received"},
-                })
-    if touched:
-        _broadcast({"type": "sync", "platform": "facebook", "conversationIds": [conv["id"]], "messages": synced})
-    return {"synced_conversations": 1, "synced_messages": synced}
 
 
 def _facebook_created_at_from_label(label: str) -> str | None:
@@ -2602,91 +2448,9 @@ def _facebook_created_at_from_label(label: str) -> str | None:
 
 
 async def _sync_facebook_for_user(user_id: str, max_threads: int, max_messages: int = 1) -> dict:
-    loop = asyncio.get_running_loop()
-    lock = _facebook_sync_locks.get(user_id)
-    if lock is None or getattr(lock, "_loop", None) not in (None, loop):
-        lock = asyncio.Lock()
-        _facebook_sync_locks[user_id] = lock
-    async with lock:
-        cookie = _load_facebook_channel(user_id)
-        if not cookie:
-            return {"ok": False, "synced_conversations": 0, "synced_messages": 0}
+    # No longer using Playwright for Facebook sync
+    return {"ok": True, "threads": [], "thread_messages": {}}
 
-        # Important: never scrape through the visible/live Facebook tab.
-        # Using the live Playwright page here caused the user's Messenger window
-        # to jump/reload while sync was running. Keep sync isolated in a hidden
-        # cookie-based browser instead.
-        data = await asyncio.to_thread(
-            _run_facebook_bridge,
-            FACEBOOK_SYNC_BRIDGE,
-            {"cookie": cookie, "max_threads": max_threads},
-            90,
-        )
-        # Merge threads from DB to sync E2EE conversations that are already in the system
-        db_threads = []
-        try:
-            with get_connection() as conn:
-                rows = conn.execute(
-                    """SELECT title, external_id FROM omni_conversations
-                       WHERE user_id = ? AND platform = 'facebook'
-                       ORDER BY updated_at DESC LIMIT ?""",
-                    (user_id, max_threads * 2),
-                ).fetchall()
-                for r in rows:
-                    if r["external_id"]:
-                        db_threads.append({"external_id": r["external_id"], "title": r["title"]})
-        except Exception as db_exc:
-            logging.warning("Failed to query DB threads for Facebook sync: %s", db_exc)
-
-        threads_to_sync = data.get("threads") or []
-        seen_ids = {str(t.get("external_id") or "").strip() for t in threads_to_sync if t.get("external_id")}
-        for t in db_threads:
-            ext_id = str(t.get("external_id") or "").strip()
-            if ext_id and ext_id not in seen_ids:
-                threads_to_sync.append(t)
-                seen_ids.add(ext_id)
-
-        synced_conversations = 0
-        synced_messages = 0
-        conv_by_external_id = {}
-        for thread in threads_to_sync:
-            external_id = str(thread.get("external_id") or "").strip()
-            if not external_id:
-                continue
-            conv = ensure_conversation(
-                user_id,
-                "facebook",
-                str(thread.get("title") or external_id),
-                external_id,
-                "user",
-                "",
-            )
-            conv_by_external_id[external_id] = conv
-            synced_conversations += 1
-
-        # The bridge above is intentionally only for the conversation list.
-        # Fetch messages in hidden cookie sessions too, never by navigating the
-        # visible Messenger tab. Limit the number per run so sync stays bounded.
-        for thread in threads_to_sync[: max(1, min(max_threads, 5))]:
-            thread_id = str(thread.get("external_id") or "").strip()
-            if not thread_id:
-                continue
-            try:
-                thread_data = await _sync_facebook_exact_thread_cookie(
-                    user_id,
-                    thread_id,
-                    str(thread.get("title") or thread_id),
-                    max(1, min(max_messages, 3)),
-                )
-                synced_messages += int(thread_data.get("synced_messages") or 0)
-            except Exception as exc:
-                logging.warning("Facebook hidden thread sync skipped for %s: %s", thread_id, exc)
-        return {
-            "ok": True,
-            "synced_conversations": synced_conversations,
-            "synced_messages": synced_messages,
-            "threads": data.get("threads") or [],
-        }
 
 
 async def _facebook_sync_loop(user_id: str) -> None:
@@ -4260,10 +4024,22 @@ async def facebook_browser_login_status(session_id: str, request: Request):
         _start_facebook_mqtt_listener(user_id, cookie)
         return {"session_id": session_id, "status": "connected", "detail": "Facebook đã kết nối."}
     if await _facebook_page_needs_security_unlock(page):
+        pin = os.getenv("FACEBOOK_E2EE_PIN", "111111")
+        autofilled = await _try_autofill_facebook_pin(page, pin)
+        if autofilled:
+            await page.wait_for_timeout(2500)
+            if await _facebook_page_is_connected(page, sess["context"]):
+                cookie = await _get_facebook_cookie_header(sess["context"])
+                _save_facebook_channel(user_id, cookie)
+                _facebook_live_sessions[user_id] = sess
+                _ensure_facebook_sync_task(user_id)
+                _facebook_browser_sessions.pop(session_id, None)
+                _start_facebook_mqtt_listener(user_id, cookie)
+                return {"session_id": session_id, "status": "connected", "detail": f"Facebook đã kết nối sau khi tự động điền PIN."}
         return {
             "session_id": session_id,
             "status": "pending",
-            "detail": "Facebook đang yêu cầu mã bảo mật/PIN. Nhập trực tiếp trong cửa sổ Facebook đang mở.",
+            "detail": f"Facebook đang yêu cầu mã bảo mật/PIN. Đã thử điền tự động PIN nhưng thất bại. Vui lòng nhập trực tiếp trong trình duyệt.",
         }
     return {
         "session_id": session_id,
@@ -4366,50 +4142,62 @@ async def sync_omni_messages(payload: OmniSyncMessagesRequest, request: Request)
 
 
 @router.post("/sync/facebook/messages")
-async def sync_facebook_messages(payload: OmniSyncMessagesRequest, request: Request):
+async def sync_facebook_messages(request: Request):
     user_id = _get_user_id(request)
-    await _save_facebook_controlled_session_cookie(user_id)
-    await _save_omni_browser_channels(user_id)
-    cookie = _load_facebook_channel(user_id)
-    if not cookie:
-        await _save_facebook_controlled_session_cookie(user_id)
-        await _save_omni_browser_channels(user_id)
-        cookie = _load_facebook_channel(user_id)
-    if not cookie:
-        raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
-    latest_messages = max(1, min(payload.maxMessages, 3))
     try:
-        meta_data = await asyncio.wait_for(
-            _sync_facebook_exact_thread_live(user_id, "156025504001094", "Meta AI", latest_messages),
-            timeout=45,
-        )
-    except Exception as exc:
-        logging.warning("Facebook Meta AI live exact sync failed for user %s: %s", user_id, exc)
-        try:
-            meta_data = await asyncio.wait_for(
-                _sync_facebook_exact_thread_cookie(user_id, "156025504001094", "Meta AI", latest_messages),
-                timeout=25,
-            )
-        except Exception as cookie_exc:
-            logging.warning("Facebook Meta AI cookie exact sync skipped for user %s: %s", user_id, cookie_exc)
-            meta_data = {"synced_conversations": 0, "synced_messages": 0}
+        payload = await request.json()
+    except Exception:
+        payload = {}
 
-    data = {"synced_conversations": 0, "synced_messages": 0}
-    if payload.maxThreads <= 3:
-        # Fast path used by Omni sync-all: do not block on broad Messenger scraping.
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(_sync_facebook_for_user(user_id, payload.maxThreads, latest_messages))
-        except Exception:
-            pass
-    else:
-        try:
-            data = await asyncio.wait_for(_sync_facebook_for_user(user_id, payload.maxThreads, latest_messages), timeout=90)
-        except Exception as exc:
-            logging.warning("Facebook broad sync skipped/failed after Meta AI exact sync for user %s: %s", user_id, exc)
-    _ensure_facebook_sync_task(user_id)
+    if isinstance(payload, dict) and "messages" in payload:
+        thread_id = payload.get("thread_id")
+        title = payload.get("title") or ""
+        messages = payload.get("messages") or []
+        if thread_id:
+            conv = ensure_conversation(user_id, "facebook", title or thread_id, thread_id, "user", "")
+            synced = 0
+            touched = False
+            for msg in messages:
+                text = str(msg.get("text") or msg.get("content") or "").strip()
+                if not text:
+                    continue
+                role = msg.get("role") or msg.get("sender_type") or "assistant"
+                if role in ("me", "user", "owner"):
+                    role = "user"
+                else:
+                    role = "assistant"
+                
+                created_at = msg.get("created_at") or msg.get("timestamp")
+                external_msg_id = msg.get("id") or msg.get("message_id") or msg.get("external_id")
+                message_id = _insert_facebook_message_once(
+                    user_id,
+                    conv["id"],
+                    thread_id,
+                    role,
+                    text,
+                    created_at,
+                    external_id=external_msg_id,
+                )
+                if message_id:
+                    synced += 1
+                    touched = True
+                    if role != "user":
+                        _broadcast({
+                            "type": "message",
+                            "conversationId": conv["id"],
+                            "message": {"id": message_id, "sender_type": "assistant", "content": text, "status": "received"},
+                        })
+            if touched:
+                _broadcast({"type": "sync", "platform": "facebook", "conversationIds": [conv["id"]], "messages": synced})
+            return {
+                "ok": True,
+                "synced_conversations": 1,
+                "synced_messages": synced,
+                "status": f"Đã nhận và lưu {synced} tin nhắn Facebook từ extension.",
+            }
+
     return {
-        "synced_conversations": data["synced_conversations"] + meta_data["synced_conversations"],
-        "synced_messages": data["synced_messages"] + meta_data["synced_messages"],
-        "status": "Đồng bộ Facebook nhanh xong; broad sync chạy nền nếu cần.",
+        "synced_conversations": 0,
+        "synced_messages": 0,
+        "status": "Không đồng bộ bằng Playwright; chờ tin nhắn từ Extension gửi qua.",
     }

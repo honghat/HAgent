@@ -546,6 +546,15 @@ export default function OmniChat({ token, provider }) {
     conversationsRef.current = conversations
   }, [conversations])
 
+  useEffect(() => {
+    if (!selectedId) return
+    const conv = conversations.find(c => c.id === selectedId)
+    if (conv && conv.channel) {
+      localStorage.setItem(`omnichat_last_selected_${conv.channel}`, selectedId)
+      localStorage.setItem('omnichat_last_selected_all', selectedId)
+    }
+  }, [selectedId, conversations])
+
   // Auto-scroll effect
   useEffect(() => {
     if (!autoScroll) return
@@ -624,7 +633,18 @@ export default function OmniChat({ token, provider }) {
     const data = await omniApi('/conversations', token)
     const rows = Array.isArray(data) ? data : []
     setConversations(rows)
-    setSelectedId(current => current || rows.find(item => item.channel === 'zalo')?.id || rows[0]?.id || '')
+    setSelectedId(current => {
+      if (current) return current
+      const startupFilter = localStorage.getItem('omnichat_filter') || 'zalo'
+      const lastId = localStorage.getItem(
+        startupFilter === 'all' ? 'omnichat_last_selected_all' : `omnichat_last_selected_${startupFilter}`
+      )
+      if (lastId && rows.some(item => item.id === lastId)) {
+        return lastId
+      }
+      const firstConv = rows.find(item => startupFilter === 'all' || item.channel === startupFilter)
+      return firstConv?.id || rows.find(item => item.channel === 'zalo')?.id || rows[0]?.id || ''
+    })
     setStatus(current => current === 'OmniChat request failed' ? '' : current)
     setLoading(false)
   }
@@ -1222,7 +1242,6 @@ export default function OmniChat({ token, provider }) {
 
   async function deleteMessage(msg) {
     if (!msg || !selected) return
-    if (!window.confirm('Xóa tin nhắn này?')) return
 
     setStatus('')
     try {
@@ -1706,6 +1725,15 @@ export default function OmniChat({ token, provider }) {
                   onClick={() => {
                     setFilter(item)
                     localStorage.setItem('omnichat_filter', item)
+                    const lastId = localStorage.getItem(
+                      item === 'all' ? 'omnichat_last_selected_all' : `omnichat_last_selected_${item}`
+                    )
+                    if (lastId && conversations.some(c => c.id === lastId)) {
+                      setSelectedId(lastId)
+                    } else {
+                      const firstConv = conversations.find(c => item === 'all' || c.channel === item)
+                      setSelectedId(firstConv?.id || '')
+                    }
                   }}
                   className={`rounded-sm px-1 py-[1px] text-[8px] font-semibold leading-3 ${filter === item ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-400 hover:text-gray-800'}`}
                 >

@@ -34,8 +34,8 @@ async def get_gold_price() -> str:
                         buy_luong = buy_val / 100
                         sell_luong = sell_val / 100
                         
-                        buy_fmt = f"{buy_luong:.2f} triệu/lượng ({buy_val * 1000:,.0f} đ/chỉ)".replace(",", ".")
-                        sell_fmt = f"{sell_luong:.2f} triệu/lượng ({sell_val * 1000:,.0f} đ/chỉ)".replace(",", ".")
+                        buy_fmt = f"{buy_val:,.0f} nghìn đồng/chỉ".replace(",", ".")
+                        sell_fmt = f"{sell_val:,.0f} nghìn đồng/chỉ".replace(",", ".")
                         rows.append(f"- {type_text}: Mua {buy_fmt} | Bán {sell_fmt}")
                     except Exception:
                         rows.append(f"- {type_text}: Mua {buy_text} | Bán {sell_text}")

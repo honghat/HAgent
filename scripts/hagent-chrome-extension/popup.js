@@ -25,15 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
     syncZaloBtn.disabled = true;
 
     try {
-      const targetDomain = platform === 'facebook' ? 'facebook.com' : 'zalo.me';
+      // Use full URL instead of domain for more reliable cookie matching in Chrome
+      const targetUrl = platform === 'facebook' ? 'https://www.facebook.com' : 'https://chat.zalo.me';
       const cookies = await new Promise((resolve) => {
-        chrome.cookies.getAll({ domain: targetDomain }, (cookiesList) => {
+        chrome.cookies.getAll({ url: targetUrl }, (cookiesList) => {
           resolve(cookiesList);
         });
       });
 
       if (!cookies || cookies.length === 0) {
-        throw new Error(`Không tìm thấy cookie nào của ${platform === 'facebook' ? 'Facebook' : 'Zalo'}. Hãy đăng nhập trước.`);
+        throw new Error(`Không tìm thấy cookie nào của ${platform === 'facebook' ? 'Facebook' : 'Zalo'}. Hãy mở tab ${platform === 'facebook' ? 'facebook.com' : 'chat.zalo.me'} và đăng nhập trước.`);
       }
 
       // Check required cookies
@@ -57,24 +58,29 @@ document.addEventListener('DOMContentLoaded', () => {
       let jwtToken = token;
       if (!jwtToken) {
         statusDiv.textContent = 'Đang tự tìm JWT Token trên tab HAgent...';
-        const tabs = await new Promise((resolve) => {
-          chrome.tabs.query({}, (tabsList) => resolve(tabsList));
-        });
-        
-        // Find HAgent tab (either localhost:3004 or 127.0.0.1:3004 or hatai.io.vn)
-        const hagentTab = tabs.find(t => 
-          t.url && (t.url.includes('localhost:3004') || t.url.includes('127.0.0.1:3004') || t.url.includes('hatai.io.vn'))
-        );
-
-        if (hagentTab) {
-          // Execute script to get token from localStorage
-          const results = await chrome.scripting.executeScript({
-            target: { tabId: hagentTab.id },
-            func: () => localStorage.getItem('token') || ''
+        try {
+          const tabs = await new Promise((resolve) => {
+            chrome.tabs.query({}, (tabsList) => resolve(tabsList));
           });
-          if (results && results[0] && results[0].result) {
-            jwtToken = results[0].result;
+          
+          // Find HAgent tab (either localhost:3004 or 127.0.0.1:3004 or hatai.io.vn)
+          const hagentTab = tabs.find(t => 
+            t.url && (t.url.includes('localhost:3004') || t.url.includes('127.0.0.1:3004') || t.url.includes('hatai.io.vn'))
+          );
+
+          if (hagentTab) {
+            // Execute script to get token from localStorage
+            const results = await chrome.scripting.executeScript({
+              target: { tabId: hagentTab.id },
+              func: () => localStorage.getItem('token') || ''
+            });
+            if (results && results[0] && results[0].result) {
+              jwtToken = results[0].result;
+            }
           }
+        } catch (tokenErr) {
+          console.warn('Lỗi tự động lấy token:', tokenErr);
+          // Do not crash, let the user know they can paste it manually if empty
         }
       }
 
@@ -83,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // 3. Send Cookie to HAgent API
-      statusDiv.textContent = 'Đang gửi Cookie về HAgent...';
+      statusDiv.textContent = `Đang gửi Cookie ${platform === 'facebook' ? 'Facebook' : 'Zalo'} về HAgent...`;
       const apiEndpoint = `${hagentUrl}/api/omni/connect/${platform}`;
       
       const response = await fetch(apiEndpoint, {

@@ -238,9 +238,128 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.sync.set({ ...DEFAULTS, ...stored, appUrl: normalizeAppUrl(stored.appUrl) });
 });
 
-chrome.action.onClicked.addListener(() => {
-  saveActiveTab().catch(() => {});
+function showNotification(title, message) {
+  chrome.notifications.create({
+    type: 'basic',
+    iconUrl: 'icon-128.png',
+    title: title,
+    message: message,
+    priority: 2
+  });
+}
+
+async function syncPlatformCookie(platform) {
+  try {
+    const settings = await getSettings();
+    const targetUrl = platform === 'facebook' ? 'https://www.facebook.com' : 'https://chat.zalo.me';
+    
+    // 1. Get cookies
+    const cookies = await new Promise((resolve) => {
+      chrome.cookies.getAll({ url: targetUrl }, (cookiesList) => {
+        resolve(cookiesList);
+      });
+    });
+
+    if (!cookies || cookies.length === 0) {
+      throw new Error(`Không tìm thấy cookie nào của ${platform === 'facebook' ? 'Facebook' : 'Zalo'}. Hãy mở tab đăng nhập trước.`);
+    }
+
+    // Check required cookies
+    const cookieMap = {};
+    cookies.forEach(c => {
+      cookieMap[c.name] = c.value;
+    });
+
+    if (platform === 'facebook' && (!cookieMap.c_user || !cookieMap.xs)) {
+      throw new Error('Thiếu cookie c_user hoặc xs. Hãy đăng nhập lại Facebook.');
+    }
+    if (platform === 'zalo' && !cookieMap.PHPSESSID) {
+      throw new Error('Thiếu cookie PHPSESSID. Hãy đăng nhập lại Zalo.');
+    }
+
+    const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+    // 2. Resolve HAgent JWT Token
+    let jwtToken = settings.token;
+    if (!jwtToken || jwtToken === 'hat') { // 'hat' is the default
+      // Try to read from open HAgent tab
+      const existing = await findHAgentTab(settings);
+      if (existing?.id) {
+        try {
+          const [injection] = await chrome.scripting.executeScript({
+            target: { tabId: existing.id },
+            func: () => localStorage.getItem('token') || '',
+          });
+          if (injection?.result) {
+            jwtToken = injection.result;
+          }
+        } catch (err) {
+          console.warn('Lỗi đọc token tự động:', err);
+        }
+      }
+    }
+
+    if (!jwtToken) {
+      throw new Error('Không tìm thấy token HAgent. Hãy đăng nhập vào HAgent Web trước hoặc cấu hình trong Settings của extension.');
+    }
+
+    // 3. Send to API
+    const response = await fetch(`${settings.apiBase}/api/omni/connect/${platform}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwtToken}`
+      },
+      body: JSON.stringify({ cookie: cookieStr })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || data.message || `Lỗi API HTTP ${response.status}`);
+    }
+
+    showNotification(
+      `HAgent - Đồng bộ ${platform === 'facebook' ? 'Facebook' : 'Zalo'}`,
+      `Đồng bộ Cookie ${platform === 'facebook' ? 'Facebook' : 'Zalo'} thành công! Listener đã khởi chạy.`
+    );
+  } catch (err) {
+    showNotification(
+      'HAgent - Lỗi đồng bộ',
+      `Lỗi: ${err.message}`
+    );
+  }
+}
+
+chrome.action.onClicked.addListener(async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url) {
+      showNotification('HAgent', 'Không đọc được thông tin tab hiện tại.');
+      return;
+    }
+
+    const host = new URL(tab.url).hostname.replace(/^www\./, '').toLowerCase();
+
+    if (host.includes('youtube.com') || host.includes('youtu.be')) {
+      saveActiveTab().then(result => {
+        if (result.ok && !result.skipped) {
+          showNotification('HAgent YouTube', `Đã gửi video: ${result.title}`);
+        }
+      }).catch(err => {
+        showNotification('HAgent YouTube', `Lỗi: ${err.message}`);
+      });
+    } else if (host.includes('facebook.com') || host.includes('messenger.com')) {
+      await syncPlatformCookie('facebook');
+    } else if (host.includes('zalo.me')) {
+      await syncPlatformCookie('zalo');
+    } else {
+      showNotification('HAgent', 'Tiện ích chỉ hỗ trợ gửi video YouTube hoặc đồng bộ Cookie trên trang Facebook/Messenger và Zalo.');
+    }
+  } catch (err) {
+    showNotification('HAgent Error', err.message);
+  }
 });
+
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {

@@ -13,7 +13,9 @@
     "activeTab",
     "scripting",
     "storage",
-    "tabs"
+    "tabs",
+    "cookies",
+    "notifications"
   ],
   "host_permissions": [
     "https://www.youtube.com/*",
@@ -23,7 +25,10 @@
     "http://127.0.0.1:8010/*",
     "http://localhost:8010/*",
     "http://127.0.0.1:3004/*",
-    "http://localhost:3004/*"
+    "http://localhost:3004/*",
+    "https://*.facebook.com/*",
+    "https://*.messenger.com/*",
+    "https://*.zalo.me/*"
   ],
   "action": {
     "default_title": "Gửi YouTube sang HAgent",

@@ -481,7 +481,7 @@ export default function OmniChat({ token, provider }) {
   const [messageSearchResults, setMessageSearchResults] = useState([])
   const [messageSearchLoading, setMessageSearchLoading] = useState(false)
   const [activeMessageSearchIndex, setActiveMessageSearchIndex] = useState(0)
-  const [filter, setFilter] = useState('zalo')
+  const [filter, setFilter] = useState(() => localStorage.getItem('omnichat_filter') || 'zalo')
   const [status, setStatus] = useState('')
   const [channelStatus, setChannelStatus] = useState('')
   const [zaloConnected, setZaloConnected] = useState(false)
@@ -787,8 +787,13 @@ export default function OmniChat({ token, provider }) {
     if (!token) return undefined
     const events = new EventSource(`/api/omni/events?t=${encodeURIComponent(token)}`)
     let lastEventTime = Date.now()
+    let errorTimer = null
     
     events.onopen = () => {
+      if (errorTimer) {
+        clearTimeout(errorTimer)
+        errorTimer = null
+      }
       setStatus(current => current === 'Mất kết nối realtime, đang tự nối lại...' || current === 'OmniChat request failed' ? '' : current)
     }
 
@@ -833,9 +838,18 @@ export default function OmniChat({ token, provider }) {
       }
     })
     
-    events.onerror = () => setStatus('Mất kết nối realtime, đang tự nối lại...')
+    events.onerror = () => {
+      if (!errorTimer) {
+        errorTimer = setTimeout(() => {
+          setStatus('Mất kết nối realtime, đang tự nối lại...')
+        }, 5000)
+      }
+    }
 
     return () => {
+      if (errorTimer) {
+        clearTimeout(errorTimer)
+      }
       events.close()
     }
   }, [token])
@@ -1689,7 +1703,10 @@ export default function OmniChat({ token, provider }) {
                 <button
                   key={item}
                   type="button"
-                  onClick={() => setFilter(item)}
+                  onClick={() => {
+                    setFilter(item)
+                    localStorage.setItem('omnichat_filter', item)
+                  }}
                   className={`rounded-sm px-1 py-[1px] text-[8px] font-semibold leading-3 ${filter === item ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-400 hover:text-gray-800'}`}
                 >
                   {label}

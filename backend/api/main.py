@@ -13,6 +13,7 @@ from api.routers import blog
 from api.routers import ketoan
 from api.routers import pdf_translate
 from api.routers import iot
+from api.routers import video_dub
 
 from api.services.db import DATA_DIR, init_db
 from api.services.workflow_scheduler import start_workflow_scheduler
@@ -133,6 +134,7 @@ def create_app() -> FastAPI:
     app.include_router(browser_view.router, prefix="/api")
     app.include_router(camera.router)
     app.include_router(video.router)
+    app.include_router(video_dub.router)
     app.include_router(goals.router)
     app.include_router(google_accounts.router)
     app.include_router(google_photos.router)

@@ -8,6 +8,7 @@ import UserSettings from './components/UserSettings.jsx'
 import LearningHub from './components/LearningHub.jsx'
 import SystemHub from './components/SystemHub.jsx'
 import EntertainmentHub from './components/EntertainmentHub.jsx'
+import VideoDubHub from './components/VideoDubHub.jsx'
 import AdminHub from './components/AdminHub.jsx'
 import PersonalHub from './components/PersonalHub.jsx'
 import BlogHub from './components/BlogHub.jsx'
@@ -15,7 +16,7 @@ import { GlobalToastViewport } from './components/Toast.jsx'
 import { getDeviceCredentials, isSignedOut, saveDeviceCredentials, setSignedOut } from './lib/deviceAuth.js'
 import { canAccess } from './lib/permissions.js'
 
-const TOP_TABS = ['chat', 'system', 'learning', 'personal', 'entertainment', 'settings', 'admin']
+const TOP_TABS = ['chat', 'system', 'learning', 'personal', 'entertainment', 'video', 'settings', 'admin']
 
 function readStorage(key, fallback = '') {
   try {
@@ -44,7 +45,7 @@ function readLaunchParams() {
   const entertainmentTab = params.get('entertainment_tab') || params.get('hagent_entertainment_tab') || ''
   const videoId = (params.get('video_id') || params.get('hagent_video_id') || '').trim()
   return {
-    view: ['blog', 'chat', 'wiki', 'learning', 'personal', 'system', 'settings', 'entertainment', 'admin'].includes(view) ? view : '',
+    view: ['blog', 'chat', 'wiki', 'learning', 'personal', 'system', 'settings', 'entertainment', 'video', 'admin'].includes(view) ? view : '',
     entertainmentTab: ['browse', 'detail', 'reader', 'video', 'app-api'].includes(entertainmentTab) ? entertainmentTab : '',
     videoId: /^[A-Za-z0-9_-]{1,80}$/.test(videoId) ? videoId : '',
   }
@@ -312,6 +313,7 @@ export default function App() {
           {view === 'system' && <SystemHub token={token} provider={provider} cxModel={cxModel} user={user} />}
           {view === 'settings' && <UserSettings token={token} user={user} provider={provider} cxModel={cxModel} onCxModelChange={saveCxModel} onProviderChange={saveProvider} onUpdate={fetchUser} onLogout={logout} agents={agents} onAgentsUpdate={fetchAgents} />}
           {view === 'entertainment' && <EntertainmentHub token={token} provider={provider} cxModel={cxModel} user={user} />}
+          {view === 'video' && <VideoDubHub token={token} user={user} />}
           {view === 'personal' && <PersonalHub token={token} user={user} />}
           {view === 'admin' && <AdminHub token={token} currentUser={user} />}
       </main>

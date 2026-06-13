@@ -37,6 +37,7 @@ const DEFAULT_SERVICES = [
   'hagent-telegram',
   'hagent-cron',
   'hagent-omni',
+  'hagent-video-portal',
 ];
 
 const ON_DEMAND_SERVICES = new Set([
@@ -84,6 +85,20 @@ const apps = [
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       env: {
         SEARXNG_PM2_FOREGROUND: '1',
+      }
+    },
+    {
+      name: 'hagent-video-portal',
+      cwd: '/Users/nguyenhat/HAgent/videodub-portal',
+      script: '/Users/nguyenhat/HAgent/backend/.venv/bin/python',
+      args: 'server.py',
+      error_file: `${LOG_DIR}/video-portal-error.log`,
+      out_file: `${LOG_DIR}/video-portal-out.log`,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      env: {
+        PORTAL_LISTEN_PORT: '8007',
+        PORTAL_TARGET: 'http://127.0.0.1:8010',
       }
     }
   ];

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Video đàn tranh — Lồng tiếng</title>
+<style>
+  :root{--gold:#c9a44a;--bg:#0e0b08;--bg1:#16110c;--bg2:#1e1710;--bg3:#2a2118;--bd:#3a2e1e;--tx:#e8dfc8;--mut:#8a7a60;--grn:#6dba7f;--red:#cc6060;--blue:#7aa7d6}
+  *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  body{background:radial-gradient(circle at 50% 0%,#1e160a,#0e0b08);color:var(--tx);min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;padding:18px}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--bd);margin-bottom:18px}
+  .brand{font-size:17px;font-weight:600;color:var(--gold);cursor:pointer}
+  .brand small{display:block;font-size:11px;color:var(--mut);font-weight:400}
+  .muted{color:var(--mut)}
+  .btn{background:var(--gold);color:#241a08;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+  .btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.5;cursor:default}
+  .btn.ghost{background:var(--bg3);color:var(--tx)}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .card{background:var(--bg1);border:1px solid var(--bd);border-radius:14px;padding:18px}
+  input,select{width:100%;background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:9px 12px;color:var(--tx);font-size:13px;outline:none}
+  input:focus{border-color:var(--gold)}
+  .row{display:flex;gap:8px;align-items:center}
+  .tabs{display:flex;gap:6px;background:var(--bg2);border-radius:12px;padding:5px;margin-bottom:14px}
+  .tab{flex:1;text-align:center;padding:8px;border-radius:8px;font-size:13px;cursor:pointer;color:var(--mut)}
+  .tab.on{background:var(--bg1);color:var(--gold);font-weight:600}
+  .item{display:flex;align-items:center;gap:10px;background:var(--bg1);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:.15s}
+  .item:hover{border-color:var(--gold)}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600}
+  .b-queued{background:#3a2f12;color:#d8b24a}.b-running{background:#14304a;color:var(--blue)}
+  .b-done{background:#143524;color:var(--grn)}.b-error{background:#3a1414;color:var(--red)}
+  .log{max-height:380px;overflow:auto;background:#090705;border:1px solid var(--bd);border-radius:12px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.8;color:#bdae8e;margin-top:12px;scroll-behavior:smooth}
+  .log-line{display:flex;gap:8px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+  .log-line:last-child{border-bottom:none}
+  .log-ts{color:var(--mut);font-size:10px;white-space:nowrap;flex-shrink:0;width:60px;opacity:0.6}
+  .log-msg{flex:1;word-break:break-word}
+  .log-msg.info{color:#bdae8e}
+  .log-msg.ok{color:var(--grn)}
+  .log-msg.err{color:var(--red)}
+  .log-msg.warn{color:#d8b24a}
+  .log-msg.step{color:var(--blue);font-weight:500}
+  .log-msg.bold{color:var(--tx);font-weight:500}
+  video{width:100%;border-radius:12px;background:#000;max-height:60vh}
+  a.dl{display:inline-block;background:var(--bg3);color:var(--tx);text-decoration:none;border-radius:8px;padding:6px 12px;font-size:12px;margin-right:8px;transition:.15s}
+  a.dl:hover{background:var(--bg2);color:var(--gold)}
+  .err{color:var(--red);font-size:12px;margin-top:6px}
+  .label{font-size:12px;color:var(--mut);margin:10px 0 4px}
+  .center{min-height:80vh;display:flex;align-items:center;justify-content:center}
+  .drop{display:block;cursor:pointer;border:1px dashed var(--bd);border-radius:10px;padding:22px;text-align:center;color:var(--mut);font-size:13px}
+  .drop:hover{border-color:var(--gold)}
+  .progress-bar{height:3px;background:var(--bg3);border-radius:3px;overflow:hidden;margin:10px 0}
+  .progress-bar-inner{height:100%;background:var(--gold);border-radius:3px;transition:width .4s ease;width:0%}
+  .status-card{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+  .status-chip{display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border-radius:20px;padding:4px 10px;font-size:11px}
+  .spinner{display:inline-block;width:10px;height:10px;border:2px solid var(--bg3);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const TK='vd_token', DID='vd_deviceId', DS='vd_deviceSecret';
+const S={token:localStorage.getItem(TK),user:null,view:'list',activeId:null,task:null,tasks:[],queue:0,err:''};
+let timer=null;
+const el=document.getElementById('app');
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const BADGE={queued:['⏳','Chờ','b-queued'],running:['⚙️','Đang chạy','b-running'],done:['✅','Hoàn tất','b-done'],error:['❌','Lỗi','b-error']};
+const badge=s=>{const b=BADGE[s]||BADGE.queued;return `<span class="badge ${b[2]}">${b[0]} ${b[1]}</span>`};
+const H=()=>S.token?{Authorization:'Bearer '+S.token}:{};
+const fmtDur=s=>s?`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`:'—';
+
+async function jget(p){const r=await fetch(p,{headers:H()});return r.ok?r.json():Promise.reject(await r.json().catch(()=>({})))}
+
+// ---------- Auth ----------
+async function bootstrap(){
+  const t=localStorage.getItem(TK);
+  if(t){S.token=t;const r=await fetch('/api/auth/me',{headers:{Authorization:'Bearer '+t}});if(r.ok){S.user=await r.json();return true}}
+  const did=localStorage.getItem(DID),ds=localStorage.getItem(DS);
+  if(did&&ds){const r=await fetch('/api/auth/device-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId:did,deviceSecret:ds})});
+    if(r.ok){const d=await r.json();S.token=d.token;localStorage.setItem(TK,d.token);S.user=d.user;return true}}
+  S.token=null;S.user=null;return false;
+}
+async function doLogin(u,p){
+  const body={username:u,password:p};
+  const did=localStorage.getItem(DID),ds=localStorage.getItem(DS);
+  if(did)body.deviceId=did; if(ds)body.deviceSecret=ds;
+  const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.detail||'Đăng nhập lỗi');
+  if(d.deviceId)localStorage.setItem(DID,d.deviceId);
+  if(d.deviceSecret)localStorage.setItem(DS,d.deviceSecret);
+  S.token=d.token;localStorage.setItem(TK,d.token);S.user=d.user;
+  if(d.status==='pending')throw new Error('__PENDING__');
+  return d.user;
+}
+function logout(){localStorage.removeItem(TK);S.token=null;S.user=null;S.view='list';stopTimer();render()}
+
+function stopTimer(){if(timer){clearInterval(timer);timer=null}}
+function setTimer(fn,ms){stopTimer();timer=setInterval(fn,ms)}
+
+// ---------- Helpers ----------
+function logClass(m){
+  if(!m)return 'info';
+  if(/^✅|^✓|Hoàn tất|thành công/i.test(m))return 'ok';
+  if(/^❌|^Lỗi|Error:|thất bại/i.test(m))return 'err';
+  if(/^⚠️|^⚠|không tìm|thiếu/i.test(m))return 'warn';
+  if(/^🎙️|^🎤|^🌐|^🎚️|Đang (tải|tách|nhận|dịch|sinh|ghép|mux)/i.test(m))return 'step';
+  if(/^Đã|✓|✅/.test(m))return 'ok';
+  return 'info';
+}
+function fmtTs(ms){const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')}
+
+// ---------- Screens ----------
+function renderLogin(){
+  stopTimer();
+  el.innerHTML=`<div class="wrap"><div class="center"><div class="card" style="width:340px">
+    <div class="brand" style="text-align:center;margin-bottom:4px">🎵 Video đàn tranh</div>
+    <p class="muted" style="text-align:center;font-size:12px;margin-bottom:16px">Lồng tiếng Trung → Việt</p>
+    <div class="label">Tên đăng nhập</div><input id="u" autocomplete="username"/>
+    <div class="label">Mật khẩu</div><input id="p" type="password" autocomplete="current-password"/>
+    <div id="le" class="err"></div>
+    <button class="btn" id="lb" style="width:100%;margin-top:14px">Đăng nhập</button>
+  </div></div></div>`;
+  const go=async()=>{
+    const u=document.getElementById('u').value.trim(),p=document.getElementById('p').value;
+    const e=document.getElementById('le');e.textContent='';
+    try{await doLogin(u,p);S.view='list';render()}
+    catch(err){e.textContent=err.message==='__PENDING__'?'Thiết bị mới — nhờ admin duyệt trong HAgent (Quản trị ▸ Thiết bị) rồi đăng nhập lại.':err.message}
+  };
+  document.getElementById('lb').onclick=go;
+  document.getElementById('p').onkeydown=e=>{if(e.key==='Enter')go()};
+}
+
+function topbar(){
+  return `<div class="top"><div class="brand" id="home">🎵 Video đàn tranh<small>Lồng tiếng đàn tranh cổ · Trung → Việt</small></div>
+    <div class="row"><span class="muted" style="font-size:12px">${esc(S.user?.display_name||S.user?.username||'')}</span>
+    <button class="btn ghost sm" id="lo">Thoát</button></div></div>`;
+}
+function bindTop(){const h=document.getElementById('home');if(h)h.onclick=()=>{S.view='list';render()};const lo=document.getElementById('lo');if(lo)lo.onclick=logout}
+
+async function renderList(){
+  el.innerHTML=`<div class="wrap">${topbar()}
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:15px;font-weight:600">Lịch sử</div>
+      <button class="btn" id="nw">＋ Dịch mới</button></div>
+    <div id="q"></div><div id="ls" class="muted">Đang tải…</div></div>`;
+  bindTop();
+  document.getElementById('nw').onclick=()=>{S.view='new';render()};
+  const refresh=async()=>{
+    try{const d=await jget('/api/video-dub/tasks');S.tasks=d.tasks||[];S.queue=d.queue?.pending||0}catch{return}
+    const q=document.getElementById('q');if(q)q.innerHTML=S.queue>0?`<div class="card" style="padding:8px 12px;margin-bottom:10px;color:var(--blue);font-size:12px"><span class="spinner" style="margin-right:6px"></span>Đang xử lý — ${S.queue} task chờ</div>`:'';
+    const ls=document.getElementById('ls');if(!ls)return;
+    if(!S.tasks.length){ls.outerHTML='<div class="muted" style="text-align:center;padding:50px 0">Chưa có video nào. Bấm “Dịch mới”.</div>';return}
+    ls.className='';ls.id='ls';
+    ls.innerHTML=S.tasks.map(t=>`<div class="item" data-id="${t.id}">
+      <div style="flex:1;min-width:0">
+        <div class="row" style="gap:8px"><span style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%">${esc(t.title)}</span>${badge(t.status)}</div>
+        <div class="muted" style="font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.progress||(t.source_type==='youtube'?'▶ YouTube':'📁 Upload'))}${t.segments_count?` · ${t.segments_count} câu`:''}${t.duration?` · ${fmtDur(t.duration)}`:''}</div>
+      </div><button class="btn ghost sm" data-del="${t.id}" style="flex-shrink:0">✕</button></div>`).join('');
+    ls.querySelectorAll('[data-id]').forEach(n=>n.onclick=e=>{if(e.target.dataset.del)return;S.activeId=n.dataset.id;S.view='detail';render()});
+    ls.querySelectorAll('[data-del]').forEach(n=>n.onclick=async e=>{e.stopPropagation();if(!confirm('Xoá task này?'))return;await fetch('/api/video-dub/tasks/'+n.dataset.del,{method:'DELETE',headers:H()});refresh()});
+  };
+  await refresh();setTimer(refresh,3000);
+}
+
+function renderNew(){
+  stopTimer();
+  let tab='upload',file=null;
+  let ytTimer=null;
+  el.innerHTML=`<div class="wrap">${topbar()}
+    <button class="btn ghost sm" id="bk">← Lịch sử</button>
+    <h3 style="margin:14px 0;font-weight:600">Dịch video mới</h3>
+    <div class="tabs"><div class="tab on" data-t="upload">📁 Upload</div><div class="tab" data-t="youtube">▶️ YouTube</div></div>
+    <div class="card">
+      <div id="src"></div>
+      <div class="label">Tiêu đề <span class="muted">(tự động nếu để trống)</span></div><input id="ti" placeholder="Tiêu đề"/>
+      <div id="ne" class="err"></div>
+      <button class="btn" id="sb" style="width:100%;margin-top:14px">🚀 Tạo task & bắt đầu</button>
+    </div></div>`;
+  bindTop();
+  document.getElementById('bk').onclick=()=>{S.view='list';render()};
+  const srcBox=document.getElementById('src');
+  const drawSrc=()=>{srcBox.innerHTML=tab==='upload'
+    ?`<label class="drop" id="fl">${file?'📹 '+esc(file.name)+' ('+(file.size/1048576).toFixed(1)+' MB)':'Bấm chọn file video'}<input type="file" accept="video/*" hidden id="fi"/></label>`
+    :`<input id="url" placeholder="https://youtube.com/watch?v=..."/>`;
+    if(tab==='upload')document.getElementById('fi').onchange=e=>{file=e.target.files[0];if(file&&!document.getElementById('ti').value)document.getElementById('ti').value=file.name;drawSrc()};
+    if(tab==='youtube')document.getElementById('url').oninput=e=>{
+      clearTimeout(ytTimer);
+      const u=e.target.value.trim();
+      if(!u.startsWith('http'))return;
+      ytTimer=setTimeout(async()=>{
+        try{const r=await jget('/api/video-dub/yt-info?url='+encodeURIComponent(u));const ti=document.getElementById('ti');if(r.title&&!ti.value)ti.value=r.title}catch{}
+      },800);
+    };
+  };
+  drawSrc();
+  document.querySelectorAll('.tab').forEach(n=>n.onclick=()=>{tab=n.dataset.t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===tab));drawSrc()});
+
+  document.getElementById('sb').onclick=async()=>{
+    const e=document.getElementById('ne');e.textContent='';const sb=document.getElementById('sb');sb.disabled=true;sb.textContent='⏳ Đang gửi...';
+    const title=document.getElementById('ti').value.trim();
+    try{
+      let r;
+      if(tab==='upload'){if(!file)throw new Error('Chọn file video')
+        const fd=new FormData();fd.append('video',file);fd.append('title',title||file.name);fd.append('voice','hoaimy');fd.append('sourceLang','zh');
+        r=await fetch('/api/video-dub/upload',{method:'POST',headers:H(),body:fd});
+      }else{const url=document.getElementById('url').value.trim();if(!url)throw new Error('Nhập URL YouTube');
+        r=await fetch('/api/video-dub/youtube',{method:'POST',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify({url,title,voice:'hoaimy',sourceLang:'zh'})});
+      }
+      const d=await r.json();if(!r.ok)throw new Error(d.detail||'Lỗi tạo task');
+      S.activeId=d.id;S.view='detail';render();
+    }catch(err){e.textContent=err.message;sb.disabled=false;sb.textContent='🚀 Tạo task & bắt đầu'}
+  };
+}
+
+async function renderDetail(){
+  const id=S.activeId;let first=true;
+  const f=n=>'/api/video-dub/file/'+encodeURIComponent(n)+'?t='+encodeURIComponent(S.token);
+  const renderLog=t=>{
+    const lg=document.getElementById('log');if(!lg)return;
+    const logs=t.logs||[];const prev=parseInt(lg.dataset.count||'0');
+    if(first||logs.length<prev){
+      lg.innerHTML=logs.length?logs.map(l=>`<div class="log-line"><span class="log-ts">${l.t?fmtTs(l.t):''}</span><span class="log-msg ${logClass(l.m)}">${esc(l.m||'')}</span></div>`).join(''):'<div class="muted" style="padding:8px 0;text-align:center">Chưa có log.</div>';
+      lg.scrollTop=lg.scrollHeight;
+    }else if(logs.length>prev){
+      logs.slice(prev).forEach(l=>lg.insertAdjacentHTML('beforeend',`<div class="log-line"><span class="log-ts">${l.t?fmtTs(l.t):''}</span><span class="log-msg ${logClass(l.m)}">${esc(l.m||'')}</span></div>`));
+      const near=lg.scrollHeight-lg.scrollTop-lg.clientHeight<40;
+      if(near)lg.scrollTo({top:lg.scrollHeight,behavior:'smooth'});
+    }
+    lg.dataset.count=String(logs.length);
+    const cnt=document.getElementById('lc');if(cnt)cnt.textContent=logs.length+' dòng';
+  };
+  const update=t=>{
+    const b=document.getElementById('tb');if(b)b.innerHTML=badge(t.status);
+    const sc=document.getElementById('sc');if(sc)sc.innerHTML=
+      `<span class="status-chip">${t.source_type==='youtube'?'▶ YouTube':'📁 Upload'}</span>`+
+      (t.duration?`<span class="status-chip">⏱ ${fmtDur(t.duration)}</span>`:'')+
+      (t.segments_count?`<span class="status-chip">💬 ${t.segments_count} câu</span>`:'')+
+      ((t.status==='queued'||t.status==='running')?'<span class="status-chip"><span class="spinner" style="margin-right:3px"></span>Đang xử lý...</span>':'');
+    const isDone=t.status==='done';const isErr=t.status==='error';
+    const ec=document.getElementById('ec');if(ec)ec.style.display=t.error&&!isDone?'block':'none';if(ec&&t.error)ec.innerHTML='❌ '+esc(t.error);
+    const oc=document.getElementById('oc');const hasOut=isDone&&t.video_file;
+    if(oc){
+      if(hasOut&&oc.style.display==='none'){
+        oc.style.display='block';
+        oc.innerHTML=`<div style="margin-bottom:10px;font-size:13px;font-weight:600;color:var(--grn)">✅ Hoàn tất</div>
+          <video controls playsinline src="${f(t.video_file)}"></video>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <a class="dl" href="${f(t.video_file)}" download>⬇️ Tải video MP4</a>
+            ${t.srt_file?`<a class="dl" href="${f(t.srt_file)}" download>⬇️ Tải phụ đề SRT</a>`:''}
+          </div>`;
+      }else if(!hasOut)oc.style.display='none';
+    }
+    renderLog(t);
+  };
+  const initFull=t=>{
+    const logs=t.logs||[];const isRunning=t.status==='queued'||t.status==='running';const isDone=t.status==='done';
+    el.innerHTML=`<div class="wrap">${topbar()}
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <button class="btn ghost sm" id="bk">← Lịch sử</button>
+        ${!isDone?`<div class="row"><span class="spinner" style="margin-right:4px"></span><button class="btn ghost sm" id="rt">🔁 Thử lại</button></div>`:''}
+      </div>
+      <div class="row" style="gap:8px;margin:8px 0"><h3 style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</h3><span id="tb">${badge(t.status)}</span></div>
+      <div class="status-card" id="sc">
+        <span class="status-chip">${t.source_type==='youtube'?'▶ YouTube':'📁 Upload'}</span>
+        ${t.duration?`<span class="status-chip">⏱ ${fmtDur(t.duration)}</span>`:''}
+        ${t.segments_count?`<span class="status-chip">💬 ${t.segments_count} câu</span>`:''}
+        ${isRunning?'<span class="status-chip"><span class="spinner" style="margin-right:3px"></span>Đang xử lý...</span>':''}
+      </div>
+      <div id="ec" class="card" style="display:${t.error&&!isDone?'block':'none'};color:var(--red);padding:10px 12px;margin-bottom:10px;border-color:rgba(204,96,96,.3)">${t.error?esc(t.error):''}</div>
+      <div id="oc" class="card" style="display:${isDone&&t.video_file?'block':'none'};border-color:rgba(109,186,127,.3);margin-bottom:12px">${isDone&&t.video_file?`<div style="margin-bottom:10px;font-size:13px;font-weight:600;color:var(--grn)">✅ Hoàn tất</div>
+        <video controls playsinline src="${f(t.video_file)}"></video>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="dl" href="${f(t.video_file)}" download>⬇️ Tải video MP4</a>
+          ${t.srt_file?`<a class="dl" href="${f(t.srt_file)}" download>⬇️ Tải phụ đề SRT</a>`:''}
+        </div>`:''}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px">
+        <span style="font-size:13px;font-weight:600">Tiến trình</span>
+        <span class="muted" id="lc" style="font-size:11px">${logs.length} dòng</span>
+      </div>
+      <div class="log" id="log"></div>
+    </div>`;
+    bindTop();
+    document.getElementById('bk').onclick=()=>{S.view='list';render()};
+    const rt=document.getElementById('rt');if(rt)rt.onclick=async()=>{await fetch('/api/video-dub/tasks/'+id+'/retry',{method:'POST',headers:H()});refresh()};
+    first=true;renderLog(t);first=false;
+  };
+  const refresh=async()=>{try{const t=await jget('/api/video-dub/tasks/'+id);S.task=t;if(first){initFull(t)}else{update(t)}if(t.status==='done'||t.status==='error')stopTimer()}catch{}};
+  el.innerHTML=`<div class="wrap">${topbar()}<div style="padding:60px 0;text-align:center"><span class="spinner" style="width:16px;height:16px;margin-bottom:8px"></span><div class="muted">Đang tải…</div></div></div>`;bindTop();
+  await refresh();setTimer(refresh,1500);
+}
+
+function render(){
+  if(!S.user){renderLogin();return}
+  if(S.view==='new')renderNew();
+  else if(S.view==='detail')renderDetail();
+  else renderList();
+}
+
+(async()=>{el.innerHTML=`<div class="wrap"><div style="padding:60px 0;text-align:center"><span class="spinner" style="width:16px;height:16px;margin-bottom:8px"></span><div class="muted">Đang kiểm tra phiên…</div></div></div>`;await bootstrap();render()})();
+</script>
+</body>
+</html>

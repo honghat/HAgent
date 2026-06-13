@@ -407,7 +407,8 @@ def create_session(
 ) -> tuple[str, str, dict]:
     token = str(uuid.uuid4())
     # Admin không bị giới hạn thiết bị — luôn được duyệt tự động.
-    trusted = trusted or is_admin(user_id)
+    # Role videodub cũng tự duyệt thiết bị (portal riêng, không qua admin gate).
+    trusted = trusted or is_admin(user_id) or get_user_role(user_id) == "videodub"
     device = upsert_login_device(
         user_id,
         device_id=device_id,
@@ -444,7 +445,13 @@ def create_session_from_device(
         device = conn.execute("SELECT * FROM devices WHERE id = ?", (clean_device_id,)).fetchone()
         if not device:
             return None
-        if (device["status"] or "pending") != "approved":
+        dev_status = device["status"] or "pending"
+        # Role videodub tự duyệt thiết bị (portal riêng).
+        if dev_status != "approved" and get_user_role(device["user_id"]) == "videodub":
+            conn.execute("UPDATE devices SET status='approved', last_active=datetime('now') WHERE id=?", (clean_device_id,))
+            conn.execute("UPDATE sessions SET status='approved' WHERE device_id=?", (clean_device_id,))
+            dev_status = "approved"
+        if dev_status != "approved":
             return None
         if not is_user_active(device["user_id"]):
             return None

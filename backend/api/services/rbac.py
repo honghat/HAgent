@@ -76,6 +76,9 @@ PERMISSION_CATALOG = [
         {"key": "entertainment:video", "label": "Video"},
         {"key": "entertainment:app-api", "label": "App API"},
     ]},
+    {"key": "video", "label": "Video đàn tranh", "children": [
+        {"key": "video:dub", "label": "Lồng tiếng"},
+    ]},
     {"key": "settings", "label": "Settings", "children": [
         {"key": "settings:user", "label": "Tài khoản"},
         {"key": "settings:controls", "label": "Điều khiển"},

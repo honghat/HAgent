@@ -478,7 +478,7 @@ def _facebook_send_via_listener(
                 "replyToId": reply_msg,
                 "replyToSenderJid": reply_sender,
             },
-            timeout=15.0,
+            timeout=8.0,
         )
         msg_id = str(data.get("messageId") or data.get("id") or "")
         return {
@@ -496,7 +496,7 @@ def _facebook_send_via_listener(
         # (dùng dataFB của listener, không spawn subprocess xung đột device store).
         e2ee_unavailable = any(k in err for k in (
             "device list", "usync", "prekey", "not e2ee", "e2ee not",
-            "bridge exited", "closed", "websocket", "disconnected",
+            "bridge exited", "closed", "websocket", "disconnected", "timed out",
         ))
         if e2ee_unavailable and data_fb:
             def _try_non_e2ee():
@@ -846,21 +846,24 @@ def delete_message_endpoint(id: str, request: Request):
         )
     elif row.get("platform") == "facebook" and row.get("external_id") and row.get("role") == "user":
         cookie = _load_facebook_channel(uid)
-        if not cookie:
-            raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
-        bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
-        _run_facebook_bridge(
-            bridge,
-            {
-                "cookie": cookie,
-                "action": "unsend",
-                "message_id": row.get("external_id"),
-                "user_id": uid,
-                "target": row.get("thread_id") or "",
-                "thread_type": row.get("thread_type") or "user",
-            },
-            timeout=45,
-        )
+        if cookie:
+            bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
+            try:
+                _run_facebook_bridge(
+                    bridge,
+                    {
+                        "cookie": cookie,
+                        "action": "unsend",
+                        "message_id": row.get("external_id"),
+                        "user_id": uid,
+                        "target": row.get("thread_id") or "",
+                        "thread_type": row.get("thread_type") or "user",
+                    },
+                    timeout=30,
+                )
+            except HTTPException as e:
+                # Facebook từ chối (tin quá cũ, đã xoá, v.v.) → vẫn xoá trên DB cục bộ
+                logging.warning("Facebook unsend rejected for %s: %s", row.get("external_id"), e.detail)
     elif row.get("platform") == "telegram" and row.get("external_id"):
         from api.routers.telegram import delete_real_message
 

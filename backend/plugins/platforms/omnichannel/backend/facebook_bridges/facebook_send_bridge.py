@@ -19,6 +19,27 @@ def find_backend_root() -> Path:
 backend_root = find_backend_root()
 sys.path.insert(0, str(backend_root))
 
+# Monkey patch fbchat_v2 to fix switched headers parameters in reactions
+try:
+    import fbchat_v2._core._utils as _utils
+    _orig_headers = _utils.Headers
+    def patched_headers(dataForm=None, Host='www.facebook.com'):
+        if isinstance(Host, dict):
+            dataForm, Host = Host, 'www.facebook.com'
+        elif isinstance(dataForm, dict) and not isinstance(Host, str):
+            Host = 'www.facebook.com'
+        return _orig_headers(dataForm, Host)
+    _utils.Headers = patched_headers
+    
+    try:
+        import fbchat_v2._messaging._reactions as _reactions
+        _reactions.Headers = patched_headers
+    except ImportError:
+        pass
+except Exception as e:
+    import sys
+    sys.stderr.write(f"Warning: Failed to monkeypatch fbchat_v2 Headers: {e}\n")
+
 from fbchat_v2 import dataGetHome as fbDataGetHome
 
 
@@ -37,6 +58,7 @@ def main():
     reply_to_author_id = str(payload.get("reply_to_author_id") or "").strip()
     message_id = str(payload.get("message_id") or "").strip()
     emoji = str(payload.get("emoji") or "").strip()
+    type_added = str(payload.get("type_added") or "add").strip().lower()
 
     if not cookie:
         raise RuntimeError("Missing Facebook cookie")
@@ -130,45 +152,103 @@ def main():
     elif action == "react":
         if not message_id or not emoji:
             raise RuntimeError("Missing message_id or emoji for react action")
-        try:
-            from fbchat_v2._messaging._reactions import func as react_func
-            res_req = react_func(dataFB=dataFB, typeAdded="add", messageID=message_id, emojiChoice=emoji)
-            if res_req.status_code == 200:
+        
+        chat_jid = f"{target}@s.whatsapp.net"
+        is_e2ee = True
+        if not target or target == "156025504001094" or thread_type in {"group", "thread"}:
+            is_e2ee = False
+
+        success = False
+        result = {}
+        if is_e2ee:
+            try:
+                from fbchat_v2 import sendingE2EEEvent
+                with sendingE2EEEvent(dataFB=dataFB, binary_path=binary_path, device_path=device_path, e2ee_memory_only=False) as e2ee_sender:
+                    reaction_val = "" if type_added == "remove" else emoji
+                    e2ee_sender.bridge.call("SendE2EEReaction", {
+                        "chatJid": chat_jid,
+                        "messageId": message_id,
+                        "reaction": reaction_val,
+                        "emoji": reaction_val,
+                    }, timeout=8.0)
+                    result = {
+                        "success": 1,
+                        "payload": {
+                            "messageID": message_id,
+                            "emoji": emoji,
+                        }
+                    }
+                    success = True
+            except Exception as e:
+                sys.stderr.write(f"E2EE react failed/timeout: {e}. Trying non-E2EE fallback...\n")
+
+        if not success:
+            try:
+                from fbchat_v2._messaging._reactions import func as react_func
+                res_req = react_func(dataFB=dataFB, typeAdded=type_added, messageID=message_id, emojiChoice=emoji)
+                if res_req.status_code == 200:
+                    result = {
+                        "success": 1,
+                        "payload": {
+                            "messageID": message_id,
+                            "emoji": emoji,
+                        }
+                    }
+                else:
+                    raise RuntimeError(f"GraphQL react mutation returned status {res_req.status_code}")
+            except Exception as exc:
                 result = {
-                    "success": 1,
+                    "error": 1,
                     "payload": {
-                        "messageID": message_id,
-                        "emoji": emoji,
+                        "error-decription": str(exc),
+                        "error-code": "react_failed",
                     }
                 }
-            else:
-                raise RuntimeError(f"GraphQL react mutation returned status {res_req.status_code}")
-        except Exception as exc:
-            result = {
-                "error": 1,
-                "payload": {
-                    "error-decription": str(exc),
-                    "error-code": "react_failed",
-                }
-            }
     elif action == "unsend":
         if not message_id:
             raise RuntimeError("Missing message_id for unsend action")
-        try:
-            from fbchat_v2._messaging._unsend import func as unsend_func
-            res = unsend_func(messageID=message_id, dataFB=dataFB)
-            if res.get("success"):
-                result = res
-            else:
-                raise RuntimeError(res.get("payload", {}).get("error-decription", "Native unsend failed"))
-        except Exception as exc:
-            result = {
-                "error": 1,
-                "payload": {
-                    "error-decription": str(exc),
-                    "error-code": "unsend_failed",
+
+        chat_jid = f"{target}@s.whatsapp.net"
+        is_e2ee = True
+        if not target or target == "156025504001094" or thread_type in {"group", "thread"}:
+            is_e2ee = False
+
+        success = False
+        result = {}
+        if is_e2ee:
+            try:
+                from fbchat_v2 import sendingE2EEEvent
+                with sendingE2EEEvent(dataFB=dataFB, binary_path=binary_path, device_path=device_path, e2ee_memory_only=False) as e2ee_sender:
+                    e2ee_sender.bridge.call("UnsendE2EEMessage", {
+                        "chatJid": chat_jid,
+                        "messageId": message_id,
+                    }, timeout=8.0)
+                    result = {
+                        "success": 1,
+                        "payload": {
+                            "messageID": message_id,
+                        }
+                    }
+                    success = True
+            except Exception as e:
+                sys.stderr.write(f"E2EE unsend failed/timeout: {e}. Trying non-E2EE fallback...\n")
+
+        if not success:
+            try:
+                from fbchat_v2._messaging._unsend import func as unsend_func
+                res = unsend_func(messageID=message_id, dataFB=dataFB)
+                if res.get("success"):
+                    result = res
+                else:
+                    raise RuntimeError(res.get("payload", {}).get("error-decription", "Native unsend failed"))
+            except Exception as exc:
+                result = {
+                    "error": 1,
+                    "payload": {
+                        "error-decription": str(exc),
+                        "error-code": "unsend_failed",
+                    }
                 }
-            }
     elif action == "send_group":
         from fbchat_v2 import sendingE2EEEvent
         with sendingE2EEEvent(dataFB=dataFB, binary_path=binary_path, device_path=device_path, e2ee_memory_only=False, enable_e2ee=False) as e2ee_sender:

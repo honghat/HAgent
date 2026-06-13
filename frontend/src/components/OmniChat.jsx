@@ -481,7 +481,7 @@ export default function OmniChat({ token, provider }) {
   const [messageSearchResults, setMessageSearchResults] = useState([])
   const [messageSearchLoading, setMessageSearchLoading] = useState(false)
   const [activeMessageSearchIndex, setActiveMessageSearchIndex] = useState(0)
-  const [filter, setFilter] = useState(() => localStorage.getItem('omnichat_filter') || 'zalo')
+  const [filter, setFilter] = useState(() => localStorage.getItem('omnichat_filter') || 'all')
   const [status, setStatus] = useState('')
   const [channelStatus, setChannelStatus] = useState('')
   const [zaloConnected, setZaloConnected] = useState(false)
@@ -548,12 +548,19 @@ export default function OmniChat({ token, provider }) {
 
   useEffect(() => {
     if (!selectedId) return
-    const conv = conversations.find(c => c.id === selectedId)
+    const conv = conversations.find(c => c.id === selectedId) || contacts.find(c => c.id === selectedId)
     if (conv && conv.channel) {
       localStorage.setItem(`omnichat_last_selected_${conv.channel}`, selectedId)
       localStorage.setItem('omnichat_last_selected_all', selectedId)
+
+      // Auto-align filter with the selected conversation's channel if it's not 'all'
+      const currentFilter = localStorage.getItem('omnichat_filter') || 'all'
+      if (currentFilter !== 'all' && currentFilter !== conv.channel) {
+        setFilter(conv.channel)
+        localStorage.setItem('omnichat_filter', conv.channel)
+      }
     }
-  }, [selectedId, conversations])
+  }, [selectedId, conversations, contacts])
 
   // Auto-scroll effect
   useEffect(() => {
@@ -635,7 +642,23 @@ export default function OmniChat({ token, provider }) {
     setConversations(rows)
     setSelectedId(current => {
       if (current) return current
-      const startupFilter = localStorage.getItem('omnichat_filter') || 'zalo'
+
+      // 1. Try to restore the absolute last viewed conversation overall
+      const lastSelectedAll = localStorage.getItem('omnichat_last_selected_all')
+      if (lastSelectedAll && rows.some(item => item.id === lastSelectedAll)) {
+        const matched = rows.find(item => item.id === lastSelectedAll)
+        if (matched && matched.channel) {
+          const savedFilter = localStorage.getItem('omnichat_filter') || 'all'
+          if (savedFilter !== 'all' && savedFilter !== matched.channel) {
+            setFilter(matched.channel)
+            localStorage.setItem('omnichat_filter', matched.channel)
+          }
+        }
+        return lastSelectedAll
+      }
+
+      // 2. Fallback to channel-specific filters
+      const startupFilter = localStorage.getItem('omnichat_filter') || 'all'
       const lastId = localStorage.getItem(
         startupFilter === 'all' ? 'omnichat_last_selected_all' : `omnichat_last_selected_${startupFilter}`
       )
@@ -722,6 +745,7 @@ export default function OmniChat({ token, provider }) {
 
   useEffect(() => {
     selectedIdRef.current = selectedId
+    setMessages([]) // Clear messages instantly to show loading/responsiveness
     loadMessages(selectedId, { stickToBottom: true }).catch(err => setStatus(displayErrorMessage(err)))
     loadAgentAutoReply(selectedId).catch(() => setAgentAutoState({ enabled: false, session_id: '', last_error: '' }))
     setReplyTo(null)
@@ -1244,11 +1268,18 @@ export default function OmniChat({ token, provider }) {
     if (!msg || !selected) return
 
     setStatus('')
+    const originalMessages = [...messages]
+    
+    // Optimistic Update: remove message instantly from UI
+    setMessages(prev => prev.filter(m => m.id !== msg.id))
+
     try {
       await omniApi(`/messages/${msg.id}`, token, { method: 'DELETE' })
       await Promise.all([loadMessages(selected.id), loadConversations({ quiet: true }), loadContacts()])
       await loadTodayStats()
     } catch (err) {
+      // Revert if API fails
+      setMessages(originalMessages)
       setStatus(displayErrorMessage(err))
     }
   }
@@ -1291,6 +1322,21 @@ export default function OmniChat({ token, provider }) {
     if (!msg || !selected) return
     setReactionMenuId('')
     setStatus('')
+    
+    const originalMessages = [...messages]
+    
+    // Optimistic Update: toggle reaction instantly in local UI state
+    setMessages(prev => prev.map(m => {
+      if (m.id !== msg.id) return m
+      const reactions = { ...(m.reactions || {}) }
+      if (reactions[emoji]) {
+        delete reactions[emoji]
+      } else {
+        reactions[emoji] = 1
+      }
+      return { ...m, reactions }
+    }))
+
     try {
       await omniApi(`/messages/${msg.id}/reaction`, token, {
         method: 'POST',
@@ -1298,6 +1344,8 @@ export default function OmniChat({ token, provider }) {
       })
       await loadMessages(selected.id)
     } catch (err) {
+      // Revert if API fails
+      setMessages(originalMessages)
       setStatus(displayErrorMessage(err))
     }
   }

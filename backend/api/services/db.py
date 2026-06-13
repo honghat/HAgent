@@ -562,8 +562,9 @@ class PgConnectionCompat:
             print(row["column_name"])
     """
 
-    def __init__(self, conn):
+    def __init__(self, conn, pool=None):
         self._conn = conn
+        self._pool = pool
 
     def execute(self, sql: str, params=None):
         compat = _PgCursorCompat(self._conn, self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor))
@@ -589,7 +590,13 @@ class PgConnectionCompat:
         self._conn.rollback()
 
     def close(self):
-        self._conn.close()
+        if self._pool:
+            try:
+                self._pool.putconn(self._conn)
+            except Exception:
+                pass
+        else:
+            self._conn.close()
 
     def cursor(self):
         return _PgCursorCompat(self._conn, self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor))
@@ -602,16 +609,59 @@ class PgConnectionCompat:
             self._conn.commit()
         else:
             self._conn.rollback()
-        self._conn.close()
+        if self._pool:
+            try:
+                self._pool.putconn(self._conn)
+            except Exception:
+                pass
+        else:
+            self._conn.close()
         return False
 
 
 # ── Public API (unchanged interface) ───────────────────────────────────────
 
+import psycopg2.pool
+
+_pool = None
+
+def get_pool():
+    global _pool
+    if _pool is None:
+        try:
+            _pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=2,
+                maxconn=30,
+                host=_DB_SERVER,
+                port=_DB_PORT,
+                dbname=_DB_DATABASE,
+                user=_DB_USERNAME,
+                password=_DB_PASSWORD,
+            )
+            logger.info("Created PostgreSQL connection pool (minconn=2, maxconn=30)")
+        except Exception as e:
+            logger.error("Failed to create connection pool: %s", e)
+            raise
+    return _pool
+
+
 def get_connection() -> PgConnectionCompat:
-    conn = psycopg2.connect(_get_dsn())
+    pool = get_pool()
+    conn = pool.getconn()
+    # Clean up stale/invalid connections
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+        conn.commit()
+    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+        try:
+            pool.putconn(conn, close=True)
+        except Exception:
+            pass
+        conn = pool.getconn()
     conn.autocommit = False
-    return PgConnectionCompat(conn)
+    return PgConnectionCompat(conn, pool=pool)
+
 
 
 def get_db() -> PgConnectionCompat:

@@ -726,6 +726,8 @@ def delete_message_endpoint(id: str, request: Request):
                 "action": "unsend",
                 "message_id": row.get("external_id"),
                 "user_id": uid,
+                "target": row.get("thread_id") or "",
+                "thread_type": row.get("thread_type") or "user",
             },
             timeout=45,
         )
@@ -769,6 +771,21 @@ def react_to_message(id: str, payload: OmniReactionRequest, request: Request):
         cookie = _load_facebook_channel(uid)
         if not cookie:
             raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
+        
+        # Kiểm tra xem đây là hành động thêm hay xóa reaction
+        reactions = {}
+        if row.get("reactions_json"):
+            try:
+                reactions = json.loads(row["reactions_json"])
+            except Exception:
+                reactions = {}
+        is_remove = False
+        if payload.emoji in reactions:
+            users = reactions[payload.emoji]
+            if isinstance(users, list) and uid in users:
+                is_remove = True
+        type_added = "remove" if is_remove else "add"
+
         bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
         _run_facebook_bridge(
             bridge,
@@ -778,6 +795,9 @@ def react_to_message(id: str, payload: OmniReactionRequest, request: Request):
                 "message_id": row.get("external_id"),
                 "emoji": payload.emoji,
                 "user_id": uid,
+                "target": row.get("thread_id") or "",
+                "thread_type": row.get("thread_type") or "user",
+                "type_added": type_added,
             },
             timeout=45,
         )
@@ -2375,37 +2395,92 @@ def _insert_facebook_message_once(
     content: str,
     created_at: str | None = None,
     external_id: str | None = None,
+    reactions: dict | list | str | None = None,
 ) -> str:
     normalized = content.strip()
     if not normalized or _is_facebook_status_junk(normalized):
         return ""
-    if not external_id:
-        fingerprint = hashlib.sha1(
-            f"facebook:{external_thread_id}:{role}:{normalized}".encode("utf-8")
-        ).hexdigest()
-        external_id = f"fb_{fingerprint}"
+    
+    # Tính toán ID ảo theo fingerprint
+    fingerprint = hashlib.sha1(
+        f"facebook:{external_thread_id}:{role}:{normalized}".encode("utf-8")
+    ).hexdigest()
+    synthetic_id = f"fb_{fingerprint}"
+
+    # Xác định ID thật (nếu có và không phải ID ảo)
+    real_external_id = external_id if (external_id and not external_id.startswith("fb_")) else None
+    
+    # Xử lý đồng bộ emoji/reactions
+    reactions_dict = {}
+    if reactions:
+        if isinstance(reactions, dict):
+            for emoji, val in reactions.items():
+                if isinstance(val, list):
+                    reactions_dict[emoji] = val
+                else:
+                    reactions_dict[emoji] = [str(val)]
+        elif isinstance(reactions, list):
+            for item in reactions:
+                if isinstance(item, dict):
+                    emoji = item.get("emoji") or item.get("key") or item.get("reaction") or ""
+                    if emoji:
+                        reactions_dict[emoji] = ["someone"]
+                elif isinstance(item, str):
+                    reactions_dict[item] = ["someone"]
+        elif isinstance(reactions, str):
+            reactions_dict[reactions] = ["someone"]
+            
+    reactions_json = json.dumps(reactions_dict, ensure_ascii=False) if reactions_dict else None
+    
     with get_connection() as conn:
+        # Tìm kiếm xem tin nhắn đã được lưu chưa (qua ID thật hoặc ID ảo)
         exists = conn.execute(
-            """SELECT 1 FROM omni_messages
-               WHERE conversation_id = ? AND external_id = ? LIMIT 1""",
-            (conversation_id, external_id),
+            """SELECT id, external_id, external_cli_msg_id FROM omni_messages
+               WHERE conversation_id = ? AND (external_id = ? OR external_cli_msg_id = ? OR external_id = ? OR external_cli_msg_id = ?) LIMIT 1""",
+            (conversation_id, external_id or synthetic_id, external_id or synthetic_id, synthetic_id, synthetic_id),
         ).fetchone()
+        
         if exists:
+            # Nếu tin nhắn đã tồn tại, kiểm tra xem có cần cập nhật ID thật hoặc reactions không
+            updates = []
+            params = []
+            
+            if real_external_id and str(exists["external_id"]).startswith("fb_"):
+                updates.append("external_id = ?")
+                params.append(real_external_id)
+                updates.append("external_cli_msg_id = ?")
+                params.append(synthetic_id)
+                
+            if reactions_json:
+                updates.append("reactions_json = ?")
+                params.append(reactions_json)
+                
+            if updates:
+                params.append(exists["id"])
+                conn.execute(
+                    f"UPDATE omni_messages SET {', '.join(updates)} WHERE id = ?",
+                    tuple(params)
+                )
             return ""
+
+        # Nếu chưa tồn tại, chèn tin nhắn mới
+        target_external_id = real_external_id or external_id or synthetic_id
         message_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO omni_messages
                (id, conversation_id, user_id, role, content, platform, external_id,
-                external_msg_type, created_at)
-               VALUES (?, ?, ?, ?, ?, 'facebook', ?, 'message', ?)""",
+                external_cli_msg_id, external_msg_type, created_at, reactions_json)
+               VALUES (?, ?, ?, ?, ?, 'facebook', ?, ?, 'message', ?, ?)""",
             (
                 message_id,
                 conversation_id,
                 user_id,
                 role,
                 normalized,
-                external_id,
+                target_external_id,
+                synthetic_id,
                 created_at or datetime.now().isoformat(),
+                reactions_json,
             ),
         )
     update_conversation_preview(conversation_id, normalized[:200], role)
@@ -2537,7 +2612,12 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
 
                     role = "assistant"
                     message_id = _insert_facebook_message_once(
-                        user_id, conv["id"], external_id or sender_id, role, body,
+                        user_id,
+                        conv["id"],
+                        external_id or sender_id,
+                        role,
+                        body,
+                        external_id=msg.get("messageID"),
                     )
                     if message_id:
                         _broadcast({
@@ -4169,6 +4249,7 @@ async def sync_facebook_messages(request: Request):
                 
                 created_at = msg.get("created_at") or msg.get("timestamp")
                 external_msg_id = msg.get("id") or msg.get("message_id") or msg.get("external_id")
+                reactions = msg.get("reactions") or msg.get("emoji") or msg.get("reaction")
                 message_id = _insert_facebook_message_once(
                     user_id,
                     conv["id"],
@@ -4177,6 +4258,7 @@ async def sync_facebook_messages(request: Request):
                     text,
                     created_at,
                     external_id=external_msg_id,
+                    reactions=reactions,
                 )
                 if message_id:
                     synced += 1

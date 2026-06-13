@@ -43,6 +43,7 @@ from api.schemas import (
 )
 from fbchat_v2 import dataGetHome as fbDataGetHome
 from fbchat_v2 import listeningE2EEEvent as FbListeningEvent
+from fbchat_v2 import sendingE2EEEvent as FbSendingE2EEEvent
 
 def fbValidateCookie(cookie: str) -> tuple[bool, str, dict]:
     try:
@@ -438,6 +439,59 @@ async def get_conversation_messages_endpoint(
     ]
 
 
+def _facebook_send_via_listener(
+    user_id: str,
+    target: str,
+    text: str,
+    thread_type: str = "user",
+    reply_to_id: str = "",
+    reply_to_author_id: str = "",
+) -> dict | None:
+    """Gửi tin E2EE bằng cách TÁI SỬ DỤNG bridge của listener đang chạy.
+
+    fbchat_v2 khuyến nghị reuse listener thay vì spawn process gửi riêng: mỗi
+    process mới phải pair lại với Meta và dùng chung device store → xung đột phiên
+    E2EE, khiến không gửi được vào đoạn chat bảo mật (Secret Conversation). Reuse
+    dùng đúng client whatsmeow đã kết nối nên gửi thẳng được vào chat E2EE.
+
+    Trả None khi không reuse được (chưa có listener / không phải chat E2EE 1-1) để
+    caller fallback sang bridge subprocess như cũ.
+    """
+    # Meta AI và group/thread không phải E2EE 1-1.
+    if not target or target == "156025504001094" or thread_type in {"group", "thread"}:
+        return None
+    with _facebook_listeners_lock:
+        state = _facebook_listeners.get(user_id)
+    listener = state.get("listener") if state else None
+    if not listener or getattr(listener, "_bridge", None) is None:
+        return None
+
+    # Chỉ reply E2EE khi có message ID thật (mid.$...); ID ảo fb_<hash> sẽ bị từ chối.
+    reply_msg = reply_to_id if (reply_to_id and not reply_to_id.startswith("fb_")) else ""
+    reply_sender = f"{reply_to_author_id}@s.whatsapp.net" if (reply_msg and reply_to_author_id) else ""
+
+    sender = FbSendingE2EEEvent(listener=listener)
+    res = sender.send(
+        chat_jid=f"{target}@s.whatsapp.net",
+        contentSend=text,
+        replyMessage=reply_msg,
+        replySenderJid=reply_sender,
+    )
+    if not res.get("success"):
+        err = (res.get("payload") or {}).get("error-decription", "E2EE send failed")
+        raise RuntimeError(err)
+    payload = res.get("payload") or {}
+    msg_id = str(payload.get("messageID") or "")
+    return {
+        "ok": True,
+        "target": target,
+        "msg_id": msg_id,
+        "cli_msg_id": f"fb_{msg_id[:12]}" if msg_id else "",
+        "msg_type": "message",
+        "timestamp": payload.get("timestamp") or 0,
+    }
+
+
 def _send_omni_text(
     uid: str,
     conv: dict,
@@ -502,22 +556,39 @@ def _send_omni_text(
                         reply_to_external_id = rep_row["external_id"] or ""
                         reply_to_author_id = rep_row["external_author_id"] or ""
 
-            # Ưu tiên API Bridge (nhanh), chỉ dùng Playwright làm fallback
-            bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
-            send_meta = _run_facebook_bridge(
-                bridge,
-                {
-                    "cookie": cookie,
-                    "target": external_id,
-                    "text": content,
-                    "action": "reply" if reply_to_id else "send",
-                    "user_id": uid,
-                    "thread_type": conv.get("thread_type") or "user",
-                    "reply_to_id": reply_to_external_id,
-                    "reply_to_author_id": reply_to_author_id,
-                },
-                timeout=90,
-            )
+            # Ưu tiên gửi E2EE qua listener đang chạy (reuse) để vào được đoạn chat
+            # bảo mật; nếu không reuse được hoặc lỗi thì fallback bridge subprocess.
+            send_meta = None
+            try:
+                send_meta = _facebook_send_via_listener(
+                    uid,
+                    external_id,
+                    content,
+                    conv.get("thread_type") or "user",
+                    reply_to_external_id,
+                    reply_to_author_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Facebook E2EE send via listener failed, fallback bridge: %s", exc)
+                send_meta = None
+
+            if not send_meta:
+                # Bridge subprocess (E2EE standalone → non-E2EE) làm phương án dự phòng.
+                bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
+                send_meta = _run_facebook_bridge(
+                    bridge,
+                    {
+                        "cookie": cookie,
+                        "target": external_id,
+                        "text": content,
+                        "action": "reply" if reply_to_id else "send",
+                        "user_id": uid,
+                        "thread_type": conv.get("thread_type") or "user",
+                        "reply_to_id": reply_to_external_id,
+                        "reply_to_author_id": reply_to_author_id,
+                    },
+                    timeout=90,
+                )
     except Exception as e:
         delete_message(msg_id)
         logging.error("Failed to send message to %s: %s", platform, e)

@@ -90,7 +90,11 @@ def list_conversations(user_id: str) -> list[dict]:
                ORDER BY conv.pinned DESC, conv.last_message_at DESC, conv.created_at DESC""",
             (user_id,),
         ).fetchall()
-    return [_row_to_conversation(r) for r in rows]
+    return [
+        _row_to_conversation(r)
+        for r in rows
+        if (r["custom_name"] or r["title"]) not in {"Lưu tin nhắn", "Saved Messages"}
+    ]
 
 
 def get_conversation(conversation_id: str) -> dict | None:

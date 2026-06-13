@@ -392,12 +392,20 @@ class RemoteShareMountRequest(BaseModel):
 
 
 REMOTE_SHARES = [
-{
+    {
         "id": "hat-linux-systemdisk",
         "name": "hat-linux Linux",
         "host": "100.69.50.64",
         "user": "hatnguyen",
         "share": "SystemDisk",
+        "password_env": "HAT_LINUX_SMB_PASSWORD",
+    },
+    {
+        "id": "hat-linux-4tb",
+        "name": "hat-linux 4TB",
+        "host": "100.69.50.64",
+        "user": "hatnguyen",
+        "share": "My4TBShare",
         "password_env": "HAT_LINUX_SMB_PASSWORD",
     },
 ]

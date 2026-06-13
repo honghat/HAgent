@@ -16,18 +16,25 @@ function authHeaders(token) {
 }
 
 async function omniApi(path, token, options = {}) {
-  const res = await fetch(`/api/omni${path}`, {
-    ...options,
-    headers: {
-      ...authHeaders(token),
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(options.headers || {}),
-    },
-  })
-  const data = await res.json().catch(() => null)
-  const message = data?.detail || data?.error || data?.message || `${res.status} ${res.statusText || 'OmniChat lỗi'}`
-  if (!res.ok) throw new Error(message)
-  return data || {}
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 120000)
+  try {
+    const res = await fetch(`/api/omni${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        ...authHeaders(token),
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {}),
+      },
+    })
+    const data = await res.json().catch(() => null)
+    const message = data?.detail || data?.error || data?.message || `${res.status} ${res.statusText || 'OmniChat lỗi'}`
+    if (!res.ok) throw new Error(message)
+    return data || {}
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
 function displayErrorMessage(err, fallback = '') {

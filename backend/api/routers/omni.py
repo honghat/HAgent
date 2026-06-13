@@ -2480,10 +2480,11 @@ async def _sync_facebook_for_user(user_id: str, max_threads: int, max_messages: 
         # Using the live Playwright page here caused the user's Messenger window
         # to jump/reload while sync was running. Keep sync isolated in a hidden
         # cookie-based browser instead.
-        data = _run_facebook_bridge(
+        data = await asyncio.to_thread(
+            _run_facebook_bridge,
             FACEBOOK_SYNC_BRIDGE,
             {"cookie": cookie, "max_threads": max_threads},
-            timeout=90,
+            90,
         )
         synced_conversations = 0
         synced_messages = 0

@@ -151,6 +151,11 @@ class OmniConnectFacebookRequest(BaseModel):
     cookie: str = Field(min_length=1)
 
 
+class OmniConnectZaloRequest(BaseModel):
+    cookie: str = Field(min_length=1)
+    imei: str | None = None
+
+
 class OmniQRStatusResponse(BaseModel):
     session: str
     status: str

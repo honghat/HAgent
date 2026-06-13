@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, ChevronDown, ChevronUp, EyeOff, Globe, LogOut, Pencil, Pin, PinOff, QrCode, RefreshCw, Reply, Search, Send, Settings, Smile, Trash2, UserRound, X, Paperclip, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronUp, EyeOff, Globe, LogOut, Pencil, Pin, PinOff, QrCode, RefreshCw, Reply, Search, Send, Settings, Smile, Trash2, UserRound, X, Paperclip, Image as ImageIcon, Key } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 const AUTO_REFRESH_MS = 5000
@@ -503,6 +503,8 @@ export default function OmniChat({ token, provider }) {
   const [syncingAllChannels, setSyncingAllChannels] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true) // Toggle tự động scroll xuống tin mới
   const [facebookBrowserSession, setFacebookBrowserSession] = useState('')
+  const [showFbCookieInput, setShowFbCookieInput] = useState(false)
+  const [fbCookieValue, setFbCookieValue] = useState('')
   const [todayStats, setTodayStats] = useState({ sent: 0, received: 0, total: 0 })
   const [statsPeriod, setStatsPeriod] = useState('today')
   const [notificationToasts, setNotificationToasts] = useState([])
@@ -1481,6 +1483,26 @@ export default function OmniChat({ token, provider }) {
     }
   }
 
+  async function connectFacebookManual() {
+    if (!fbCookieValue.trim()) return
+    setSavingFacebook(true)
+    setChannelStatus('Đang xác thực và kết nối Facebook...')
+    try {
+      const data = await omniApi('/connect/facebook', token, {
+        method: 'POST',
+        body: JSON.stringify({ cookie: fbCookieValue.trim() }),
+      })
+      setChannelStatus(data.status || 'Kết nối Facebook thành công.')
+      setFbCookieValue('')
+      setShowFbCookieInput(false)
+      await syncFacebookMessages()
+    } catch (err) {
+      setChannelStatus(displayErrorMessage(err))
+    } finally {
+      setSavingFacebook(false)
+    }
+  }
+
   useEffect(() => {
     if (!facebookBrowserSession) return undefined
     const timer = window.setInterval(async () => {
@@ -1747,49 +1769,89 @@ export default function OmniChat({ token, provider }) {
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2 rounded-md bg-white p-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                      <Settings className="h-4 w-4" />
+                  <div className="rounded-md bg-white p-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                        <Settings className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-semibold text-gray-900">Facebook</p>
+                        <p className="truncate text-[10px] text-gray-400">{conversations.some(c => c.channel === 'facebook') ? 'Đã kết nối' : ''}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={startFacebookBrowserLogin}
+                        disabled={savingFacebook}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        title="Mở Facebook bằng Playwright"
+                      >
+                        <Globe className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowFbCookieInput(!showFbCookieInput)}
+                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] ${showFbCookieInput ? 'bg-gray-950 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        title="Nhập Cookie thủ công"
+                      >
+                        <Key className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={hideFacebookBrowser}
+                        disabled={savingFacebook}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        title="Ngắt điều khiển, không đóng tab"
+                      >
+                        <EyeOff className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={syncFacebookMessages}
+                        disabled={syncingFacebook}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        title="Sync Facebook"
+                      >
+                        {syncingFacebook ? '...' : <RefreshCw className="h-3.5 w-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => logoutChannel('facebook')}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-500 hover:bg-red-50 hover:text-red-600"
+                        title="Logout Facebook"
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-900">Facebook</p>
-                      <p className="truncate text-[10px] text-gray-400">{conversations.some(c => c.channel === 'facebook') ? 'Đã kết nối' : ''}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={startFacebookBrowserLogin}
-                      disabled={savingFacebook}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                      title="Mở Facebook bằng Playwright"
-                    >
-                      <Globe className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={hideFacebookBrowser}
-                      disabled={savingFacebook}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                      title="Ngắt điều khiển, không đóng tab"
-                    >
-                      <EyeOff className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={syncFacebookMessages}
-                      disabled={syncingFacebook}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                      title="Sync Facebook"
-                    >
-                      {syncingFacebook ? '...' : <RefreshCw className="h-3.5 w-3.5" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => logoutChannel('facebook')}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/[0.06] text-gray-500 hover:bg-red-50 hover:text-red-600"
-                      title="Logout Facebook"
-                    >
-                      <LogOut className="h-3.5 w-3.5" />
-                    </button>
+                    {showFbCookieInput && (
+                      <div className="mt-2 space-y-1.5 border-t border-black/[0.04] pt-2">
+                        <textarea
+                          value={fbCookieValue}
+                          onChange={e => setFbCookieValue(e.target.value)}
+                          placeholder="Dán Facebook Cookie chuỗi (datr=...; c_user=...; xs=...;)"
+                          className="w-full h-16 rounded-md border border-black/[0.08] bg-gray-50 p-1.5 text-[9px] outline-none focus:border-gray-300 resize-none leading-normal"
+                        />
+                        <div className="flex justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowFbCookieInput(false)
+                              setFbCookieValue('')
+                            }}
+                            className="rounded-md border border-black/[0.06] px-2 py-0.5 text-[9px] font-semibold text-gray-500 hover:bg-gray-100"
+                          >
+                            Hủy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={connectFacebookManual}
+                            disabled={savingFacebook || !fbCookieValue.trim()}
+                            className="rounded-md bg-gray-950 px-2 py-0.5 text-[9px] font-semibold text-white hover:bg-gray-800 disabled:opacity-40"
+                          >
+                            Lưu Cookie
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

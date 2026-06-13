@@ -38,6 +38,7 @@ from api.schemas import (
     OmniReactionRequest,
     OmniSyncMessagesRequest,
     OmniConnectFacebookRequest,
+    OmniConnectZaloRequest,
     OmniQRStatusResponse,
 )
 from fbchat_v2 import dataGetHome as fbDataGetHome
@@ -3993,6 +3994,21 @@ def connect_facebook(payload: OmniConnectFacebookRequest, request: Request):
     _save_facebook_channel(user_id, payload.cookie)
     _start_facebook_mqtt_listener(user_id, payload.cookie)
     return {"connected": True, "status": "Đã lưu phiên Facebook và kết nối MQTT listener."}
+
+
+@router.post("/connect/zalo")
+def connect_zalo(payload: OmniConnectZaloRequest, request: Request):
+    user_id = _get_user_id(request)
+    imei = payload.imei
+    if not imei:
+        import uuid
+        imei = str(uuid.uuid5(uuid.NAMESPACE_OID, f"zalo-{user_id}"))
+    valid, reason = _validate_zalo_session(payload.cookie, imei)
+    if not valid:
+        raise HTTPException(status_code=400, detail=f"Phiên Zalo không hợp lệ: {reason}")
+    _save_zalo_channel(user_id, payload.cookie, imei)
+    _ensure_zalo_listener(user_id, payload.cookie, imei)
+    return {"connected": True, "status": "Đã lưu phiên Zalo và kết nối listener."}
 
 
 @router.post("/connect/omni-browser/start")

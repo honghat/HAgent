@@ -60,6 +60,21 @@ def main():
     emoji = str(payload.get("emoji") or "").strip()
     type_added = str(payload.get("type_added") or "add").strip().lower()
 
+    # Phân giải ID ảo thành ID thật từ database nếu có thể
+    if message_id.startswith("fb_"):
+        try:
+            from api.services.db import get_connection
+            with get_connection() as conn:
+                db_row = conn.execute(
+                    "SELECT external_id FROM omni_messages WHERE external_cli_msg_id = ? AND external_id NOT LIKE 'fb_%' LIMIT 1",
+                    (message_id,)
+                ).fetchone()
+                if db_row and db_row["external_id"]:
+                    message_id = db_row["external_id"]
+                    sys.stderr.write(f"Resolved synthetic ID to real ID: {message_id}\n")
+        except Exception as e:
+            sys.stderr.write(f"Failed to resolve synthetic ID: {e}\n")
+
     if not cookie:
         raise RuntimeError("Missing Facebook cookie")
     if action in {"send", "reply", "send_group"} and not target:

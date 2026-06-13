@@ -86,6 +86,19 @@ FACEBOOK_SEND_BRIDGE_LEGACY = BACKEND_ROOT / "facebook/bridges/facebook_send_bri
 FACEBOOK_SYNC_BRIDGE = BACKEND_ROOT / "facebook/bridges/facebook_sync_bridge.py"
 FACEBOOK_SYNC_BRIDGE_LEGACY = BACKEND_ROOT / "plugins/platforms/omnichannel/backend/facebook_bridges/facebook_sync_bridge.py"
 
+_IMG_EXT_RE = re.compile(r"\.(?:png|jpe?g|gif|webp|bmp|avif)(?:[?#]|$)", re.IGNORECASE)
+_IMG_HOST_HINTS = ("scontent", "fbcdn", "cdninstagram")
+
+
+def _looks_like_image_url(url: str) -> bool:
+    """Nhận diện URL ảnh: theo đuôi file (bỏ qua query) hoặc host CDN Facebook."""
+    value = str(url or "").lower()
+    if not value:
+        return False
+    if _IMG_EXT_RE.search(value):
+        return True
+    return any(host in value for host in _IMG_HOST_HINTS)
+
 
 class OmniAgentReplyRequest(BaseModel):
     provider: str | None = None
@@ -769,38 +782,44 @@ def react_to_message(id: str, payload: OmniReactionRequest, request: Request):
         )
     elif row.get("platform") == "facebook" and row.get("external_id"):
         cookie = _load_facebook_channel(uid)
-        if not cookie:
-            raise HTTPException(status_code=400, detail="Chưa có phiên Facebook. Hãy kết nối trước.")
-        
-        # Kiểm tra xem đây là hành động thêm hay xóa reaction
-        reactions = {}
-        if row.get("reactions_json"):
-            try:
-                reactions = json.loads(row["reactions_json"])
-            except Exception:
-                reactions = {}
-        is_remove = False
-        if payload.emoji in reactions:
-            users = reactions[payload.emoji]
-            if isinstance(users, list) and uid in users:
-                is_remove = True
-        type_added = "remove" if is_remove else "add"
+        real_external_id = str(row.get("external_id") or "")
+        # Chỉ gửi reaction lên Facebook khi có message ID thật (mid.$...).
+        # Tin cũ chỉ có ID ảo (fb_<hash>) không tồn tại trên Facebook nên bỏ qua
+        # bước đồng bộ, vẫn lưu cảm xúc cục bộ để icon hiển thị và không biến mất.
+        if cookie and real_external_id and not real_external_id.startswith("fb_"):
+            # Kiểm tra xem đây là hành động thêm hay xóa reaction
+            reactions = {}
+            if row.get("reactions_json"):
+                try:
+                    reactions = json.loads(row["reactions_json"])
+                except Exception:
+                    reactions = {}
+            is_remove = False
+            if payload.emoji in reactions:
+                users = reactions[payload.emoji]
+                if isinstance(users, list) and uid in users:
+                    is_remove = True
+            type_added = "remove" if is_remove else "add"
 
-        bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
-        _run_facebook_bridge(
-            bridge,
-            {
-                "cookie": cookie,
-                "action": "react",
-                "message_id": row.get("external_id"),
-                "emoji": payload.emoji,
-                "user_id": uid,
-                "target": row.get("thread_id") or "",
-                "thread_type": row.get("thread_type") or "user",
-                "type_added": type_added,
-            },
-            timeout=45,
-        )
+            bridge = FACEBOOK_SEND_BRIDGE if FACEBOOK_SEND_BRIDGE.exists() else FACEBOOK_SEND_BRIDGE_LEGACY
+            try:
+                _run_facebook_bridge(
+                    bridge,
+                    {
+                        "cookie": cookie,
+                        "action": "react",
+                        "message_id": real_external_id,
+                        "emoji": payload.emoji,
+                        "user_id": uid,
+                        "target": row.get("thread_id") or "",
+                        "thread_type": row.get("thread_type") or "user",
+                        "type_added": type_added,
+                    },
+                    timeout=45,
+                )
+            except Exception as exc:  # noqa: BLE001
+                # Không chặn người dùng: lưu cảm xúc cục bộ kể cả khi Facebook từ chối.
+                logging.warning("Facebook react sync failed for %s: %s", real_external_id, exc)
     elif row.get("platform") == "telegram" and row.get("external_id"):
         from api.routers.telegram import react_real_message
 
@@ -2583,7 +2602,11 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
                     if external_id in {"0", "None"}:
                         external_id = ""
 
-                    if not body:
+                    # Hỗ trợ đính kèm ảnh/file cho tin nhắn E2EE
+                    attachments = msg.get("attachments") or {}
+                    att_url = attachments.get("url")
+
+                    if not body and not att_url:
                         return
 
                     # Lọc tin của chính mình bị Meta echo lại (multi-device). Với E2EE,
@@ -2611,12 +2634,25 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
                     )
 
                     role = "assistant"
+                    
+                    # Ghép text và thông tin file đính kèm dưới dạng __OMNI_MEDIA__
+                    lines = []
+                    if body:
+                        lines.append(body)
+                    if att_url:
+                        is_img = _looks_like_image_url(att_url) or "image" in str(attachments.get("id") or "").lower()
+                        media_type = "image" if is_img else "file"
+                        media_data = {"type": media_type, "url": att_url, "label": "Ảnh" if media_type == "image" else "File"}
+                        lines.append(f"__OMNI_MEDIA__{json.dumps(media_data, ensure_ascii=False)}")
+
+                    combined_body = "\n".join(lines).strip()
+
                     message_id = _insert_facebook_message_once(
                         user_id,
                         conv["id"],
                         external_id or sender_id,
                         role,
-                        body,
+                        combined_body,
                         external_id=msg.get("messageID"),
                     )
                     if message_id:
@@ -2626,7 +2662,7 @@ def _start_facebook_mqtt_listener(user_id: str, cookie: str) -> None:
                             "message": {
                                 "id": message_id,
                                 "sender_type": role,
-                                "content": body,
+                                "content": combined_body,
                                 "status": "received",
                             },
                         })
@@ -4239,13 +4275,58 @@ async def sync_facebook_messages(request: Request):
             touched = False
             for msg in messages:
                 text = str(msg.get("text") or msg.get("content") or "").strip()
-                if not text:
-                    continue
                 role = msg.get("role") or msg.get("sender_type") or "assistant"
                 if role in ("me", "user", "owner"):
                     role = "user"
                 else:
                     role = "assistant"
+
+                # Trích xuất hình ảnh/attachments/links đính kèm từ extension
+                attachments = msg.get("attachments") or msg.get("images") or msg.get("image_urls") or []
+                if isinstance(attachments, str):
+                    attachments = [attachments]
+                elif isinstance(attachments, dict):
+                    attachments = [attachments]
+                else:
+                    attachments = list(attachments)
+
+                single_image = msg.get("image") or msg.get("image_url") or msg.get("media")
+                if single_image and single_image not in attachments:
+                    attachments.append(single_image)
+
+                single_link = msg.get("link") or msg.get("link_url")
+                if single_link and single_link not in attachments:
+                    attachments.append(single_link)
+
+                # Ghép text và các link/media tương ứng dưới dạng OMNI_MEDIA để hiển thị
+                lines = []
+                if text:
+                    lines.append(text)
+
+                for att in attachments:
+                    url = ""
+                    is_img = True
+                    if isinstance(att, dict):
+                        url = att.get("url") or att.get("src") or att.get("href") or ""
+                        att_type = str(att.get("type") or "").lower()
+                        is_img = "image" in att_type or "img" in att_type or "photo" in att_type or _looks_like_image_url(url)
+                    elif isinstance(att, str):
+                        url = att.strip()
+                        is_img = _looks_like_image_url(url)
+
+                    if url:
+                        if is_img:
+                            media_data = {"type": "image", "url": url, "label": "Ảnh"}
+                            media_line = f"__OMNI_MEDIA__{json.dumps(media_data, ensure_ascii=False)}"
+                            if media_line not in lines:
+                                lines.append(media_line)
+                        else:
+                            if url not in text:
+                                lines.append(url)
+
+                combined_content = "\n".join(lines).strip()
+                if not combined_content:
+                    continue
                 
                 created_at = msg.get("created_at") or msg.get("timestamp")
                 external_msg_id = msg.get("id") or msg.get("message_id") or msg.get("external_id")
@@ -4255,7 +4336,7 @@ async def sync_facebook_messages(request: Request):
                     conv["id"],
                     thread_id,
                     role,
-                    text,
+                    combined_content,
                     created_at,
                     external_id=external_msg_id,
                     reactions=reactions,
@@ -4267,7 +4348,7 @@ async def sync_facebook_messages(request: Request):
                         _broadcast({
                             "type": "message",
                             "conversationId": conv["id"],
-                            "message": {"id": message_id, "sender_type": "assistant", "content": text, "status": "received"},
+                            "message": {"id": message_id, "sender_type": "assistant", "content": combined_content, "status": "received"},
                         })
             if touched:
                 _broadcast({"type": "sync", "platform": "facebook", "conversationIds": [conv["id"]], "messages": synced})

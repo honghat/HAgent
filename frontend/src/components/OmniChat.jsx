@@ -4,6 +4,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 const AUTO_REFRESH_MS = 5000
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 const IMAGE_URL_RE = /https?:\/\/[^\s"'<>]+\.(?:png|jpe?g|gif|webp|bmp|avif)(?:[?#][^\s"'<>]*)?/gi
+// Bất kỳ liên kết http(s) nào — để biến link trong tin nhắn thành clickable.
+const LINK_URL_RE = /https?:\/\/[^\s"'<>]+/gi
+// Ảnh Facebook CDN thường không có đuôi file rõ ràng → nhận diện theo host.
+const IMAGE_HOST_HINTS = ['scontent', 'fbcdn', 'cdninstagram']
+
+function isImageUrl(url = '') {
+  const value = String(url || '').toLowerCase()
+  if (!value) return false
+  if (/\.(?:png|jpe?g|gif|webp|bmp|avif)(?:[?#]|$)/.test(value)) return true
+  return IMAGE_HOST_HINTS.some(host => value.includes(host))
+}
 const STATS_PERIODS = [
   ['today', 'Hôm nay', 'HN'],
   ['yesterday', 'Hôm qua', 'HQ'],
@@ -238,6 +249,45 @@ function highlightText(text, query, className = '') {
   return nodes
 }
 
+function renderTextWithLinks(text, highlightQuery = '', highlightClassName = '', keyPrefix = 'lk') {
+  const value = String(text || '')
+  if (!value) return value
+  const nodes = []
+  let last = 0
+  let match
+  LINK_URL_RE.lastIndex = 0
+  while ((match = LINK_URL_RE.exec(value)) !== null) {
+    if (match.index > last) {
+      nodes.push(highlightText(value.slice(last, match.index), highlightQuery, highlightClassName))
+    }
+    let url = match[0]
+    // Bỏ dấu câu dính cuối link (vd: "...) " hoặc "...,")
+    const trailing = url.match(/[)\].,;:!?'"]+$/)
+    let tail = ''
+    if (trailing) {
+      tail = trailing[0]
+      url = url.slice(0, -tail.length)
+    }
+    nodes.push(
+      <a
+        key={`${keyPrefix}-${match.index}`}
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="break-all underline underline-offset-2 hover:opacity-80"
+      >
+        {url}
+      </a>
+    )
+    if (tail) nodes.push(tail)
+    last = match.index + match[0].length
+  }
+  if (last < value.length) {
+    nodes.push(highlightText(value.slice(last), highlightQuery, highlightClassName))
+  }
+  return nodes
+}
+
 function renderFormattedMessageText(text, highlightQuery = '', highlightClassName = '') {
   return formatMessageText(text).map((part, partIdx) => {
     const content = highlightText(part.content, highlightQuery, highlightClassName)
@@ -250,9 +300,31 @@ function renderFormattedMessageText(text, highlightQuery = '', highlightClassNam
     } else if (part.type === 'strike') {
       return <del key={partIdx} className="line-through opacity-70">{content}</del>
     } else {
-      return <span key={partIdx}>{content}</span>
+      return <span key={partIdx}>{renderTextWithLinks(part.content, highlightQuery, highlightClassName, partIdx)}</span>
     }
   })
+}
+
+function MediaImage({ url, label }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 break-all rounded-xl bg-black/5 px-3 py-2 text-xs underline">
+        🖼 {label || 'Ảnh'} — mở bằng liên kết
+      </a>
+    )
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl">
+      <img
+        src={url}
+        alt={label || 'Ảnh'}
+        loading="lazy"
+        className="max-h-72 w-full max-w-72 rounded-xl object-cover"
+        onError={() => setFailed(true)}
+      />
+    </a>
+  )
 }
 
 function MessageBody({ content = '', highlightQuery = '', highlightClassName = '' }) {
@@ -297,9 +369,7 @@ function MessageBody({ content = '', highlightQuery = '', highlightClassName = '
       )}
       {media.map((item, index) => (
         item.type === 'image' ? (
-          <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl">
-            <img src={item.url} alt={item.label || 'Ảnh'} className="max-h-72 w-full max-w-72 rounded-xl object-cover" />
-          </a>
+          <MediaImage key={`${item.url}-${index}`} url={item.url} label={item.label} />
         ) : item.type === 'sticker' ? (
           <div key={`sticker-${item.sticker_id || index}`} className="inline-flex items-center gap-2 rounded-xl bg-black/5 px-3 py-2">
             <span className="text-2xl leading-none">{item.emoji || '🙂'}</span>

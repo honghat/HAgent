@@ -17,11 +17,9 @@ def Headers(dataForm: bytes | None = None, Host: str = "www.facebook.com") -> di
     headers: dict[str, str] = {}
     headers["Host"] = Host
     headers["Connection"] = "keep-alive"
-    if dataForm is not None:
-        headers["Content-Length"] = str(len(dataForm))
     headers["User-Agent"] = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)"
-        " Chrome/134.0.0.0 Safari/537.36"
+        " Chrome/140.0.0.0 Safari/537.36"
     )
     headers["Accept"] = "*/*"
     headers["Origin"] = "https://" + Host
@@ -29,7 +27,7 @@ def Headers(dataForm: bytes | None = None, Host: str = "www.facebook.com") -> di
     headers["Sec-Fetch-Mode"] = "cors"
     headers["Sec-Fetch-Dest"] = "empty"
     headers["Referer"] = "https://" + Host
-    headers["sec-ch-ua"] = '"Chromium";v="134", "Not;A=Brand";v="24", "Google Chrome";v="134"'
+    headers["sec-ch-ua"] = '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"'
     headers["sec-ch-ua-mobile"] = "?0"
     headers["sec-ch-ua-platform"] = '"Windows"'
     headers["Accept-Language"] = "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7"

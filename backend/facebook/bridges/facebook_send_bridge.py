@@ -124,7 +124,7 @@ def main():
         # 2. Fallback sang gửi non-E2EE nếu E2EE thất bại (như Meta AI hoặc Page/Group)
         if not success:
             try:
-                from fbchat_v2._messaging._send import api as SendApi
+                from facebook._send import api as SendApi
                 send_api = SendApi()
                 type_chat = "user" if thread_type == "user" else None
                 res = send_api.send(

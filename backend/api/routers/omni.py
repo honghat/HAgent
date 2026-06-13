@@ -515,7 +515,7 @@ def _facebook_send_via_listener(
 
             if fresh_data_fb:
                 def _try_non_e2ee():
-                    from fbchat_v2._messaging._send import api as _SendApi
+                    from facebook._send import api as _SendApi
                     _api = _SendApi()
                     type_chat = "user" if thread_type == "user" else None
                     res = _api.send(dataFB=fresh_data_fb, contentSend=text, threadID=target, typeChat=type_chat)
@@ -2287,7 +2287,7 @@ async def _send_facebook_http(
         raise RuntimeError("Phiên Facebook đã hết hạn. Cần kết nối lại.")
 
     if user_id not in _fb_mqtt_send_api_cache:
-        from fbchat_v2._messaging._send import api as _FbSendApi
+        from facebook._send import api as _FbSendApi
         _fb_mqtt_send_api_cache[user_id] = _FbSendApi()
     sender = _fb_mqtt_send_api_cache[user_id]
 

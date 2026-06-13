@@ -152,9 +152,21 @@ class api:
         if text.startswith("for (;;);"):
             text = text[len("for (;;);"):]
 
-        result = json.loads(text)
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError:
+            self.results = {
+                "error": 1,
+                "ok": False,
+                "payload": {
+                    "error-decription": f"Facebook returned HTTP {resp.status_code}: {text[:200]}",
+                    "error-code": resp.status_code,
+                },
+            }
+            return
+
         if result.get("payload"):
-            actions = result["payload"]["actions"]
+            actions = result["payload"].get("actions")
             if actions:
                 action0 = actions[0]
                 self.results = {
